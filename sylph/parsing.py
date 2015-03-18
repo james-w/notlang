@@ -396,6 +396,8 @@ class Transformer(RPythonVisitor):
             stmts.append(self.dispatch(child))
         return Block(stmts)
 
+    visit_suite = visit_main
+
     def visit_assignment(self, node):
         if len(node.children) == 1:
             return self.dispatch(node.children[0])
@@ -412,7 +414,15 @@ class Transformer(RPythonVisitor):
                      self.dispatch(node.children[0]),
                      self.dispatch(node.children[1].children[1]))
 
-    visit_arith_expr = visit_comparison
+    def visit_arith_expr(self, node):
+        if len(node.children) == 1:
+            return self.dispatch(node.children[0])
+        target = self.dispatch(node.children[0])
+        for i in range(1, len(node.children)):
+            target = BinOp(node.children[i].children[0].additional_info,
+                           target,
+                           self.dispatch(node.children[i].children[1]))
+        return target
 
     def visit_term(self, node):
         if len(node.children) == 1:

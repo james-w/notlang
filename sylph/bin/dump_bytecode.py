@@ -2,7 +2,8 @@
 
 import sys
 
-from sylph.interpreter import get_bytecode
+from sylph.bytecode import get_compiler
+from sylph.parsing import parse
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
@@ -10,4 +11,6 @@ if __name__ == '__main__':
         sys.exit(1)
     with open(sys.argv[1]) as f:
         source = f.read()
-    print(get_bytecode(source).dump())
+    parsed = parse(source)
+    compiler = get_compiler(parsed)
+    print(compiler.create_bytecode().dump(compiler))

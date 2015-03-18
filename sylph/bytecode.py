@@ -20,6 +20,7 @@ register_code('RETURN', 11)
 register_code('PRINT', 12)
 
 BINOP = {'+': BINARY_ADD, '-': BINARY_SUB, '==': BINARY_EQ, '<': BINARY_LT}
+unary_ops = [BINARY_ADD, BINARY_SUB, BINARY_EQ, BINARY_LT, RETURN, PRINT]
 
 
 class CompilerContext(object):
@@ -63,18 +64,30 @@ class ByteCode(object):
         self.constants = constants
         self.names = names
 
-    def dump(self):
+    def dump(self, context=None):
         lines = []
         i = 0
         for i in range(0, len(self.code), 2):
-            c = self.code[i]
-            c2 = self.code[i + 1]
-            lines.append(reverse_map[ord(c)] + " " + str(ord(c2)))
+            c = ord(self.code[i])
+            c2 = ord(self.code[i + 1])
+            line = reverse_map[c]
+            if c not in unary_ops:
+                line += " " + str(c2)
+            if context is not None:
+                if c in (LOAD_VAR, ASSIGN, LOAD_GLOBAL):
+                    line += " (" + str(context.names[c2]) + ")"
+                if c in (LOAD_CONSTANT,):
+                    line += " (" + context.constants[c2].str() + ")"
+            lines.append(line)
         return '\n'.join(lines)
 
 
-def compile_ast(astnode):
+def get_compiler(astnode):
     c = CompilerContext()
     astnode.compile(c)
     c.emit(RETURN, 0)
+    return c
+
+def compile_ast(astnode):
+    c = get_compiler(astnode)
     return c.create_bytecode()

@@ -29,7 +29,7 @@ comparison_trailer: COMPARATOR expr;
 
 expr: arith_expr;
 
-arith_expr: term arith_trailer?;
+arith_expr: term arith_trailer*;
 
 arith_trailer: OPERATOR term;
 
@@ -43,6 +43,6 @@ argument: comparison;
 
 conditional: "if" comparison [":"] [NEWLINE] suite;
 
-suite: [INDENT] statement [DEDENT];
+suite: [INDENT] statement* [DEDENT];
 
 atom: DECIMAL | IDENTIFIER;

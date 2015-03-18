@@ -49,6 +49,10 @@ class W_Int(W_Root):
     def str(self):
         return str(self.intval)
 
+    def __repr__(self):
+        return "<%s.%s object at %s value:%d>" % (self.__class__.__module__,
+                self.__class__.__name__, id(self), self.intval)
+
 
 class W_Func(W_Root):
 
