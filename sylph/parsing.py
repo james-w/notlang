@@ -5,6 +5,7 @@ from rpython.rlib.parsing.parsing import PackratParser, ParseError
 from rpython.rlib.parsing.tree import RPythonVisitor
 
 from . import bytecode, lexer as mod_lexer, sylphdir
+from .objectspace import TheNone
 
 
 def check_for_missing_names(names, regexs, rules):
@@ -199,9 +200,9 @@ class Function(Node):
             self.expr.compile(ctx)
             ctx.emit(bytecode.PRINT)
         else:
-            ctx.emit(bytecode.LOAD_GLOBAL, ctx.register_var(self.fname))
+            ctx.emit(bytecode.LOAD_VAR, ctx.register_var(self.fname))
             self.expr.compile(ctx)
-            ctx.emit(bytecode.FUNCTION)
+            ctx.emit(bytecode.CALL_FUNCTION)
 
     def get_extra_dot_info(self):
         return self.fname
@@ -225,6 +226,45 @@ class Conditional(Node):
 
     def get_dot_children(self):
         return [self.condition, self.true_block]
+
+
+class FuncDef(Node):
+
+    def __init__(self, name, arg, code):
+        self.name = name
+        self.arg = arg
+        self.code = code
+
+    def get_extra_dot_info(self):
+        return self.name
+
+    def get_dot_children(self):
+        return [self.code]
+
+    def compile(self, ctx):
+        closure_context = bytecode.CompilerContext()
+        closure_context.register_var(self.arg)
+        self.code.compile(closure_context)
+        closure_context.emit(bytecode.LOAD_CONSTANT, closure_context.register_constant(TheNone))
+        closure_context.emit(bytecode.RETURN)
+        code = closure_context.create_bytecode()
+        code_const = ctx.register_constant(code)
+        ctx.emit(bytecode.LOAD_CONSTANT, code_const)
+        ctx.emit(bytecode.MAKE_FUNCTION)
+        ctx.emit(bytecode.ASSIGN, ctx.register_var(self.name))
+
+
+class Return(Node):
+
+    def __init__(self, arg):
+        self.arg = arg
+
+    def get_dot_children(self):
+        return [self.arg]
+
+    def compile(self, ctx):
+        self.arg.compile(ctx)
+        ctx.emit(bytecode.RETURN)
 
 
 class Transformer(RPythonVisitor):
@@ -269,9 +309,17 @@ class Transformer(RPythonVisitor):
         return Function(self.dispatch(node.children[0]).varname,
                         self.dispatch(node.children[1].children[0]))
 
+    def visit_return_statement(self, node):
+        return Return(self.dispatch(node.children[0]))
+
+
     def visit_conditional(self, node):
         assert node.children[0].additional_info == 'if'
         return Conditional(self.dispatch(node.children[1]), self.dispatch(node.children[2]))
+
+    def visit_funcdef(self, node):
+        name = node.children[0].additional_info
+        return FuncDef(name, node.children[1].additional_info, self.dispatch(node.children[2]))
 
     def visit_IDENTIFIER(self, node):
         return Variable(node.additional_info)

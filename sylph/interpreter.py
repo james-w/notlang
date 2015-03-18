@@ -1,24 +1,22 @@
 from rpython.rlib import jit
 
 from . import bytecode
+from .objectspace import W_Root, W_Code
 from .parsing import parse
 
 
-def printable_loc(pc, code, prog):
+def printable_loc(pc, code):
     name = bytecode.reverse_map[ord(code[pc])]
     return str(pc) + " " + name
 
 
-driver = jit.JitDriver(greens = ['pc', 'code', 'prog'],
-                       reds = ['frame'],
-                       virtualizables=['frame'],
+driver = jit.JitDriver(greens = ['pc', 'code'],
+                       reds = ['self'],
+                       virtualizables=['self'],
                        get_printable_location=printable_loc)
 
-class W_Root(object):
-    pass
-
-
 class W_Int(W_Root):
+
     def __init__(self, intval):
         assert(isinstance(intval, int))
         self.intval = intval
@@ -54,19 +52,11 @@ class W_Int(W_Root):
 
 class W_Func(W_Root):
 
-    def __init__(self, name, code):
-        self.name = name
+    __slots__ = ['code']
+    _immutable_fields_ = ['code']
+
+    def __init__(self, code):
         self.code = code
-
-    def str(self):
-        return "<function %s>" % self.name
-
-    def call(self, arg):
-        return self.code(arg)
-
-
-def double(arg):
-    return W_Int(arg.int() * 2)
 
 
 class Frame(object):
@@ -79,8 +69,9 @@ class Frame(object):
         self.names = prog.names
         self.valuestack_pos = 0
         self.globals = {
-            'double': W_Func('double', double),
         }
+        self.code = prog.bytecode
+        self.constants = prog.constants
 
     def push(self, v):
         pos = jit.hint(self.valuestack_pos, promote=True)
@@ -96,57 +87,65 @@ class Frame(object):
         self.valuestack_pos = new_pos
         return v
 
-
-def execute(frame, prog):
-    code = prog.code
-    pc = 0
-    while True:
-        # required hint indicating this is the top of the opcode dispatch
-        driver.jit_merge_point(pc=pc, code=code, prog=prog, frame=frame)
-        c = ord(code[pc])
-        arg = ord(code[pc + 1])
-        pc += 2
-        if c == bytecode.LOAD_CONSTANT:
-            w_constant = prog.constants[arg]
-            frame.push(w_constant)
-        elif c == bytecode.RETURN:
-            return
-        elif c == bytecode.BINARY_ADD:
-            right = frame.pop()
-            left = frame.pop()
-            w_res = left.add(right)
-            frame.push(w_res)
-        elif c == bytecode.BINARY_LT:
-            right = frame.pop()
-            left = frame.pop()
-            frame.push(left.lt(right))
-        elif c == bytecode.BINARY_EQ:
-            right = frame.pop()
-            left = frame.pop()
-            frame.push(left.eq(right))
-        elif c == bytecode.ASSIGN:
-            frame.vars[arg] = frame.pop()
-        elif c == bytecode.LOAD_VAR:
-            frame.push(frame.vars[arg])
-        elif c == bytecode.LOAD_GLOBAL:
-            fname = frame.names[arg]
-            fobj = frame.globals.get(fname, None)
-            if fobj is None:
-                raise SyntaxError("Unknown function: %s" % fname)
+    def execute(self):
+        code = self.code
+        pc = 0
+        while True:
+            # required hint indicating this is the top of the opcode dispatch
+            driver.jit_merge_point(pc=pc, code=code, self=self)
+            c = ord(code[pc])
+            arg = ord(code[pc + 1])
+            pc += 2
+            if c == bytecode.LOAD_CONSTANT:
+                w_constant = self.constants[arg]
+                self.push(w_constant)
+            elif c == bytecode.RETURN:
+                return self.pop()
+            elif c == bytecode.BINARY_ADD:
+                right = self.pop()
+                left = self.pop()
+                w_res = left.add(right)
+                self.push(w_res)
+            elif c == bytecode.BINARY_LT:
+                right = self.pop()
+                left = self.pop()
+                self.push(left.lt(right))
+            elif c == bytecode.BINARY_EQ:
+                right = self.pop()
+                left = self.pop()
+                self.push(left.eq(right))
+            elif c == bytecode.ASSIGN:
+                self.vars[arg] = self.pop()
+            elif c == bytecode.LOAD_VAR:
+                self.push(self.vars[arg])
+            elif c == bytecode.LOAD_GLOBAL:
+                fname = self.names[arg]
+                fobj = self.globals.get(fname, None)
+                if fobj is None:
+                    raise SyntaxError("Unknown function: %s" % fname)
+                else:
+                    self.push(fobj)
+            elif c == bytecode.CALL_FUNCTION:
+                farg = self.pop()
+                fobj = self.pop()
+                if not isinstance(fobj, W_Func):
+                    raise AssertionError
+                child_f = Frame(fobj.code)
+                child_f.vars[0] = farg
+                ret = child_f.execute()
+                self.push(ret)
+            elif c == bytecode.MAKE_FUNCTION:
+                code_obj = self.pop()
+                if not isinstance(code_obj, W_Code):
+                    raise AssertionError
+                self.push(W_Func(code_obj))
+            elif c == bytecode.PRINT:
+                print self.pop().str()
+            elif c == bytecode.JUMP_IF_FALSE:
+                if not self.pop().is_true():
+                    pc += arg-2
             else:
-                frame.push(fobj)
-        elif c == bytecode.FUNCTION:
-            farg = frame.pop()
-            fobj = frame.pop()
-            ret = fobj.call(farg)
-            frame.push(ret)
-        elif c == bytecode.PRINT:
-            print frame.pop().str()
-        elif c == bytecode.JUMP_IF_FALSE:
-            if not frame.pop().is_true():
-                pc += arg-2
-        else:
-            assert False, "Unknown opcode: %d" % c
+                assert False, "Unknown opcode: %d" % c
 
 
 def get_bytecode(source):
@@ -156,5 +155,5 @@ def get_bytecode(source):
 def interpret(source):
     prog = get_bytecode(source)
     frame = Frame(prog)
-    execute(frame, prog)
+    frame.execute()
     return frame

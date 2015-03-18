@@ -2,5 +2,7 @@ a = 1
 b = a
 if a == 1:
     b = a + 1 + 2
-c = double(b)
+def triple(arg):
+    return arg + arg + arg
+c = triple(b)
 print(c)

@@ -13,9 +13,11 @@ statement: simple_statement | compound_statement;
 
 simple_statement: small_statement [NEWLINE]; 
 
-compound_statement: conditional;
+compound_statement: conditional | funcdef;
 
-small_statement: assignment;
+small_statement: assignment | return_statement;
+
+return_statement: ["return"] testlist;
 
 assignment: testlist assignment_trailer?;
 
@@ -42,6 +44,8 @@ arglist: argument;
 argument: comparison;
 
 conditional: "if" comparison [":"] [NEWLINE] suite;
+
+funcdef: ["def"] IDENTIFIER ["("] IDENTIFIER [")" ":" NEWLINE] suite;
 
 suite: [INDENT] statement* [DEDENT];
 
