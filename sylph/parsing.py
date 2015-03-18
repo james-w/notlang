@@ -225,6 +225,35 @@ class Node(object):
     def __ne__(self, other):
         return not self == other
 
+    def view(self):
+        from dotviewer import graphclient
+        content = ["digraph G{"]
+        content.extend(self.dot())
+        content.append("}")
+        try:
+            p = py.test.ensuretemp("automaton").join("temp.dot")
+            remove = False
+        except AttributeError: # pytest lacks ensuretemp, make a normal one
+            p = py.path.local.mkdtemp().join('automaton.dot')
+            remove = True
+        p.write("\n".join(content))
+        graphclient.display_dot_file(str(p))
+        if remove:
+            p.dirpath().remove()
+
+    def dot(self):
+        yield '"%s" [label="%s"];' % (id(self), self.__class__.__name__ + " " + self.get_extra_dot_info())
+        for child in self.get_dot_children():
+            yield '"%s" -> "%s";' % (id(self), id(child))
+            for line in child.dot():
+                yield line
+
+    def get_extra_dot_info(self):
+        return ""
+
+    def get_dot_children(self):
+        return []
+
 
 class Block(Node):
     """ A list of statements
@@ -236,6 +265,9 @@ class Block(Node):
         for stmt in self.stmts:
             stmt.compile(ctx)
 
+    def get_dot_children(self):
+        return self.stmts
+
 
 class Stmt(Node):
     """ A single statement
@@ -245,6 +277,9 @@ class Stmt(Node):
 
     def compile(self, ctx):
         self.expr.compile(ctx)
+
+    def get_dot_children(self):
+        return [self.expr]
 
 
 class ConstantInt(Node):
@@ -257,6 +292,9 @@ class ConstantInt(Node):
         from .interpreter import W_Int
         w = W_Int(self.intval)
         ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(w))
+
+    def get_extra_dot_info(self):
+        return str(self.intval)
 
 
 class BinOp(Node):
@@ -272,6 +310,12 @@ class BinOp(Node):
         self.right.compile(ctx)
         ctx.emit(bytecode.BINOP[self.op])
 
+    def get_extra_dot_info(self):
+        return str(self.op)
+
+    def get_dot_children(self):
+        return [self.left, self.right]
+
 
 class Variable(Node):
     """ Variable reference
@@ -281,6 +325,9 @@ class Variable(Node):
 
     def compile(self, ctx):
         ctx.emit(bytecode.LOAD_VAR, ctx.register_var(self.varname))
+
+    def get_extra_dot_info(self):
+        return str(self.varname)
 
 
 class Assignment(Node):
@@ -293,6 +340,12 @@ class Assignment(Node):
     def compile(self, ctx):
         self.expr.compile(ctx)
         ctx.emit(bytecode.ASSIGN, ctx.register_var(self.varname))
+
+    def get_extra_dot_info(self):
+        return self.varname
+
+    def get_dot_children(self):
+        return [self.expr]
 
 
 class Function(Node):
@@ -311,6 +364,12 @@ class Function(Node):
             self.expr.compile(ctx)
             ctx.emit(bytecode.FUNCTION)
 
+    def get_extra_dot_info(self):
+        return self.fname
+
+    def get_dot_children(self):
+        return [self.expr]
+
 
 class Conditional(Node):
 
@@ -325,6 +384,9 @@ class Conditional(Node):
         self.true_block.compile(ctx)
         ctx.adjust_arg(jump_instr, ctx.next_instruction_index()-jump_instr)
 
+    def get_dot_children(self):
+        return [self.condition, self.true_block]
+
 
 class Transformer(RPythonVisitor):
 
@@ -335,22 +397,28 @@ class Transformer(RPythonVisitor):
         return Block(stmts)
 
     def visit_assignment(self, node):
-        return Assignment(node.children[0].additional_info,
+        if len(node.children) == 1:
+            return self.dispatch(node.children[0])
+        return Assignment(self.dispatch(node.children[0]).varname,
                           self.dispatch(node.children[1]))
 
     def visit_statement(self, node):
         return Stmt(self.dispatch(node.children[0]))
 
-    def visit_operation(self, node):
-        return BinOp(node.children[1].additional_info,
+    def visit_comparison(self, node):
+        if len(node.children) == 1:
+            return self.dispatch(node.children[0])
+        return BinOp(node.children[1].children[0].additional_info,
                      self.dispatch(node.children[0]),
-                     self.dispatch(node.children[2]))
+                     self.dispatch(node.children[1].children[1]))
 
-    visit_boolean_expr = visit_operation
+    visit_arith_expr = visit_comparison
 
-    def visit_function(self, node):
-        return Function(node.children[0].additional_info,
-                        self.dispatch(node.children[1]))
+    def visit_term(self, node):
+        if len(node.children) == 1:
+            return self.dispatch(node.children[0])
+        return Function(self.dispatch(node.children[0]).varname,
+                        self.dispatch(node.children[1].children[0]))
 
     def visit_conditional(self, node):
         assert node.children[0].additional_info == 'if'
@@ -371,6 +439,31 @@ class Transformer(RPythonVisitor):
 
 
 transformer = Transformer()
+
+
+def view_raw_parse_tree(source):
+    return ToAST().transform(_parse(source)).view()
+
+
+def graphview(tree):
+    from dotviewer import graphclient
+    content = ["digraph G{"]
+    content.extend(tree.dot())
+    content.append("}")
+    try:
+        p = py.test.ensuretemp("automaton").join("temp.dot")
+        remove = False
+    except AttributeError: # pytest lacks ensuretemp, make a normal one
+        p = py.path.local.mkdtemp().join('automaton.dot')
+        remove = True
+    p.write("\n".join(content))
+    graphclient.display_dot_file(str(p))
+    if remove:
+        p.dirpath().remove()
+
+
+def view_processed_parse_tree(source):
+    return graphview(parse(source))
 
 
 def parse(source):

@@ -1,0 +1,9 @@
+build-essential
+git
+graphviz
+libsdl1.2-dev
+libsmpeg-dev
+mercurial
+python-dev
+python-pygame
+python-virtualenv

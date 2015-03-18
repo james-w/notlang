@@ -12,22 +12,37 @@ newline_or_statement: [NEWLINE] | statement;
 statement: simple_statement | compound_statement;
 
 simple_statement: small_statement [NEWLINE]; 
-small_statement: function | assignment;
 
 compound_statement: conditional;
 
-function: IDENTIFIER ["("] expr [")"];
+small_statement: assignment;
 
-assignment: IDENTIFIER ["="] expr;
+assignment: testlist assignment_trailer?;
 
-conditional: "if" boolean_expr [":"] [NEWLINE] suite;
+assignment_trailer: ["="] <testlist>;
+
+testlist: comparison;
+
+comparison: expr comparison_trailer*;
+
+comparison_trailer: COMPARATOR expr;
+
+expr: arith_expr;
+
+arith_expr: term arith_trailer?;
+
+arith_trailer: OPERATOR term;
+
+term: atom term_trailer?;
+
+term_trailer: ["("] arglist? [")"];
+
+arglist: argument;
+
+argument: comparison;
+
+conditional: "if" comparison [":"] [NEWLINE] suite;
 
 suite: [INDENT] statement [DEDENT];
-
-expr: function | operation | atom;
-
-operation: atom OPERATOR expr;
-
-boolean_expr: atom COMPARATOR atom;
 
 atom: DECIMAL | IDENTIFIER;

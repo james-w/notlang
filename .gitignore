@@ -1,5 +1,7 @@
 *.swp
 *.pyc
-targetsylph-c
 example-interpreter
 pypy
+sylph.egg-info
+targetsylph-c
+virtualenv

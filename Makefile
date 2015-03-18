@@ -1,14 +1,21 @@
 build: deps targetsylph-c
 
 targetsylph-c: targetsylph.py
-	PYTHONPATH=pypy python ./pypy/rpython/translator/goal/translate.py targetsylph.py
+	PYTHONPATH=pypy virtualenv/bin/python ./pypy/rpython/translator/goal/translate.py targetsylph.py
 
-deps: pypy
+package-deps:
+	sudo apt-get install $$(xargs < package-deps.txt)
+
+deps: virtualenv pypy
+	virtualenv/bin/python setup.py develop
 
 pypy:
 	hg clone https://bitbucket.org/pypy/pypy	
 
+virtualenv:
+	virtualenv virtualenv
+
 clean:
 	rm targetsylph-c
 
-.PHONY: clean
+.PHONY: clean package-deps

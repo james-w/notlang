@@ -1,0 +1,27 @@
+Getting started
+---------------
+
+  make package-deps
+  make deps
+
+You can try running the test file with
+
+  PYTHONPATH=pypy virtualenv/bin/python targetsylph.py test.syl
+
+Translating
+-----------
+
+To get a native JIT interpreter for the language run
+
+  make build
+
+and cross your fingers.
+
+Parsing
+-------
+
+To help debug parsing you can run
+
+  PYTHONPATH=.:pypy virtualenv/bin/python sylph/bin/view_raw_parse_tree.py <FILE>
+
+to see the raw parse tree from the rpython lexer/parser.

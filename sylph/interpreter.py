@@ -147,9 +147,12 @@ def execute(frame, prog):
             assert False, "Unknown opcode: %d" % c
 
 
+def get_bytecode(source):
+    return bytecode.compile_ast(parse(source))
+
+
 def interpret(source):
-    prog = bytecode.compile_ast(parse(source))
-    # print prog.dump()
+    prog = get_bytecode(source)
     frame = Frame(prog)
     execute(frame, prog)
     return frame
