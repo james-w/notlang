@@ -21,11 +21,8 @@ class W_Root(object):
 
 class W_Code(W_Root):
     _immutable_ = True
-    # TODO: would like constants[*] in here (kermit example), but causes
-    # error when frame initialized when calling a new function. Can we
-    # put it here, does it matter if we don't?
-    _immutable_fields_ = ['bytecode', 'names']
-    
+    _immutable_fields_ = ['bytecode', 'constants[*]', 'names']
+   
     def __init__(self, code, constants, names):
         self.bytecode = code
         self.constants = constants
