@@ -70,7 +70,8 @@ class ByteCode(object):
         for i in range(0, len(self.code), 2):
             c = ord(self.code[i])
             c2 = ord(self.code[i + 1])
-            line = reverse_map[c]
+            line = "%d " % i
+            line += reverse_map[c]
             if c not in unary_ops:
                 line += " " + str(c2)
             if context is not None:
