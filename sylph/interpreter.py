@@ -1,5 +1,3 @@
-import sys
-
 from rpython.rlib import jit
 
 from . import bytecode

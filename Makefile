@@ -1,6 +1,6 @@
 build: deps targetsylph-c
 
-targetsylph-c: targetsylph.py
+targetsylph-c: targetsylph.py sylph/*.py sylph/grammar.txt
 	PYTHONPATH=pypy virtualenv/bin/python ./pypy/rpython/translator/goal/translate.py targetsylph.py
 
 package-deps:
