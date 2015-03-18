@@ -1,0 +1,6 @@
+a = 1
+b = a
+if a == 0:
+    b = a + 1
+c = double(b)
+print(c)

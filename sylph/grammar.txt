@@ -1,0 +1,33 @@
+DECIMAL: "-?0|[1-9][0-9]*";
+OPERATOR: "[-+]";
+COMPARATOR: "(==)|<";
+IDENTIFIER: "[a-zA-Z_][a-zA-Z0-9_]*";
+IGNORE: "[ \t]";
+NEWLINE: "\n";
+
+main: >newline_or_statement<*  [EOF];
+
+newline_or_statement: [NEWLINE] | statement;
+
+statement: simple_statement | compound_statement;
+
+simple_statement: small_statement [NEWLINE]; 
+small_statement: function | assignment;
+
+compound_statement: conditional;
+
+function: IDENTIFIER ["("] expr [")"];
+
+assignment: IDENTIFIER ["="] expr;
+
+conditional: "if" boolean_expr [":"] [NEWLINE] suite;
+
+suite: [INDENT] statement [DEDENT];
+
+expr: function | operation | atom;
+
+operation: atom OPERATOR expr;
+
+boolean_expr: atom COMPARATOR atom;
+
+atom: DECIMAL | IDENTIFIER;
