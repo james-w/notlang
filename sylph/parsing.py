@@ -58,6 +58,10 @@ _parse = make_parse_function(regexs, rules, eof=True)
 class Node(object):
     """ The abstract AST node
     """
+
+    def __init__(self):
+        self.type = None
+
     def __eq__(self, other):
         return (self.__class__ == other.__class__ and
                 self.__dict__ == other.__dict__)
@@ -65,67 +69,42 @@ class Node(object):
     def __ne__(self, other):
         return not self == other
 
-    def view(self):
-        from dotviewer import graphclient
-        content = ["digraph G{"]
-        content.extend(self.dot())
-        content.append("}")
-        try:
-            p = py.test.ensuretemp("automaton").join("temp.dot")
-            remove = False
-        except AttributeError: # pytest lacks ensuretemp, make a normal one
-            p = py.path.local.mkdtemp().join('automaton.dot')
-            remove = True
-        p.write("\n".join(content))
-        graphclient.display_dot_file(str(p))
-        if remove:
-            p.dirpath().remove()
-
-    def dot(self):
-        yield '"%s" [label="%s"];' % (id(self), self.__class__.__name__ + " " + self.get_extra_dot_info())
-        for child in self.get_dot_children():
-            yield '"%s" -> "%s";' % (id(self), id(child))
-            for line in child.dot():
-                yield line
-
     def get_extra_dot_info(self):
         return ""
 
-    def get_dot_children(self):
-        return []
+
+class NonTerminal(Node):
+
+    def __init__(self):
+        super(NonTerminal, self).__init__()
+        self.children = []
+
+    def compile(self, ctx):
+        for stmt in self.children:
+            stmt.compile(ctx)
 
 
-class Block(Node):
+class Block(NonTerminal):
     """ A list of statements
     """
     def __init__(self, stmts):
-        self.stmts = stmts
-
-    def compile(self, ctx):
-        for stmt in self.stmts:
-            stmt.compile(ctx)
-
-    def get_dot_children(self):
-        return self.stmts
+        super(Block, self).__init__()
+        self.children = stmts
 
 
-class Stmt(Node):
+class Stmt(NonTerminal):
     """ A single statement
     """
     def __init__(self, expr):
-        self.expr = expr
-
-    def compile(self, ctx):
-        self.expr.compile(ctx)
-
-    def get_dot_children(self):
-        return [self.expr]
+        super(Stmt, self).__init__()
+        self.children = [expr]
 
 
 class ConstantInt(Node):
     """ Represent a constant
     """
     def __init__(self, intval):
+        super(ConstantInt, self).__init__()
         self.intval = intval
 
     def compile(self, ctx):
@@ -137,30 +116,28 @@ class ConstantInt(Node):
         return str(self.intval)
 
 
-class BinOp(Node):
+class BinOp(NonTerminal):
     """ A binary operation
     """
     def __init__(self, op, left, right):
+        super(BinOp, self).__init__()
         self.op = op
-        self.left = left
-        self.right = right
+        self.children = [left, right]
 
     def compile(self, ctx):
-        self.left.compile(ctx)
-        self.right.compile(ctx)
+        self.children[0].compile(ctx)
+        self.children[1].compile(ctx)
         ctx.emit(bytecode.BINOP[self.op])
 
     def get_extra_dot_info(self):
         return str(self.op)
-
-    def get_dot_children(self):
-        return [self.left, self.right]
 
 
 class Variable(Node):
     """ Variable reference
     """
     def __init__(self, varname):
+        super(Variable, self).__init__()
         self.varname = varname
 
     def compile(self, ctx):
@@ -170,100 +147,88 @@ class Variable(Node):
         return str(self.varname)
 
 
-class Assignment(Node):
+class Assignment(NonTerminal):
     """ Assign to a variable
     """
-    def __init__(self, varname, expr):
-        self.varname = varname
-        self.expr = expr
+    def __init__(self, var, expr):
+        super(Assignment, self).__init__()
+        self.var = var
+        self.children = [expr]
 
     def compile(self, ctx):
-        self.expr.compile(ctx)
-        ctx.emit(bytecode.ASSIGN, ctx.register_var(self.varname))
+        self.children[0].compile(ctx)
+        ctx.emit(bytecode.ASSIGN, ctx.register_var(self.var.varname))
 
     def get_extra_dot_info(self):
-        return self.varname
-
-    def get_dot_children(self):
-        return [self.expr]
+        return self.var.varname
 
 
-class Function(Node):
+class Function(NonTerminal):
     """Call a function"""
 
     def __init__(self, fname, expr):
+        super(Function, self).__init__()
         self.fname = fname
-        self.expr = expr
+        self.children = [expr]
 
     def compile(self, ctx):
         if self.fname == 'print':
-            self.expr.compile(ctx)
+            self.children[0].compile(ctx)
             ctx.emit(bytecode.PRINT)
         else:
             ctx.emit(bytecode.LOAD_VAR, ctx.register_var(self.fname))
-            self.expr.compile(ctx)
+            self.children[0].compile(ctx)
             ctx.emit(bytecode.CALL_FUNCTION, 1)
 
     def get_extra_dot_info(self):
         return self.fname
 
-    def get_dot_children(self):
-        return [self.expr]
 
-
-class Conditional(Node):
+class Conditional(NonTerminal):
 
     def __init__(self, condition, true_block):
-        self.condition = condition
-        self.true_block = true_block
+        super(Conditional, self).__init__()
+        self.children = [condition, true_block]
 
     def compile(self, ctx):
-        self.condition.compile(ctx)
+        self.children[0].compile(ctx)
         jump_instr = ctx.next_instruction_index()
         ctx.emit(bytecode.JUMP_IF_FALSE)
-        self.true_block.compile(ctx)
+        self.children[1].compile(ctx)
         ctx.adjust_arg(jump_instr, ctx.next_instruction_index()-jump_instr)
 
-    def get_dot_children(self):
-        return [self.condition, self.true_block]
 
-
-class While(Node):
+class While(NonTerminal):
 
     def __init__(self, condition, block):
-        self.condition = condition
-        self.block = block
+        super(While, self).__init__()
+        self.children = [condition, block]
 
     def compile(self, ctx):
         start_instr = ctx.next_instruction_index()
-        self.condition.compile(ctx)
+        self.children[0].compile(ctx)
         jump_instr = ctx.next_instruction_index()
         ctx.emit(bytecode.JUMP_IF_FALSE)
-        self.block.compile(ctx)
+        self.children[1].compile(ctx)
         ctx.emit(bytecode.JUMP_BACK, ctx.next_instruction_index()-start_instr)
         ctx.adjust_arg(jump_instr, ctx.next_instruction_index()-jump_instr)
 
-    def get_dot_children(self):
-        return [self.condition, self.block]
 
-
-class FuncDef(Node):
+class FuncDef(NonTerminal):
 
     def __init__(self, name, arg, code):
+        super(FuncDef, self).__init__()
         self.name = name
         self.arg = arg
-        self.code = code
+        self.children = [code]
 
     def get_extra_dot_info(self):
         return self.name
 
-    def get_dot_children(self):
-        return [self.code]
-
     def compile(self, ctx):
         closure_context = bytecode.CompilerContext()
         closure_context.register_var(self.arg)
-        self.code.compile(closure_context)
+        self.children[0].compile(closure_context)
         closure_context.emit(bytecode.LOAD_CONSTANT, closure_context.register_constant(TheNone))
         closure_context.emit(bytecode.RETURN)
         code = closure_context.create_bytecode()
@@ -273,17 +238,83 @@ class FuncDef(Node):
         ctx.emit(bytecode.ASSIGN, ctx.register_var(self.name))
 
 
-class Return(Node):
+class Return(NonTerminal):
 
     def __init__(self, arg):
-        self.arg = arg
-
-    def get_dot_children(self):
-        return [self.arg]
+        super(Return, self).__init__()
+        self.children = [arg]
 
     def compile(self, ctx):
-        self.arg.compile(ctx)
+        self.children[0].compile(ctx)
         ctx.emit(bytecode.RETURN)
+
+
+class VisitError(Exception):
+    def __init__(self, node):
+        self.node = node
+        self.args = (node, )
+
+    def __str__(self):
+        return "could not visit %s" % (self.node, )
+
+
+def make_dispatch_function(__general_nonterminal_visit=None,
+                           __general_terminal_visit=None,
+                           __general_visit=None,
+                           **dispatch_table):
+    def dispatch(self, node):
+        name = node.__class__.__name__
+        if isinstance(node, NonTerminal):
+            func = dispatch_table.get(name, None)
+            if func is None:
+                if __general_nonterminal_visit:
+                    return __general_nonterminal_visit(self, node)
+            else:
+                return func(self, node)
+        else:
+            func = dispatch_table.get(name, None)
+            if func is None:
+                if __general_terminal_visit:
+                    return __general_terminal_visit(self, node)
+            else:
+                return func(self, node)
+        if __general_visit:
+            return __general_visit(self, node)
+        raise VisitError(node)
+    return dispatch
+
+
+class CreateDispatchDictionaryMetaclass(type):
+    def __new__(cls, name_, bases, dct):
+        dispatch_table = {}
+        for name, value in dct.iteritems():
+            if name.startswith("visit_"):
+                dispatch_table[name[len("visit_"):]] = value
+        for special in ["general_terminal_visit",
+                        "general_nonterminal_visit",
+                        "general_visit"]:
+            if special in dct:
+                dispatch_table["__" + special] = dct[special]
+        dct["dispatch"] = make_dispatch_function(**dispatch_table)
+        return type.__new__(cls, name_, bases, dct)
+
+
+class ASTVisitor(object):
+    __metaclass__ = CreateDispatchDictionaryMetaclass
+
+
+class DotVisitor(ASTVisitor):
+
+    def general_terminal_visit(self, node):
+        return ['"%s" [label="%s"];' % (id(node), node.__class__.__name__ + " " + node.get_extra_dot_info())]
+
+    def general_nonterminal_visit(self, node):
+        lines = []
+        lines.extend(self.general_terminal_visit(node))
+        for child in node.children:
+            lines.append('"%s" -> "%s";' % (id(node), id(child)))
+            lines.extend(self.dispatch(child))
+        return lines
 
 
 class Transformer(RPythonVisitor):
@@ -299,7 +330,7 @@ class Transformer(RPythonVisitor):
     def visit_assignment(self, node):
         if len(node.children) == 1:
             return self.dispatch(node.children[0])
-        return Assignment(self.dispatch(node.children[0]).varname,
+        return Assignment(self.dispatch(node.children[0]),
                           self.dispatch(node.children[1]))
 
     def visit_statement(self, node):
@@ -366,7 +397,8 @@ def view_raw_parse_tree(source):
 def graphview(tree):
     from dotviewer import graphclient
     content = ["digraph G{"]
-    content.extend(tree.dot())
+    visitor = DotVisitor()
+    content.extend(visitor.dispatch(tree))
     content.append("}")
     try:
         p = py.test.ensuretemp("automaton").join("temp.dot")

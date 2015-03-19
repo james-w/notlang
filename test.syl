@@ -7,5 +7,5 @@ if a == 1:
 def triple(arg):
     return arg * 3
 trip = triple
-c = trip(b)
+c = trip(b+1)
 print(c)
