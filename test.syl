@@ -4,5 +4,6 @@ if a == 1:
     b = a + 1 + 2
 def triple(arg):
     return arg * 3
-c = triple(b)
+trip = triple
+c = trip(b)
 print(c)

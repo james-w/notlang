@@ -69,7 +69,9 @@ class Frame(object):
     
     def __init__(self, prog):
         self = jit.hint(self, fresh_virtualizable=True, access_directly=True)
-        self.valuestack = [None] * 3 # safe estimate!
+        # XXX: this needs to be based on the max stacksize of the code,
+        # which will have to be calculated by the compiler.
+        self.valuestack = [None] * 3
         self.vars = [None] * len(prog.names)
         self.names = prog.names
         self.valuestack_pos = 0
@@ -83,14 +85,19 @@ class Frame(object):
         assert pos >= 0
         self.valuestack[pos] = v
         self.valuestack_pos = pos + 1
+
+    def popmany(self, count):
+        v = []
+        for i in range(count):
+            pos = jit.hint(self.valuestack_pos, promote=True)
+            new_pos = pos - 1
+            assert new_pos >= 0
+            v.append(self.valuestack[new_pos])
+            self.valuestack_pos = new_pos
+        return v
     
     def pop(self):
-        pos = jit.hint(self.valuestack_pos, promote=True)
-        new_pos = pos - 1
-        assert new_pos >= 0
-        v = self.valuestack[new_pos]
-        self.valuestack_pos = new_pos
-        return v
+        return self.popmany(1)[0]
 
     def execute(self):
         code = self.code
@@ -136,12 +143,14 @@ class Frame(object):
                 else:
                     self.push(fobj)
             elif c == bytecode.CALL_FUNCTION:
-                farg = self.pop()
+                assert arg == 1, "Only single argument functions currently supported"
+                fargs = self.popmany(arg)
                 fobj = self.pop()
                 if not isinstance(fobj, W_Func):
                     raise AssertionError
                 child_f = Frame(fobj.code)
-                child_f.vars[0] = farg
+                for i in range(arg):
+                    child_f.vars[i] = fargs[i]
                 ret = child_f.execute()
                 self.push(ret)
             elif c == bytecode.MAKE_FUNCTION:

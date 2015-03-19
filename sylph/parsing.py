@@ -202,7 +202,7 @@ class Function(Node):
         else:
             ctx.emit(bytecode.LOAD_VAR, ctx.register_var(self.fname))
             self.expr.compile(ctx)
-            ctx.emit(bytecode.CALL_FUNCTION)
+            ctx.emit(bytecode.CALL_FUNCTION, 1)
 
     def get_extra_dot_info(self):
         return self.fname
