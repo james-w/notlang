@@ -15,16 +15,17 @@ register_code('LOAD_GLOBAL', 3)
 register_code('ASSIGN', 4)
 register_code('BINARY_ADD', 5)
 register_code('BINARY_SUB', 6)
-register_code('BINARY_EQ', 7)
-register_code('BINARY_LT', 8)
-register_code('JUMP_IF_FALSE', 9)
-register_code('CALL_FUNCTION', 10)
-register_code('MAKE_FUNCTION', 11)
-register_code('RETURN', 12)
-register_code('PRINT', 13)
+register_code('BINARY_MULT', 7)
+register_code('BINARY_EQ', 8)
+register_code('BINARY_LT', 9)
+register_code('JUMP_IF_FALSE', 10)
+register_code('CALL_FUNCTION', 11)
+register_code('MAKE_FUNCTION', 12)
+register_code('RETURN', 13)
+register_code('PRINT', 14)
 
-BINOP = {'+': BINARY_ADD, '-': BINARY_SUB, '==': BINARY_EQ, '<': BINARY_LT}
-unary_ops = [BINARY_ADD, BINARY_SUB, BINARY_EQ, BINARY_LT, RETURN, PRINT]
+BINOP = {'+': BINARY_ADD, '-': BINARY_SUB, '*': BINARY_MULT, '==': BINARY_EQ, '<': BINARY_LT}
+unary_ops = [BINARY_ADD, BINARY_SUB, BINARY_MULT, BINARY_EQ, BINARY_LT, RETURN, PRINT]
 
 
 class CompilerContext(object):

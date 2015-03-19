@@ -6,6 +6,9 @@ class W_Root(object):
     def add(self, other):
         raise NotImplementedError
 
+    def multiply(self, other):
+        raise NotImplementedError
+
     def eq(self, other):
         raise NotImplementedError
 

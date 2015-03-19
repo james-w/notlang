@@ -26,6 +26,11 @@ class W_Int(W_Root):
             raise Exception("wrong type")
         return W_Int(self.intval + other.intval)
 
+    def multiply(self, other):
+        if not isinstance(other, W_Int):
+            raise Exception("wrong type")
+        return W_Int(self.intval * other.intval)
+
     def lt(self, other): 
         if not isinstance(other, W_Int):
             raise Exception("wrong type")
@@ -105,6 +110,11 @@ class Frame(object):
                 right = self.pop()
                 left = self.pop()
                 w_res = left.add(right)
+                self.push(w_res)
+            elif c == bytecode.BINARY_MULT:
+                right = self.pop()
+                left = self.pop()
+                w_res = left.multiply(right)
                 self.push(w_res)
             elif c == bytecode.BINARY_LT:
                 right = self.pop()
