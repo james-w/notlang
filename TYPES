@@ -1,0 +1,134 @@
+Types
+-----
+
+Here are some thoughts about types.
+
+Variables can only hold a single type during their lifetime, basically to make
+inference easier. This isn't generally a huge cost to the developer.
+
+Basic inference.
+----------------
+
+Types don't have to be specified for a variable, they are inferred from the
+way a variable is used.
+
+Perhaps they can be specified if the developer wishes.
+
+When a variable is used in an expression, then types are inferred from how
+it is used.
+
+  a = 1
+
+infers that a is an int.
+
+There will be a hierarchy of types. A type inference can be expanded as
+needed up a hierarchy. e.g.
+
+  a = 1
+  a = 1.0
+
+will change the inference when it sees the second declaration.
+
+Functions
+---------
+
+Functions can annotate their return types and the types of the arguments.
+
+When calling a known function we can check types against inferred types.
+
+When an "unknown" function is called, or one that doesn't declare types,
+we have to assume it takes "any".
+
+We can likely infer the return type of a function, but can we infer the
+argument types? Only in very limited circumstances. If the type is fixed
+by e.g. the return value (like:
+def <int> identity(a):
+    return a
+)  then we can do it, and maybe if the arg is passed to another function
+with a declaration, but otherwise we are limited.
+
+Type checking
+-------------
+
+Consider
+
+def f(a:int):
+   return a.tofloat()
+
+If we aren't going to require declarations everwhere, then what do we do
+when this is called with something we can't guarantee to be an int? We
+can be like Python and let it through, and allow duck-typing to work.
+
+We could also inject runtime type checks on this function.
+
+Would it be possible to omit the type checks if we could guarantee that
+the function was never called with anything other than an int? What about
+public modules? The code could be called with anything.
+
+Is there much point in allowing the duck typing? If you try and call without
+an int and the type checker notices it will complain. Maybe a way to force
+past the type check is needed?
+
+Type classes
+------------
+
+Type classes/traits are great. It would be really nice to be able
+to use them.
+
+type Foo:
+   trait File:
+      def readline():
+          ...
+
+The type checker has to check that you implement all of the trait in your
+block.
+
+You can then call the method from a particular trait with
+
+   f.File:readline()
+
+and
+
+   f.readline()
+
+might work fine as long as there were no conflicts (run time error?)
+
+Case on types
+-------------
+
+I'd really like to copy Maybe, Either etc. from Haskell, and use that
+for error handling as much as possible. I'm not sure what the syntax
+is though, but it probably involves "case".
+
+   def getline(f):
+      line = f.File:readline()
+      case line:
+          Error e:
+              sys.stderr.write(e)
+              return Maybe.None()
+          Ok line:
+              print(line)
+              return Maybe.Just(line)
+
+getline is then (File => f) -> Maybe str
+File:readline would be something like (File => f) --> MaybeError str
+
+The type checker can then enforce that you use the full expansion in the
+case block.
+
+How do you define a type such as this?
+
+  type Maybe:
+      Just = new Case:
+          def __init__(self, value):
+              self.value = value
+
+      None = new Case:
+          pass
+
+case then only applies to such types?
+
+You would construct this like
+
+  Maybe.None()
+  Maybe.Just(value)

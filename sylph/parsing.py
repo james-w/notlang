@@ -4,7 +4,7 @@ from rpython.rlib.parsing.ebnfparse import parse_ebnf
 from rpython.rlib.parsing.parsing import PackratParser, ParseError
 from rpython.rlib.parsing.tree import RPythonVisitor
 
-from . import bytecode, lexer as mod_lexer, sylphdir
+from . import bytecode, compilercontext, lexer as mod_lexer, sylphdir
 from .objectspace import TheNone
 
 
@@ -60,7 +60,7 @@ class Node(object):
     """
 
     def __init__(self):
-        self.type = None
+        pass
 
     def __eq__(self, other):
         return (self.__class__ == other.__class__ and
@@ -226,7 +226,7 @@ class FuncDef(NonTerminal):
         return self.name
 
     def compile(self, ctx):
-        closure_context = bytecode.CompilerContext()
+        closure_context = compilercontext.CompilerContext()
         closure_context.register_var(self.arg)
         self.children[0].compile(closure_context)
         closure_context.emit(bytecode.LOAD_CONSTANT, closure_context.register_constant(TheNone))

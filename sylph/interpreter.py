@@ -1,7 +1,7 @@
 from rpython.rlib import jit
 from rpython.rlib.debug import make_sure_not_resized
 
-from . import bytecode
+from . import bytecode, compiler
 from .objectspace import W_Root, W_Code
 from .parsing import parse
 
@@ -159,6 +159,8 @@ class Frame(object):
             elif c == bytecode.ASSIGN:
                 self.vars[arg] = self.pop()
             elif c == bytecode.LOAD_VAR:
+                # FIXME: needs to check if var was assigned (is not None)
+                # and error if so (referenced before assignment)
                 self.push(self.vars[arg])
             elif c == bytecode.LOAD_GLOBAL:
                 fname = self.names[arg]
@@ -197,7 +199,7 @@ class Frame(object):
 
 
 def get_bytecode(source):
-    return bytecode.compile_ast(parse(source))
+    return compiler.compile_ast(parse(source))
 
 
 def interpret(source):
