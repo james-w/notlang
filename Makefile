@@ -1,7 +1,7 @@
 build: deps targetsylph-c
 
 targetsylph-c: targetsylph.py sylph/*.py sylph/grammar.txt
-	PYTHONPATH=pypy virtualenv/bin/python ./pypy/rpython/translator/goal/translate.py targetsylph.py
+	PYTHONPATH=pypy virtualenv/bin/python ./pypy/rpython/translator/goal/translate.py --opt=jit targetsylph.py
 
 package-deps:
 	sudo apt-get install $$(xargs < package-deps.txt)

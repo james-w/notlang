@@ -1,4 +1,5 @@
 from rpython.rlib import jit
+from rpython.rlib.debug import make_sure_not_resized
 
 from . import bytecode
 from .objectspace import W_Root, W_Code
@@ -11,9 +12,10 @@ def printable_loc(pc, code):
 
 
 driver = jit.JitDriver(greens = ['pc', 'code'],
-                       reds = ['self'],
-                       virtualizables=['self'],
+                       reds = ['frame'],
+                       virtualizables=['frame'],
                        get_printable_location=printable_loc)
+
 
 class W_Int(W_Root):
 
@@ -86,7 +88,8 @@ class Frame(object):
         # which will have to be calculated by the compiler.
         self.valuestack = [None] * 3
         self.vars = [None] * len(prog.names)
-        self.names = prog.names
+        self.names = prog.names[:]
+        make_sure_not_resized(self.names)
         self.valuestack_pos = 0
         self.globals = {
         }
@@ -117,7 +120,7 @@ class Frame(object):
         pc = 0
         while True:
             # required hint indicating this is the top of the opcode dispatch
-            driver.jit_merge_point(pc=pc, code=code, self=self)
+            driver.jit_merge_point(pc=pc, code=code, frame=self)
             c = ord(code[pc])
             arg = ord(code[pc + 1])
             pc += 2
@@ -187,6 +190,8 @@ class Frame(object):
                     pc += arg-2
             elif c == bytecode.JUMP_BACK:
                 pc -= arg+2
+                # required hint indicating this is the end of a loop
+                driver.can_enter_jit(pc=pc, code=code, frame=self)
             else:
                 assert False, "Unknown opcode: %d" % c
 

@@ -1,6 +1,7 @@
 build-essential
 git
 graphviz
+libffi-dev
 libsdl1.2-dev
 libsmpeg-dev
 mercurial
