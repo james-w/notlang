@@ -47,9 +47,13 @@ conditional: "if" comparison [":"] [NEWLINE] suite;
 
 while_loop: ["while"] comparison [":"] [NEWLINE] suite;
 
-funcdef: ["def"] IDENTIFIER ["("] IDENTIFIER [")"] rtype_decl? [":" NEWLINE] suite;
+funcdef: ["def"] IDENTIFIER ["("] defarg [")"] rtype_decl? [":" NEWLINE] suite;
 
 rtype_decl: ["->"] IDENTIFIER;
+
+defarg: IDENTIFIER argtypespec?;
+
+argtypespec: [":"] <IDENTIFIER>;
 
 suite: [INDENT] statement* [DEDENT];
 

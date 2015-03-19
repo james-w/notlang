@@ -1,4 +1,4 @@
-def triple(arg) -> int:
+def triple(arg:int) -> int:
     return arg * 3
 
 a = 1

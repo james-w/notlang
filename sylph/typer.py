@@ -54,7 +54,7 @@ class Typer(ASTVisitor):
     def infer_type(self, source_type, target_type, explanation):
         if source_type is not ANY:
             if (target_type is not ANY and target_type != source_type):
-                raise AssertionError("Type mismatch %s vs %s " % (source_type, target_type) + explanation)
+                raise TypeError("Type mismatch %s vs %s " % (source_type, target_type) + explanation)
             return source_type
         return target_type
 
@@ -82,10 +82,15 @@ class Typer(ASTVisitor):
             rtype = Type(node.rtype)
         else:
             rtype = ANY
-        subtyper.varmap[node.name] = FunctionType(ANY, [ANY])
+        if node.argtypes[0]:
+            argtype = Type(node.argtypes[0])
+        else:
+            argtype = ANY
+        subtyper.varmap[node.name] = FunctionType(rtype, [argtype])
+        subtyper.varmap[node.arg] = argtype
         subtyper.rtype = rtype
         subtyper.dispatch(node.children[0])
-        self.varmap[node.name] = FunctionType(subtyper.rtype, [ANY])
+        self.varmap[node.name] = FunctionType(subtyper.rtype, [subtyper.varmap[node.arg]])
 
     def visit_Variable(self, node):
         return self.varmap.get(node.varname, ANY)
@@ -94,9 +99,22 @@ class Typer(ASTVisitor):
         ftype = self.varmap.get(node.fname, ANY)
         if ftype is ANY:
             ftype = FunctionType(ANY, [ANY])
-            self.varmap[node.fname] = ftype
-        if not isinstance(ftype, FunctionType):
-            raise AssertionError("Not a function %s (%s)" % (node.fname, ftype))
+        else:
+            if not isinstance(ftype, FunctionType):
+                raise TypeError("Not a function %s (%s)" % (node.fname, ftype))
+        declared_argtype = ftype.argtypes[0]
+        calculated_argtype = self.dispatch(node.children[0])
+        # XXX: is this the correct way to handle passing a
+        # function to itself?
+        if calculated_argtype == ftype:
+            if not (declared_argtype is ANY or declared_argtype == calculated_argtype):
+                raise TypeError("Mismatched types in function arg: %s vs %s" % (declared_argtype, calculated_argtype))
+            # skip narrowing ANY for the declared_argtype because
+            # of infinite recursion
+        else:
+            declared_argtype = self.infer_type(declared_argtype, calculated_argtype, "used in arg of %s" % node.fname)
+        ftype.argtypes[0] = declared_argtype
+        self.varmap[node.fname] = ftype
         return ftype.rtype
 
     def visit_BinOp(self, node):
