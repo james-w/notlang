@@ -247,10 +247,15 @@ class Return(NonTerminal):
 
     def __init__(self, arg):
         super(Return, self).__init__()
-        self.children = [arg]
+        self.children = []
+        if arg:
+            self.children = [arg]
 
     def compile(self, ctx):
-        self.children[0].compile(ctx)
+        if self.children:
+            self.children[0].compile(ctx)
+        else:
+            c.emit(bytecode.LOAD_CONSTANT, c.register_constant(TheNone))
         ctx.emit(bytecode.RETURN)
 
 
@@ -365,11 +370,14 @@ class Transformer(RPythonVisitor):
                         self.dispatch(node.children[1].children[0]))
 
     def visit_return_statement(self, node):
-        return Return(self.dispatch(node.children[0]))
+        if node.children:
+            arg = self.dispatch(node.children[0])
+        else:
+            arg = None
+        return Return(arg)
 
     def visit_conditional(self, node):
-        assert node.children[0].additional_info == 'if'
-        return Conditional(self.dispatch(node.children[1]), self.dispatch(node.children[2]))
+        return Conditional(self.dispatch(node.children[0]), self.dispatch(node.children[1]))
 
     def visit_while_loop(self, node):
         return While(self.dispatch(node.children[0]), self.dispatch(node.children[1]))

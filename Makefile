@@ -18,4 +18,7 @@ virtualenv:
 clean:
 	rm targetsylph-c
 
+test:
+	PYTHONPATH=pypy ./virtualenv/bin/py.test sylph
+
 .PHONY: clean package-deps

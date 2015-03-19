@@ -5,6 +5,7 @@ libffi-dev
 libsdl1.2-dev
 libsmpeg-dev
 mercurial
+pypy
 python-dev
 python-pygame
 python-virtualenv

@@ -17,7 +17,7 @@ compound_statement: conditional | while_loop | funcdef;
 
 small_statement: assignment | return_statement;
 
-return_statement: ["return"] testlist;
+return_statement: ["return"] testlist?;
 
 assignment: testlist assignment_trailer?;
 
@@ -37,13 +37,13 @@ arith_trailer: OPERATOR term;
 
 term: atom term_trailer?;
 
-term_trailer: ["("] arglist? [")"];
+term_trailer: ["("] arglist [")"];
 
 arglist: argument;
 
 argument: comparison;
 
-conditional: "if" comparison [":"] [NEWLINE] suite;
+conditional: ["if"] comparison [":"] [NEWLINE] suite;
 
 while_loop: ["while"] comparison [":"] [NEWLINE] suite;
 

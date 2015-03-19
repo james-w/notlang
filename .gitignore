@@ -1,5 +1,6 @@
 *.swp
 *.pyc
+dist
 example-interpreter
 pypy
 sylph.egg-info
