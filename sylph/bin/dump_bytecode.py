@@ -2,7 +2,7 @@
 
 import sys
 
-from sylph.bytecode import get_compiler
+from sylph.bytecode import dump, get_compiler
 from sylph.parsing import parse
 
 if __name__ == '__main__':
@@ -13,4 +13,4 @@ if __name__ == '__main__':
         source = f.read()
     parsed = parse(source)
     compiler = get_compiler(parsed)
-    print(compiler.create_bytecode().dump(compiler))
+    print(dump(compiler.create_bytecode(), compiler))

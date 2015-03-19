@@ -6,6 +6,9 @@ class W_Root(object):
     def add(self, other):
         raise NotImplementedError
 
+    def sub(self, other):
+        raise NotImplementedError
+
     def multiply(self, other):
         raise NotImplementedError
 
@@ -15,7 +18,13 @@ class W_Root(object):
     def str(self):
         raise NotImplementedError
 
+    def repr(self):
+        return "<%s at %d>" % (self.__class.__.__name__, id(self))
+
     def lt(self, other):
+        raise NotImplementedError
+
+    def gt(self, other):
         raise NotImplementedError
 
     def is_true(self):
@@ -31,27 +40,14 @@ class W_Code(W_Root):
         self.constants = constants
         self.names = names
 
-    def dump(self, context=None):
-        lines = []
-        i = 0
-        for i in range(0, len(self.bytecode), 2):
-            c = ord(self.bytecode[i])
-            c2 = ord(self.bytecode[i + 1])
-            line = "%d " % i
-            line += reverse_map[c]
-            if c not in unary_ops:
-                line += " " + str(c2)
-            if context is not None:
-                if c in (LOAD_VAR, ASSIGN, LOAD_GLOBAL):
-                    line += " (" + str(context.names[c2]) + ")"
-                if c in (LOAD_CONSTANT,):
-                    line += " (" + context.constants[c2].str() + ")"
-            lines.append(line)
-        return '\n'.join(lines)
+    def repr(self):
+        return "<W_Code at %d>" % id(self)
 
 
 class W_None(W_Root):
-    pass
+
+    def repr(self):
+        return "None"
 
 
 TheNone = W_None()

@@ -228,6 +228,25 @@ class Conditional(Node):
         return [self.condition, self.true_block]
 
 
+class While(Node):
+
+    def __init__(self, condition, block):
+        self.condition = condition
+        self.block = block
+
+    def compile(self, ctx):
+        start_instr = ctx.next_instruction_index()
+        self.condition.compile(ctx)
+        jump_instr = ctx.next_instruction_index()
+        ctx.emit(bytecode.JUMP_IF_FALSE)
+        self.block.compile(ctx)
+        ctx.emit(bytecode.JUMP_BACK, ctx.next_instruction_index()-start_instr)
+        ctx.adjust_arg(jump_instr, ctx.next_instruction_index()-jump_instr)
+
+    def get_dot_children(self):
+        return [self.condition, self.block]
+
+
 class FuncDef(Node):
 
     def __init__(self, name, arg, code):
@@ -312,10 +331,12 @@ class Transformer(RPythonVisitor):
     def visit_return_statement(self, node):
         return Return(self.dispatch(node.children[0]))
 
-
     def visit_conditional(self, node):
         assert node.children[0].additional_info == 'if'
         return Conditional(self.dispatch(node.children[1]), self.dispatch(node.children[2]))
+
+    def visit_while_loop(self, node):
+        return While(self.dispatch(node.children[0]), self.dispatch(node.children[1]))
 
     def visit_funcdef(self, node):
         name = node.children[0].additional_info

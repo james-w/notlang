@@ -18,14 +18,16 @@ register_code('BINARY_SUB', 6)
 register_code('BINARY_MULT', 7)
 register_code('BINARY_EQ', 8)
 register_code('BINARY_LT', 9)
-register_code('JUMP_IF_FALSE', 10)
-register_code('CALL_FUNCTION', 11)
-register_code('MAKE_FUNCTION', 12)
-register_code('RETURN', 13)
-register_code('PRINT', 14)
+register_code('BINARY_GT', 10)
+register_code('JUMP_IF_FALSE', 11)
+register_code('JUMP_BACK', 12)
+register_code('CALL_FUNCTION', 13)
+register_code('MAKE_FUNCTION', 14)
+register_code('RETURN', 15)
+register_code('PRINT', 16)
 
-BINOP = {'+': BINARY_ADD, '-': BINARY_SUB, '*': BINARY_MULT, '==': BINARY_EQ, '<': BINARY_LT}
-unary_ops = [BINARY_ADD, BINARY_SUB, BINARY_MULT, BINARY_EQ, BINARY_LT, RETURN, PRINT]
+BINOP = {'+': BINARY_ADD, '-': BINARY_SUB, '*': BINARY_MULT, '==': BINARY_EQ, '<': BINARY_LT, '>': BINARY_GT}
+unary_ops = [BINARY_ADD, BINARY_SUB, BINARY_MULT, BINARY_EQ, BINARY_LT, BINARY_GT, RETURN, PRINT]
 
 
 class CompilerContext(object):
@@ -59,6 +61,25 @@ class CompilerContext(object):
 
     def adjust_arg(self, index, new_arg):
         self.data[index+1] = chr(new_arg)
+
+
+def dump(bytecode, context=None):
+    lines = []
+    i = 0
+    for i in range(0, len(bytecode.bytecode), 2):
+        c = ord(bytecode.bytecode[i])
+        c2 = ord(bytecode.bytecode[i + 1])
+        line = "%d " % i
+        line += reverse_map[c]
+        if c not in unary_ops:
+            line += " " + str(c2)
+        if context is not None:
+            if c in (LOAD_VAR, ASSIGN, LOAD_GLOBAL):
+                line += " (" + str(context.names[c2]) + ")"
+            if c in (LOAD_CONSTANT,):
+                line += " (" + context.constants[c2].repr() + ")"
+        lines.append(line)
+    return '\n'.join(lines)
 
 
 def get_compiler(astnode):

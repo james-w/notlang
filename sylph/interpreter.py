@@ -26,6 +26,11 @@ class W_Int(W_Root):
             raise Exception("wrong type")
         return W_Int(self.intval + other.intval)
 
+    def sub(self, other):
+        if not isinstance(other, W_Int):
+            raise Exception("wrong type")
+        return W_Int(self.intval - other.intval)
+
     def multiply(self, other):
         if not isinstance(other, W_Int):
             raise Exception("wrong type")
@@ -35,6 +40,11 @@ class W_Int(W_Root):
         if not isinstance(other, W_Int):
             raise Exception("wrong type")
         return W_Int(self.intval < other.intval)
+
+    def gt(self, other): 
+        if not isinstance(other, W_Int):
+            raise Exception("wrong type")
+        return W_Int(self.intval > other.intval)
 
     def is_true(self):
         return self.intval != 0
@@ -48,6 +58,9 @@ class W_Int(W_Root):
         return self.intval
 
     def str(self):
+        return str(self.intval)
+
+    def repr(self):
         return str(self.intval)
 
     def __repr__(self):
@@ -118,6 +131,11 @@ class Frame(object):
                 left = self.pop()
                 w_res = left.add(right)
                 self.push(w_res)
+            elif c == bytecode.BINARY_SUB:
+                right = self.pop()
+                left = self.pop()
+                w_res = left.sub(right)
+                self.push(w_res)
             elif c == bytecode.BINARY_MULT:
                 right = self.pop()
                 left = self.pop()
@@ -127,6 +145,10 @@ class Frame(object):
                 right = self.pop()
                 left = self.pop()
                 self.push(left.lt(right))
+            elif c == bytecode.BINARY_GT:
+                right = self.pop()
+                left = self.pop()
+                self.push(left.gt(right))
             elif c == bytecode.BINARY_EQ:
                 right = self.pop()
                 left = self.pop()
@@ -163,6 +185,8 @@ class Frame(object):
             elif c == bytecode.JUMP_IF_FALSE:
                 if not self.pop().is_true():
                     pc += arg-2
+            elif c == bytecode.JUMP_BACK:
+                pc -= arg+2
             else:
                 assert False, "Unknown opcode: %d" % c
 

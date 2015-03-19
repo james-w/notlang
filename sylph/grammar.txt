@@ -1,6 +1,6 @@
 DECIMAL: "-?0|[1-9][0-9]*";
 OPERATOR: "[-+*]";
-COMPARATOR: "(==)|<";
+COMPARATOR: "(==)|[<>]";
 IDENTIFIER: "[a-zA-Z_][a-zA-Z0-9_]*";
 IGNORE: "[ \t]";
 NEWLINE: "\n";
@@ -13,7 +13,7 @@ statement: simple_statement | compound_statement;
 
 simple_statement: small_statement [NEWLINE]; 
 
-compound_statement: conditional | funcdef;
+compound_statement: conditional | while_loop | funcdef;
 
 small_statement: assignment | return_statement;
 
@@ -44,6 +44,8 @@ arglist: argument;
 argument: comparison;
 
 conditional: "if" comparison [":"] [NEWLINE] suite;
+
+while_loop: ["while"] comparison [":"] [NEWLINE] suite;
 
 funcdef: ["def"] IDENTIFIER ["("] IDENTIFIER [")" ":" NEWLINE] suite;
 
