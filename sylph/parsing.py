@@ -216,14 +216,16 @@ class While(NonTerminal):
 
 class FuncDef(NonTerminal):
 
-    def __init__(self, name, arg, code):
+    def __init__(self, name, arg, code, rtype=None):
         super(FuncDef, self).__init__()
         self.name = name
         self.arg = arg
         self.children = [code]
+        self.rtype = rtype
 
     def get_extra_dot_info(self):
-        return self.name
+        rtype = self.rtype or "ANY"
+        return self.name + " ( -> " + rtype + ")"
 
     def compile(self, ctx):
         closure_context = compilercontext.CompilerContext()
@@ -371,7 +373,14 @@ class Transformer(RPythonVisitor):
 
     def visit_funcdef(self, node):
         name = node.children[0].additional_info
-        return FuncDef(name, node.children[1].additional_info, self.dispatch(node.children[2]))
+        arg = node.children[1].additional_info
+        if len(node.children) < 4:
+            rtype = None
+            block = node.children[2]
+        else:
+            rtype = node.children[2].children[0].additional_info
+            block = node.children[3]
+        return FuncDef(name, arg, self.dispatch(block), rtype=rtype)
 
     def visit_IDENTIFIER(self, node):
         return Variable(node.additional_info)

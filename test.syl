@@ -1,11 +1,12 @@
+def triple(arg) -> int:
+    return arg * 3
+
 a = 1
 b = a
 while a > 0:
     a = a - 1
 if a == 1:
     b = a + 1 + 2
-def triple(arg):
-    return b * 3
 trip = triple
-c = trip(b+1)
+c = trip(b+1) + 1
 print(c)

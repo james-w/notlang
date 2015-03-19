@@ -42,7 +42,7 @@ we have to assume it takes "any".
 We can likely infer the return type of a function, but can we infer the
 argument types? Only in very limited circumstances. If the type is fixed
 by e.g. the return value (like:
-def <int> identity(a):
+def identity(a) -> int:
     return a
 )  then we can do it, and maybe if the arg is passed to another function
 with a declaration, but otherwise we are limited.
@@ -118,7 +118,7 @@ case block.
 
 How do you define a type such as this?
 
-  type Maybe:
+  Maybe = new Type:
       Just = new Case:
           def __init__(self, value):
               self.value = value
