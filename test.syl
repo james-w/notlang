@@ -8,5 +8,5 @@ while a > 0:
 if a == 1:
     b = a + 1 + 2
 trip = triple
-c = trip(b, 2) + 1
+c = trip(b+1, 2) + 1
 print(c)

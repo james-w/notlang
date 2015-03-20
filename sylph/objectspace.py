@@ -33,12 +33,13 @@ class W_Root(object):
 
 class W_Code(W_Root):
     _immutable_ = True
-    _immutable_fields_ = ['bytecode', 'constants[*]', 'names']
+    _immutable_fields_ = ['bytecode', 'constants[*]', 'names', 'max_stacksize']
    
-    def __init__(self, code, constants, names):
+    def __init__(self, code, constants, names, max_stacksize):
         self.bytecode = code
         self.constants = constants
         self.names = names
+        self.max_stacksize = max_stacksize
 
     def repr(self):
         return "<W_Code at %d>" % id(self)

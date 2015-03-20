@@ -2,15 +2,6 @@ from . import bytecode, compilercontext
 from .objectspace import TheNone
 
 
-def get_stack_change(inst, arg):
-    change = bytecode.STACK_CHANGE.get(inst, None)
-    if change is None:
-        raise AssertionError(bytecode.reverse_map[c] + " not in STACK_CHANGE")
-    if callable(change):
-        change = change(arg)
-    return change
-
-
 def dump(code, context=None):
     lines = []
     i = 0
@@ -18,7 +9,7 @@ def dump(code, context=None):
     for i in range(0, len(code.bytecode), 2):
         c = ord(code.bytecode[i])
         c2 = ord(code.bytecode[i + 1])
-        stacksize += get_stack_change(c, c2)
+        stacksize += compilercontext.get_stack_change(c, c2)
         line = "%d " % i
         line += bytecode.reverse_map[c]
         if c not in bytecode.unary_ops:
@@ -40,7 +31,7 @@ def max_stacksize(code):
     for i in range(0, len(code.bytecode), 2):
         c = ord(code.bytecode[i])
         c2 = ord(code.bytecode[i + 1])
-        stacksize += get_stack_change(c, c2)
+        stacksize += compilercontext.get_stack_change(c, c2)
         if stacksize > maximum:
             maximum = stacksize
             max_instr = c

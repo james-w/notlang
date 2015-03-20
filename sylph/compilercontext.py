@@ -1,4 +1,14 @@
+from . import bytecode
 from .objectspace import W_Code
+
+
+def get_stack_change(inst, arg):
+    change = bytecode.STACK_CHANGE.get(inst, None)
+    if change is None:
+        raise AssertionError(bytecode.reverse_map[inst] + " not in STACK_CHANGE")
+    if callable(change):
+        change = change(arg)
+    return change
 
 
 class CompilerContext(object):
@@ -7,6 +17,8 @@ class CompilerContext(object):
         self.constants = []
         self.names = []
         self.names_to_numbers = {}
+        self.stacksize = 0
+        self.max_stacksize = 0
 
     def register_constant(self, v):
         self.constants.append(v)
@@ -23,9 +35,12 @@ class CompilerContext(object):
     def emit(self, bc, arg=0):
         self.data.append(chr(bc))
         self.data.append(chr(arg))
+        self.stacksize += get_stack_change(bc, arg)
+        if self.stacksize > self.max_stacksize:
+            self.max_stacksize = self.stacksize
 
     def create_bytecode(self):
-        return W_Code("".join(self.data), self.constants[:], self.names)
+        return W_Code("".join(self.data), self.constants[:], self.names, self.max_stacksize)
 
     def next_instruction_index(self):
         return len(self.data)

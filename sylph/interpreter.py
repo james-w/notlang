@@ -84,9 +84,8 @@ class Frame(object):
     
     def __init__(self, prog):
         self = jit.hint(self, fresh_virtualizable=True, access_directly=True)
-        # XXX: this needs to be based on the max stacksize of the code,
-        # which will have to be calculated by the compiler.
-        self.valuestack = [None] * 3
+        self.valuestack = [None] * prog.max_stacksize
+        make_sure_not_resized(self.valuestack)
         self.vars = [None] * len(prog.names)
         self.names = prog.names[:]
         make_sure_not_resized(self.names)
