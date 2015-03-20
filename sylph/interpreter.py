@@ -170,11 +170,10 @@ class Frame(object):
                 else:
                     self.push(fobj)
             elif c == bytecode.CALL_FUNCTION:
-                assert arg == 1, "Only single argument functions currently supported"
                 fargs = self.popmany(arg)
                 fobj = self.pop()
                 if not isinstance(fobj, W_Func):
-                    raise AssertionError
+                    raise AssertionError("Is not a function object %s" % fobj)
                 child_f = Frame(fobj.code)
                 for i in range(arg):
                     child_f.vars[i] = fargs[i]
@@ -183,7 +182,7 @@ class Frame(object):
             elif c == bytecode.MAKE_FUNCTION:
                 code_obj = self.pop()
                 if not isinstance(code_obj, W_Code):
-                    raise AssertionError
+                    raise AssertionError("Is not a code object %s" % code_obj)
                 self.push(W_Func(code_obj))
             elif c == bytecode.PRINT:
                 print self.pop().str()

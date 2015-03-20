@@ -25,3 +25,21 @@ register_code('PRINT', 16)
 
 BINOP = {'+': BINARY_ADD, '-': BINARY_SUB, '*': BINARY_MULT, '==': BINARY_EQ, '<': BINARY_LT, '>': BINARY_GT}
 unary_ops = [BINARY_ADD, BINARY_SUB, BINARY_MULT, BINARY_EQ, BINARY_LT, BINARY_GT, RETURN, PRINT]
+STACK_CHANGE = {
+    LOAD_CONSTANT: 1,
+    LOAD_VAR: 1,
+    LOAD_GLOBAL: 1,
+    ASSIGN: -1,
+    BINARY_ADD: -1,
+    BINARY_SUB: -1,
+    BINARY_MULT: -1,
+    BINARY_EQ: -1,
+    BINARY_LT: -1,
+    BINARY_GT: -1,
+    JUMP_IF_FALSE: -1,
+    JUMP_BACK: 0,
+    CALL_FUNCTION: lambda arg: -1*arg,
+    MAKE_FUNCTION: 0,
+    RETURN: -1,
+    PRINT: -1,
+}

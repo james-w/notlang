@@ -1,5 +1,5 @@
-def triple(arg:int) -> int:
-    return arg * 3
+def triple(arg:int, count:int) -> int:
+    return arg * count 
 
 a = 1
 b = a
@@ -8,5 +8,5 @@ while a > 0:
 if a == 1:
     b = a + 1 + 2
 trip = triple
-c = trip(b+1) + 1
+c = trip(b, 2) + 1
 print(c)

@@ -2,7 +2,7 @@
 
 import sys
 
-from sylph.bytecode import dump, get_compiler
+from sylph.compiler import dump, get_compiler, max_stacksize
 from sylph.parsing import parse
 
 if __name__ == '__main__':
@@ -14,3 +14,5 @@ if __name__ == '__main__':
     parsed = parse(source)
     compiler = get_compiler(parsed)
     print(dump(compiler.create_bytecode(), compiler))
+    print("")
+    print("Max stacksize: %d after line %d (%s)" % max_stacksize(compiler.create_bytecode()))

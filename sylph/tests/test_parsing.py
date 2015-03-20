@@ -1,7 +1,8 @@
 from rpython.rlib.parsing.parsing import ParseError
 from testtools import TestCase
 
-from ..parsing import parse, Block
+from ..ast import Block
+from ..parsing import parse
 
 
 class ParsingTests(TestCase):
@@ -38,8 +39,6 @@ class ParsingTests(TestCase):
         self.assert_parses_ok("a == b == c\n")
 
     def test_function_call(self):
-        # XXX: optional args not supported by parser yet
-        return
         self.assert_parses_ok("b()\n")
 
     def test_function_call_with_args(self):
@@ -51,17 +50,17 @@ class ParsingTests(TestCase):
     def test_function_call_with_expr_in_args(self):
         self.assert_parses_ok("b(a+1)\n")
 
+    def test_function_call_with_two_args(self):
+        self.assert_parses_ok("b(1, 2)\n")
+
     def test_assignment(self):
         self.assert_parses_ok("a = 1\n")
 
-    def test_assignment_chain(self):
-        self.assert_parses_ok("a = 1\n")
-
     def test_assign_expr(self):
         self.assert_parses_ok("a = 1 + 1\n")
 
-    def test_assign_expr(self):
-        self.assert_parses_ok("a = 1 + 1\n")
+    def test_assign_expr_chain(self):
+        self.assert_parses_ok("a = 1 + 1 + 1\n")
 
     def test_assign_var(self):
         self.assert_parses_ok("a = b\n")
@@ -82,9 +81,18 @@ class ParsingTests(TestCase):
         self.assert_parses_ok("while a == a:\n    b = 1\n\n")
 
     def test_funcdef(self):
+        self.assert_parses_ok("def a():\n    return 1\n\n")
+
+    def test_funcdef_one_arg(self):
         self.assert_parses_ok("def a(b):\n    return 1\n\n")
 
+    def test_funcdef_two_args(self):
+        self.assert_parses_ok("def a(b, c):\n    return 1\n\n")
+
     def test_funcdef_with_rtype(self):
+        self.assert_parses_ok("def a() -> int:\n    return 1\n\n")
+
+    def test_funcdef_with_one_arg_rtype(self):
         self.assert_parses_ok("def a(b) -> int:\n    return 1\n\n")
 
     def test_funcdef_with_argtype(self):
