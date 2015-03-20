@@ -26,6 +26,12 @@ class VariableTests(TestCase):
         ret = interpret(ctx.create_bytecode())
         self.assertEqual(99, ret.intval)
 
+    def test_load_before_store(self):
+        ctx = compilercontext.CompilerContext()
+        codegen.load_var(ctx, 'a')
+        codegen.do_return(ctx)
+        self.assertRaises(AssertionError, interpret, ctx.create_bytecode())
+
 
 class BinaryOperationTests(TestCase):
 

@@ -96,9 +96,10 @@ class Frame(object):
             elif c == bytecode.ASSIGN:
                 self.vars[arg] = self.pop()
             elif c == bytecode.LOAD_VAR:
-                # FIXME: needs to check if var was assigned (is not None)
-                # and error if so (referenced before assignment)
-                self.push(self.vars[arg])
+                var = self.vars[arg]
+                if var is None:
+                    raise AssertionError("Variable referenced before assignment")
+                self.push(var)
             elif c == bytecode.LOAD_GLOBAL:
                 fname = self.names[arg]
                 fobj = self.globals.get(fname, None)
