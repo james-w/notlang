@@ -21,4 +21,9 @@ clean:
 test:
 	PYTHONPATH=pypy ./virtualenv/bin/py.test sylph
 
-.PHONY: clean package-deps
+check: test
+
+lint:
+	pyflakes sylph/*.py sylph/tests/*.py targetsylph.py sylph/bin/*.py
+
+.PHONY: clean package-deps lint test check deps build

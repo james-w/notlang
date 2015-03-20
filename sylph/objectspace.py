@@ -52,3 +52,65 @@ class W_None(W_Root):
 
 
 TheNone = W_None()
+
+
+class W_Int(W_Root):
+
+    def __init__(self, intval):
+        assert(isinstance(intval, int))
+        self.intval = intval
+
+    def add(self, other):
+        if not isinstance(other, W_Int):
+            raise Exception("wrong type")
+        return W_Int(self.intval + other.intval)
+
+    def sub(self, other):
+        if not isinstance(other, W_Int):
+            raise Exception("wrong type")
+        return W_Int(self.intval - other.intval)
+
+    def multiply(self, other):
+        if not isinstance(other, W_Int):
+            raise Exception("wrong type")
+        return W_Int(self.intval * other.intval)
+
+    def lt(self, other): 
+        if not isinstance(other, W_Int):
+            raise Exception("wrong type")
+        return W_Int(self.intval < other.intval)
+
+    def gt(self, other): 
+        if not isinstance(other, W_Int):
+            raise Exception("wrong type")
+        return W_Int(self.intval > other.intval)
+
+    def is_true(self):
+        return self.intval != 0
+
+    def eq(self, other):
+        if not isinstance(other, W_Int):
+            raise Exception("wrong type")
+        return W_Int(self.intval == other.intval)
+
+    def int(self):
+        return self.intval
+
+    def str(self):
+        return str(self.intval)
+
+    def repr(self):
+        return str(self.intval)
+
+    def __repr__(self):
+        return "<%s.%s object at %s value:%d>" % (self.__class__.__module__,
+                self.__class__.__name__, id(self), self.intval)
+
+
+class W_Func(W_Root):
+
+    __slots__ = ['code']
+    _immutable_fields_ = ['code']
+
+    def __init__(self, code):
+        self.code = code
