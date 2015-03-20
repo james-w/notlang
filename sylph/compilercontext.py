@@ -3,11 +3,11 @@ from .objectspace import W_Code
 
 
 def get_stack_change(inst, arg):
-    change = bytecode.STACK_CHANGE.get(inst, None)
-    if change is None:
+    change = bytecode.STACK_CHANGE.get(inst, 1000)
+    if change == 1000:
         raise AssertionError(bytecode.reverse_map[inst] + " not in STACK_CHANGE")
-    if callable(change):
-        change = change(arg)
+    if change == 999:
+        change = -1*arg
     return change
 
 

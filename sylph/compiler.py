@@ -8,7 +8,7 @@ class Compiler(ast.ASTVisitor):
         self.ctx = ctx
 
     def general_nonterminal_visit(self, node):
-        map(self.dispatch, node.children)
+        [self.dispatch(c) for c in node.children]
 
     def visit_Variable(self, node):
         codegen.load_var(self.ctx, node.varname)
@@ -29,28 +29,18 @@ class Compiler(ast.ASTVisitor):
             self.dispatch(node.children[0])
             codegen.do_print(self.ctx)
         else:
-            def args_cb(ctx):
-                Compiler(ctx).general_nonterminal_visit(node)
-            codegen.function_call(self.ctx, node.fname, len(node.children), args_cb)
+            codegen.function_call(self.ctx, node.fname, len(node.children), CallbackHelper(node).function_args_cb)
 
     def visit_Conditional(self, node):
         self.dispatch(node.children[0])
-        def true_block_cb(ctx):
-            Compiler(ctx).dispatch(node.children[1])
-        codegen.conditional(self.ctx, true_block_cb)
+        codegen.conditional(self.ctx, CallbackHelper(node).conditional_true_block_cb)
 
     def visit_While(self, node):
-        def condition_cb(ctx):
-            Compiler(ctx).dispatch(node.children[0])
-        def block_cb(ctx):
-            Compiler(ctx).dispatch(node.children[1])
-        codegen.while_loop(self.ctx, condition_cb, block_cb)
+        helper = CallbackHelper(node)
+        codegen.while_loop(self.ctx, helper.while_condition_cb, helper.while_block_cb)
 
     def visit_FuncDef(self, node):
-        def code_cb(cctx):
-            map(cctx.register_var, node.args)
-            Compiler(cctx).dispatch(node.children[0])
-        codegen.make_function(self.ctx, node.name, code_cb)
+        codegen.make_function(self.ctx, node.name, CallbackHelper(node).funcdef_code_cb)
 
     def visit_Return(self, node):
         if node.children:
@@ -58,6 +48,28 @@ class Compiler(ast.ASTVisitor):
         else:
             codegen.load_none(self.ctx)
         codegen.do_return(self.ctx)
+
+
+class CallbackHelper(object):
+
+    def __init__(self, node):
+        self.node = node
+
+    def funcdef_code_cb(self, ctx):
+        [ctx.register_var(a) for a in self.node.args]
+        Compiler(ctx).dispatch(self.node.children[0])
+
+    def function_args_cb(self, ctx):
+        Compiler(ctx).general_nonterminal_visit(self.node)
+
+    def conditional_true_block_cb(self, ctx):
+        Compiler(ctx).dispatch(self.node.children[1])
+
+    def while_condition_cb(self, ctx):
+        Compiler(ctx).dispatch(self.node.children[0])
+
+    def while_block_cb(self, ctx):
+        Compiler(ctx).dispatch(self.node.children[1])
 
 
 def dump(code, context=None):

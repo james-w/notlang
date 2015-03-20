@@ -13,7 +13,7 @@ pypy:
 	hg clone https://bitbucket.org/pypy/pypy	
 
 virtualenv:
-	virtualenv virtualenv
+	virtualenv virtualenv --python /usr/bin/pypy
 
 clean:
 	rm targetsylph-c

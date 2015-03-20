@@ -4,9 +4,6 @@ class Node(object):
     """ The abstract AST node
     """
 
-    def __init__(self):
-        pass
-
     def __eq__(self, other):
         return (self.__class__ == other.__class__ and
                 self.__dict__ == other.__dict__)
@@ -20,16 +17,13 @@ class Node(object):
 
 class NonTerminal(Node):
 
-    def __init__(self):
-        super(NonTerminal, self).__init__()
-        self.children = []
+    children = []
 
 
 class Block(NonTerminal):
     """ A list of statements
     """
     def __init__(self, stmts):
-        super(Block, self).__init__()
         self.children = stmts
 
 
@@ -37,7 +31,6 @@ class Stmt(NonTerminal):
     """ A single statement
     """
     def __init__(self, expr):
-        super(Stmt, self).__init__()
         self.children = [expr]
 
 
@@ -45,7 +38,6 @@ class ConstantInt(Node):
     """ Represent a constant
     """
     def __init__(self, intval):
-        super(ConstantInt, self).__init__()
         self.intval = intval
 
     def get_extra_dot_info(self):
@@ -56,7 +48,6 @@ class BinOp(NonTerminal):
     """ A binary operation
     """
     def __init__(self, op, left, right):
-        super(BinOp, self).__init__()
         self.op = op
         self.children = [left, right]
 
@@ -68,7 +59,6 @@ class Variable(Node):
     """ Variable reference
     """
     def __init__(self, varname):
-        super(Variable, self).__init__()
         self.varname = varname
 
     def get_extra_dot_info(self):
@@ -79,7 +69,6 @@ class Assignment(NonTerminal):
     """ Assign to a variable
     """
     def __init__(self, var, expr):
-        super(Assignment, self).__init__()
         self.var = var
         self.children = [expr]
 
@@ -91,7 +80,6 @@ class Function(NonTerminal):
     """Call a function"""
 
     def __init__(self, fname, args):
-        super(Function, self).__init__()
         self.fname = fname
         self.children = args
 
@@ -102,21 +90,18 @@ class Function(NonTerminal):
 class Conditional(NonTerminal):
 
     def __init__(self, condition, true_block):
-        super(Conditional, self).__init__()
         self.children = [condition, true_block]
 
 
 class While(NonTerminal):
 
     def __init__(self, condition, block):
-        super(While, self).__init__()
         self.children = [condition, block]
 
 
 class FuncDef(NonTerminal):
 
     def __init__(self, name, args, code, rtype=None, argtypes=None):
-        super(FuncDef, self).__init__()
         self.name = name
         self.args = args
         self.children = [code]
@@ -127,13 +112,12 @@ class FuncDef(NonTerminal):
 
     def get_extra_dot_info(self):
         rtype = self.rtype or "ANY"
-        return self.name + " ( -> " + rtype + ")"
+        return self.name + " ( " + ", ".join(self.args) + " -> " + rtype + ")"
 
 
 class Return(NonTerminal):
 
     def __init__(self, arg):
-        super(Return, self).__init__()
         self.children = []
         if arg:
             self.children = [arg]

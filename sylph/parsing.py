@@ -111,7 +111,7 @@ class Transformer(RPythonVisitor):
         terms = node.children[1]
         args = []
         if terms.children:
-            args = map(self.dispatch, node.children[1].children[0].children)
+            args = [self.dispatch(c) for c in terms.children[0].children]
         return ast.Function(fname, args)
 
     def visit_return_statement(self, node):
@@ -133,24 +133,19 @@ class Transformer(RPythonVisitor):
         argtypes = []
         rtype = None
 
-        i = 1
-        child = node.children[i]
-        if getattr(child, 'additional_info', None) != ")":
-            for argnode in child.children:
+        params = node.children[1]
+        if params.children:
+            for argnode in params.children[0].children:
                 args.append(argnode.children[0].additional_info)
                 if len(argnode.children) > 1:
                     argtypes.append(argnode.children[1].additional_info)
                 else:
                     argtypes.append(None)
-            i += 1
-            child = node.children[i]
-        i += 1
-        child = node.children[i]
-        if getattr(child, 'additional_info', None) != ":":
-            rtype = child.children[0].additional_info
-            i += 1
-            child = node.children[i]
-        block = node.children[i+1]
+        if len(node.children) > 3:
+            rtype = node.children[2].children[0].additional_info
+            block = node.children[3]
+        else:
+            block = node.children[2]
         return ast.FuncDef(name, args, self.dispatch(block), rtype=rtype, argtypes=argtypes)
 
     def visit_IDENTIFIER(self, node):

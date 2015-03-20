@@ -49,7 +49,9 @@ conditional: ["if"] comparison [":"] [NEWLINE] suite;
 
 while_loop: ["while"] comparison [":"] [NEWLINE] suite;
 
-funcdef: ["def"] IDENTIFIER ["("] defargs? ")" rtype_decl? ":" [NEWLINE] suite;
+funcdef: ["def"] IDENTIFIER parameters rtype_decl? [":"] [NEWLINE] suite;
+
+parameters: ["("] defargs? [")"];
 
 defargs: defarg defargs_trailer*;
 

@@ -38,7 +38,7 @@ STACK_CHANGE = {
     BINARY_GT: -1,
     JUMP_IF_FALSE: -1,
     JUMP_BACK: 0,
-    CALL_FUNCTION: lambda arg: -1*arg,
+    CALL_FUNCTION: 999, # sentinel meaning -arg
     MAKE_FUNCTION: 0,
     RETURN: -1,
     PRINT: -1,
