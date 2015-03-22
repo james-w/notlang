@@ -74,7 +74,7 @@ class Transformer(RPythonVisitor):
         stmts = []
         for child in node.children:
             stmts.append(self.dispatch(child))
-        return ast.Block(stmts)
+        return ast.Block(stmts, node.getsourcepos())
 
     visit_suite = visit_main
 
@@ -82,26 +82,28 @@ class Transformer(RPythonVisitor):
         if len(node.children) == 1:
             return self.dispatch(node.children[0])
         return ast.Assignment(self.dispatch(node.children[0]),
-                              self.dispatch(node.children[1]))
+                              self.dispatch(node.children[1]), node.getsourcepos())
 
     def visit_statement(self, node):
-        return ast.Stmt(self.dispatch(node.children[0]))
+        return ast.Stmt(self.dispatch(node.children[0]), node.getsourcepos())
 
     def visit_comparison(self, node):
         if len(node.children) == 1:
             return self.dispatch(node.children[0])
         return ast.BinOp(node.children[1].children[0].additional_info,
                          self.dispatch(node.children[0]),
-                         self.dispatch(node.children[1].children[1]))
+                         self.dispatch(node.children[1].children[1]), node.getsourcepos())
 
     def visit_arith_expr(self, node):
         if len(node.children) == 1:
             return self.dispatch(node.children[0])
+        sourcepos = node.children[0].getsourcepos()
         target = self.dispatch(node.children[0])
         for i in range(1, len(node.children)):
             target = ast.BinOp(node.children[i].children[0].additional_info,
                                target,
-                               self.dispatch(node.children[i].children[1]))
+                               self.dispatch(node.children[i].children[1]), sourcepos)
+            sourcepos = node.children[i].children[1].getsourcepos()
         return target
 
     def visit_term(self, node):
@@ -112,28 +114,28 @@ class Transformer(RPythonVisitor):
         args = []
         if terms.children:
             args = [self.dispatch(c) for c in terms.children[0].children]
-        return ast.Function(fname, args)
+        return ast.Function(fname, args, node.getsourcepos())
 
     def visit_return_statement(self, node):
-        if node.children:
-            arg = self.dispatch(node.children[0])
+        if len(node.children) > 1:
+            arg = self.dispatch(node.children[1])
         else:
             arg = None
-        return ast.Return(arg)
+        return ast.Return(arg, node.getsourcepos())
 
     def visit_conditional(self, node):
-        return ast.Conditional(self.dispatch(node.children[0]), self.dispatch(node.children[1]))
+        return ast.Conditional(self.dispatch(node.children[1]), self.dispatch(node.children[2]), node.getsourcepos())
 
     def visit_while_loop(self, node):
-        return ast.While(self.dispatch(node.children[0]), self.dispatch(node.children[1]))
+        return ast.While(self.dispatch(node.children[1]), self.dispatch(node.children[2]), node.getsourcepos())
 
     def visit_funcdef(self, node):
-        name = node.children[0].additional_info
+        name = node.children[1].additional_info
         args = []
         argtypes = []
         rtype = None
 
-        params = node.children[1]
+        params = node.children[2]
         if params.children:
             for argnode in params.children[0].children:
                 args.append(argnode.children[0].additional_info)
@@ -141,18 +143,18 @@ class Transformer(RPythonVisitor):
                     argtypes.append(argnode.children[1].additional_info)
                 else:
                     argtypes.append(None)
-        if len(node.children) > 3:
-            rtype = node.children[2].children[0].additional_info
-            block = node.children[3]
+        if len(node.children) > 4:
+            rtype = node.children[3].children[0].additional_info
+            block = node.children[4]
         else:
-            block = node.children[2]
-        return ast.FuncDef(name, args, self.dispatch(block), rtype=rtype, argtypes=argtypes)
+            block = node.children[3]
+        return ast.FuncDef(name, args, self.dispatch(block), node.getsourcepos(), rtype=rtype, argtypes=argtypes)
 
     def visit_IDENTIFIER(self, node):
-        return ast.Variable(node.additional_info)
+        return ast.Variable(node.additional_info, node.getsourcepos())
 
     def visit_DECIMAL(self, node):
-        return ast.ConstantInt(int(node.additional_info))
+        return ast.ConstantInt(int(node.additional_info), node.getsourcepos())
 
     def general_visit(self, node):
         children = getattr(node, 'children')

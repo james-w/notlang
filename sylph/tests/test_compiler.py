@@ -1,4 +1,5 @@
 from testtools import TestCase
+from rpython.rlib.parsing.lexer import SourcePos
 
 from .. import ast, bytecode, objectspace
 from ..compiler import Compiler
@@ -14,25 +15,27 @@ def compile(node):
 
 class TestCompiler(TestCase):
 
+    spos = SourcePos(0, 0, 0)
+
     def test_variable(self):
         vname = "foo"
-        node = ast.Variable(vname)
+        node = ast.Variable(vname, self.spos)
         ctx = compile(node)
         self.assertEqual([vname], ctx.names)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_VAR, 0]))
 
     def test_constant_int(self):
         value = 2
-        node = ast.ConstantInt(value)
+        node = ast.ConstantInt(value, self.spos)
         ctx = compile(node)
         self.assertEqual(1, len(ctx.constants))
         self.assertEqual(value, ctx.constants[0].intval)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_CONSTANT, 0]))
 
     def test_binary_operation(self):
-        left = ast.ConstantInt(1)
-        right = ast.ConstantInt(2)
-        node = ast.BinOp("+", left, right)
+        left = ast.ConstantInt(1, self.spos)
+        right = ast.ConstantInt(2, self.spos)
+        node = ast.BinOp("+", left, right, self.spos)
         ctx = compile(node)
         self.assertEqual(2, len(ctx.constants))
         self.assertEqual(1, ctx.constants[0].intval)
@@ -44,9 +47,9 @@ class TestCompiler(TestCase):
 
     def test_assignment(self):
         vname = "foo"
-        var = ast.Variable(vname)
-        right = ast.ConstantInt(2)
-        node = ast.Assignment(var, right)
+        var = ast.Variable(vname, self.spos)
+        right = ast.ConstantInt(2, self.spos)
+        node = ast.Assignment(var, right, self.spos)
         ctx = compile(node)
         self.assertEqual(1, len(ctx.constants))
         self.assertEqual(2, ctx.constants[0].intval)
@@ -56,8 +59,8 @@ class TestCompiler(TestCase):
                              bytecode.ASSIGN, 0]))
 
     def test_print(self):
-        arg = ast.ConstantInt(2)
-        node = ast.Function("print", [arg])
+        arg = ast.ConstantInt(2, self.spos)
+        node = ast.Function("print", [arg], self.spos)
         ctx = compile(node)
         self.assertEqual(1, len(ctx.constants))
         self.assertEqual(2, ctx.constants[0].intval)
@@ -67,8 +70,8 @@ class TestCompiler(TestCase):
 
     def test_function(self):
         fname = "foo"
-        arg = ast.ConstantInt(2)
-        node = ast.Function(fname, [arg])
+        arg = ast.ConstantInt(2, self.spos)
+        node = ast.Function(fname, [arg], self.spos)
         ctx = compile(node)
         self.assertEqual(1, len(ctx.constants))
         self.assertEqual(2, ctx.constants[0].intval)
@@ -79,9 +82,9 @@ class TestCompiler(TestCase):
                              bytecode.CALL_FUNCTION, 1]))
 
     def test_conditional(self):
-        condition = ast.ConstantInt(1)
-        true_block = ast.ConstantInt(2)
-        node = ast.Conditional(condition, true_block)
+        condition = ast.ConstantInt(1, self.spos)
+        true_block = ast.ConstantInt(2, self.spos)
+        node = ast.Conditional(condition, true_block, self.spos)
         ctx = compile(node)
         self.assertEqual(2, len(ctx.constants))
         self.assertEqual(1, ctx.constants[0].intval)
@@ -92,9 +95,9 @@ class TestCompiler(TestCase):
                              bytecode.LOAD_CONSTANT, 1]))
 
     def test_while(self):
-        condition = ast.ConstantInt(1)
-        block = ast.ConstantInt(2)
-        node = ast.While(condition, block)
+        condition = ast.ConstantInt(1, self.spos)
+        block = ast.ConstantInt(2, self.spos)
+        node = ast.While(condition, block, self.spos)
         ctx = compile(node)
         self.assertEqual(2, len(ctx.constants))
         self.assertEqual(1, ctx.constants[0].intval)
@@ -108,9 +111,9 @@ class TestCompiler(TestCase):
 
     def test_function_defn(self):
         fname = "foo"
-        block = ast.ConstantInt(2)
+        block = ast.ConstantInt(2, self.spos)
         args = ["a", "b"]
-        node = ast.FuncDef(fname, args, block)
+        node = ast.FuncDef(fname, args, block, self.spos)
         ctx = compile(node)
         self.assertEqual(1, len(ctx.constants))
         self.assertIsInstance(ctx.constants[0], objectspace.W_Code)
@@ -125,8 +128,8 @@ class TestCompiler(TestCase):
                              bytecode.RETURN, 0]))
 
     def test_return(self):
-        arg = ast.ConstantInt(2)
-        node = ast.Return(arg)
+        arg = ast.ConstantInt(2, self.spos)
+        node = ast.Return(arg, self.spos)
         ctx = compile(node)
         self.assertEqual(1, len(ctx.constants))
         self.assertEqual(2, ctx.constants[0].intval)
@@ -135,7 +138,7 @@ class TestCompiler(TestCase):
                              bytecode.RETURN, 0]))
 
     def test_return_no_arg(self):
-        node = ast.Return(None)
+        node = ast.Return(None, self.spos)
         ctx = compile(node)
         self.assertEqual(1, len(ctx.constants))
         self.assertIs(objectspace.TheNone, ctx.constants[0])

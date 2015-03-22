@@ -17,7 +17,7 @@ compound_statement: conditional | while_loop | funcdef;
 
 small_statement: assignment | return_statement;
 
-return_statement: ["return"] testlist?;
+return_statement: "return" testlist?;
 
 assignment: testlist assignment_trailer?;
 
@@ -45,11 +45,11 @@ arglist_trailer: [","] <argument>;
 
 argument: comparison;
 
-conditional: ["if"] comparison [":"] [NEWLINE] suite;
+conditional: "if" comparison [":"] [NEWLINE] suite;
 
-while_loop: ["while"] comparison [":"] [NEWLINE] suite;
+while_loop: "while" comparison [":"] [NEWLINE] suite;
 
-funcdef: ["def"] IDENTIFIER parameters rtype_decl? [":"] [NEWLINE] suite;
+funcdef: "def" IDENTIFIER parameters rtype_decl? [":"] [NEWLINE] suite;
 
 parameters: ["("] defargs? [")"];
 
