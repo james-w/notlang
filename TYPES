@@ -5,7 +5,8 @@ Here are some thoughts about types.
 
 Variables can only hold a single type during their lifetime, basically to make
 inference easier. This isn't generally a huge cost to the developer. What
-stops that type being ANY though?
+stops that type being ANY though? Being used in a way that needs something more
+specific. (Assigned but never used variables may be ANY.)
 
 Basic inference.
 ----------------
@@ -30,37 +31,10 @@ needed up a hierarchy. e.g.
 
 will change the inference when it sees the second declaration.
 
-This might require two passes? First pass to widen inferences, and
-second to catch inconsistencies that causes. If it requires more
-than one might it require an unbounded number to coverge?
-
-For instance
-
-  a = somefunc()
-  a = 1
-
-first pass marks somefunc as -> ANY (assuming we know nothing about it)
-and then a is marked int. We could then go back and mark somefunc as -> int
-for the "one type in a var rule", which may then contradict something
-we know elsewhere. Not very clear yet.
-
-Functions
----------
-
-Functions can annotate their return types and the types of the arguments.
-
-When calling a known function we can check types against inferred types.
-
-When an "unknown" function is called, or one that doesn't declare types,
-we have to assume it takes "any".
-
-We can likely infer the return type of a function, but can we infer the
-argument types? Only in very limited circumstances. If the type is fixed
-by e.g. the return value (like:
-def identity(a) -> int:
-    return a
-)  then we can do it, and maybe if the arg is passed to another function
-with a declaration, but otherwise we are limited.
+We do need to have type declarations for all functions with
+this method though. Otherwise we have to assume ANY when we
+don't know them, and how do you then pass that to something
+that declares need of a more specific type?
 
 Type checking
 -------------

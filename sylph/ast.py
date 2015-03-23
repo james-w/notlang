@@ -187,3 +187,20 @@ class CreateDispatchDictionaryMetaclass(type):
 class ASTVisitor(object):
     __metaclass__ = CreateDispatchDictionaryMetaclass
 
+
+class GatherNames(ASTVisitor):
+
+    def visit_Variable(self, node):
+        return set([node.varname])
+
+    def visit_FuncDef(self, node):
+        return set([node.name])
+
+    def general_terminal_visit(self, node):
+        return set()
+
+    def general_nonterminal_visit(self, node):
+        names = set()
+        for child in node.children:
+            names.update(self.dispatch(child))
+        return names

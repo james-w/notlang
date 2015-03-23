@@ -6,6 +6,7 @@ from rpython.rlib.parsing.parsing import ParseError
 from rpython.rlib.streamio import open_file_as_stream
 from rpython.jit.codewriter.policy import JitPolicy
 from sylph.interpreter import interpret
+from sylph.typer import SylphNameError, SylphTypeError
 
 
 def main(argv):
@@ -18,7 +19,7 @@ def main(argv):
     f.close()
     try:
         interpret(data)
-    except ParseError as e:
+    except (ParseError, SylphNameError, SylphTypeError) as e:
         print(e.nice_error_message(filename=fname, source=data))
     return 0
 

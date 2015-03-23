@@ -2,6 +2,7 @@
 *.pyc
 dist
 example-interpreter
+mypy
 pypy
 sylph.egg-info
 targetsylph-c

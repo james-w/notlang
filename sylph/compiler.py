@@ -1,4 +1,4 @@
-from . import ast, bytecode, codegen, compilercontext
+from . import ast, bytecode, codegen, compilercontext, typer
 from .objectspace import TheNone
 
 
@@ -110,7 +110,7 @@ def max_stacksize(code):
 
 
 def get_compiler(astnode):
-    #Typer().dispatch(astnode)
+    typer.typecheck(astnode)
     c = compilercontext.CompilerContext()
     Compiler(c).dispatch(astnode)
     c.emit(bytecode.LOAD_CONSTANT, c.register_constant(TheNone))
