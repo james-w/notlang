@@ -19,6 +19,7 @@ class CompilerContext(object):
         self.names_to_numbers = {}
         self.stacksize = 0
         self.max_stacksize = 0
+        self.locals = []
 
     def register_constant(self, v):
         self.constants.append(v)
@@ -31,6 +32,9 @@ class CompilerContext(object):
             self.names_to_numbers[name] = len(self.names)
             self.names.append(name)
             return len(self.names) - 1
+
+    def is_local(self, name):
+        return name in self.locals
 
     def emit(self, bc, arg=0):
         self.data.append(chr(bc))

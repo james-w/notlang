@@ -45,7 +45,8 @@ arglist_trailer: [","] <argument>;
 
 argument: comparison;
 
-conditional: "if" comparison [":"] [NEWLINE] suite;
+conditional: "if" comparison [":"] [NEWLINE] suite else_block?;
+else_block: ["else" ":" NEWLINE] suite;
 
 while_loop: "while" comparison [":"] [NEWLINE] suite;
 

@@ -20,7 +20,7 @@ driver = jit.JitDriver(greens = ['pc', 'code'],
 class Frame(object):
     _virtualizable_ = ['valuestack[*]', 'valuestack_pos', 'vars[*]', 'names[*]']
     
-    def __init__(self, prog):
+    def __init__(self, prog, globals):
         self = jit.hint(self, fresh_virtualizable=True, access_directly=True)
         self.valuestack = [None] * prog.max_stacksize
         make_sure_not_resized(self.valuestack)
@@ -28,8 +28,7 @@ class Frame(object):
         self.names = prog.names[:]
         make_sure_not_resized(self.names)
         self.valuestack_pos = 0
-        self.globals = {
-        }
+        self.globals = globals
         self.code = prog.bytecode
         self.constants = prog.constants
 
@@ -101,18 +100,23 @@ class Frame(object):
                     raise AssertionError("Variable referenced before assignment")
                 self.push(var)
             elif c == bytecode.LOAD_GLOBAL:
-                fname = self.names[arg]
-                fobj = self.globals.get(fname, None)
-                if fobj is None:
-                    raise SyntaxError("Unknown function: %s" % fname)
+                gname = self.names[arg]
+                glob = self.globals.get(gname, None)
+                if glob is None:
+                    raise SyntaxError("Unknown variable: %s" % gname)
                 else:
-                    self.push(fobj)
+                    self.push(glob)
             elif c == bytecode.CALL_FUNCTION:
                 fargs = self.popmany(arg)
                 fobj = self.pop()
                 if not isinstance(fobj, W_Func):
                     raise AssertionError("Is not a function object %s" % fobj)
-                child_f = Frame(fobj.code)
+                globals = self.globals
+                if globals is None:
+                    globals = {}
+                    for i, name in enumerate(self.names):
+                        globals[name] = self.vars[i]
+                child_f = Frame(fobj.code, globals)
                 for i in range(arg):
                     child_f.vars[i] = fargs[i]
                 ret = child_f.execute()
@@ -131,6 +135,8 @@ class Frame(object):
                 pc -= arg+2
                 # required hint indicating this is the end of a loop
                 driver.can_enter_jit(pc=pc, code=code, frame=self)
+            elif c == bytecode.JUMP_FORWARD:
+                pc += arg
             else:
                 assert False, "Unknown opcode: %d" % c
 
@@ -141,6 +147,6 @@ def get_bytecode(source):
 
 def interpret(source):
     prog = get_bytecode(source)
-    frame = Frame(prog)
+    frame = Frame(prog, None)
     frame.execute()
     return frame

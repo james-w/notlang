@@ -1,12 +1,18 @@
 def triple(arg:int, count:int) -> int:
-    return arg * count 
+    if count > 1:
+        return arg * triple(arg, count-1)
+    else:
+        return arg
 
 a = 1
 b = a
 while a > 0:
     a = a - 1
+a = 1
 if a == 1:
     b = a + 1 + 2
+else:
+    b = 5
 trip = triple
 c = trip(b+1, 2) + 1
 print(c)

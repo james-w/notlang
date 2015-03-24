@@ -51,7 +51,7 @@ class FunctionCallType(Type):
 
     def __str__(self):
         if self.args:
-            arg_str = " -> ".join(map(str, self.args))
+            arg_str = " -> ".join([str(a) for a in self.args])
         else:
             arg_str = "(noargs)"
         return str(self.name) + " " + arg_str
@@ -66,6 +66,16 @@ NONE = Type("None")
 BOOL = Type("Boolean")
 
 
+def create_typevars(arg, sourcepos):
+    equalities = []
+    if isinstance(arg, FunctionCallType):
+        new_tvar = TypeVariable("(rtype of %s)" % str(arg))
+        equalities.append((new_tvar, arg, [sourcepos]))
+        return new_tvar, equalities
+    else:
+        return arg, equalities
+
+
 class TypeCollector(ASTVisitor):
 
     def __init__(self):
@@ -74,6 +84,7 @@ class TypeCollector(ASTVisitor):
         self.rtype = TypeVariable("return")
         self.child_contexts = {}
         self.args = []
+        self.fname = None
 
     def get_typevar(self, name):
         return self.varmap.setdefault(name, TypeVariable(name))
@@ -102,35 +113,37 @@ class TypeCollector(ASTVisitor):
         return self.get_typevar(node.varname)
 
     def visit_Conditional(self, node):
+        condition, true_block, false_block = node.children
+        self.equalities.append((BOOL, self.dispatch(condition), [condition.sourcepos]))
+        self.dispatch(true_block)
+        if false_block is not None:
+            self.dispatch(false_block)
+        return None
+
+    def visit_While(self, node):
         condition, block = node.children
         self.equalities.append((BOOL, self.dispatch(condition), [condition.sourcepos]))
         self.dispatch(block)
         return None
 
-    visit_While = visit_Conditional
-
     def visit_BinOp(self, node):
-        args = map(self.dispatch, node.children)
-        def create_typevars(arg):
-            if isinstance(arg, FunctionCallType):
-                new_tvar = TypeVariable("(rtype of %s)" % str(arg))
-                self.equalities.append((new_tvar, arg, [node.sourcepos]))
-                return new_tvar
-            else:
-                return arg
-        return FunctionCallType(node.op, map(create_typevars, args))
+        args = [self.dispatch(c) for c in node.children]
+        new_args = []
+        for arg in args:
+            new_arg, new_eqs = create_typevars(arg, node.sourcepos)
+            self.equalities.extend(new_eqs)
+            new_args.append(new_arg)
+        return FunctionCallType(node.op, new_args)
 
     def visit_Function(self, node):
-        args = map(self.dispatch, node.children)
-        def create_typevars(arg):
-            if isinstance(arg, FunctionCallType):
-                new_tvar = TypeVariable("(rtype of %s)" % str(arg))
-                self.equalities.append((new_tvar, arg, [node.sourcepos]))
-                return new_tvar
-            else:
-                return arg
+        args = [self.dispatch(c) for c in node.children]
         ftype = self.varmap.setdefault(node.fname, TypeVariable(node.fname))
-        call = FunctionCallType(ftype, map(create_typevars, args))
+        new_args = []
+        for arg in args:
+            new_arg, new_eqs = create_typevars(arg, node.sourcepos)
+            self.equalities.extend(new_eqs)
+            new_args.append(new_arg)
+        call = FunctionCallType(ftype, new_args)
         rtype = TypeVariable("return of " + str(call))
         self.equalities.append((rtype, call, [node.sourcepos]))
         return rtype
@@ -152,7 +165,7 @@ class TypeCollector(ASTVisitor):
         return None
 
     def general_nonterminal_visit(self, node):
-        map(self.dispatch, node.children)
+        [self.dispatch(c) for c in node.children]
 
 
 # XXX: These need to match the functions that are in scope
@@ -177,7 +190,7 @@ class SylphNameError(Exception):
     def __str__(self):
         return "%s at %s" % (self.message, self.positions)
 
-    def nice_error_message(self, filename="<string>", source=None):
+    def nice_error_message(self, source=None, filename="<string>"):
         lines = []
         lines.append("NameError: " + self.message)
         lines.append("at line %d of %s" % (self.positions[0].lineno, filename))
@@ -196,7 +209,7 @@ class SylphTypeError(Exception):
     def __str__(self):
         return "%s at %s" % (self.message, self.positions)
 
-    def nice_error_message(self, filename="<string>", source=None):
+    def nice_error_message(self, source=None, filename="<string>"):
         lines = []
         lines.append("TypeError: " + self.message)
         lines.append("at line %d of %s" % (self.positions[0].lineno, filename))
@@ -227,9 +240,9 @@ def find_function(rtype, ftype, varmap, positions, functions):
         if rtype is None or candidate[-1] == rtype:
             return candidate
         else:
-            raise SylphTypeError("Function %s over %s returns %s not %s" % (ftype.name, " -> ".join(map(str, argtypes)), candidate[-1], rtype), positions)
+            raise SylphTypeError("Function %s over %s returns %s not %s" % (ftype.name, " -> ".join([str(a) for a in argtypes]), candidate[-1], rtype), positions)
     else:
-        raise SylphTypeError("Can't find function for %s with signature (%s)" % (ftype.name, " -> ".join(map(str, argtypes))), positions)
+        raise SylphTypeError("Can't find function for %s with signature (%s)" % (ftype.name, " -> ".join([str(a) for a in argtypes])), positions)
 
 
 def unify_types(a, b, varmap, positions, functions):
@@ -270,7 +283,17 @@ def _typecheck(t):
     functions = FUNCTIONS.copy()
     varmap = {}
     varmap[TypeVariable('print')] = TypeVariable('print')
+    if t.fname is not None:
+        args = ()
+        for arg in t.args:
+            args += (t.varmap[arg],)
+        args += (t.rtype,)
+        functions[t.fname] = args
+        varmap[TypeVariable(t.fname)] = TypeVariable(t.fname)
+        #varmap[t.fname] = FunctionCallType(TypeVariable(t.fname), args)
     for name, context in t.child_contexts.items():
+        context.varmap[TypeVariable(name)] = FunctionCallType(TypeVariable(name), [])
+        context.fname = name
         _typecheck(context)
         args = ()
         for arg in context.args:

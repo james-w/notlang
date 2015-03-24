@@ -1,4 +1,4 @@
-""" Execute ./sylph-c <filename>
+"""Execute ./sylph-c [-Derror] <filename>
 """
 
 import sys
@@ -10,17 +10,33 @@ from sylph.typer import SylphNameError, SylphTypeError
 
 
 def main(argv):
-    if not len(argv) == 2:
+    Derror = False
+    if len(argv) < 2 or len(argv) > 3:
         print __doc__
         return 1
-    fname = argv[1]
+    if len(argv) > 2:
+        assert argv[1] == "-Derror"
+        Derror = True
+        fname = argv[2]
+    else:
+        fname = argv[1]
     f = open_file_as_stream(fname)
     data = f.readall()
     f.close()
     try:
         interpret(data)
-    except (ParseError, SylphNameError, SylphTypeError) as e:
+    except ParseError as e:
         print(e.nice_error_message(filename=fname, source=data))
+        if Derror:
+            raise
+    except SylphNameError as e:
+        print(e.nice_error_message(filename=fname, source=data))
+        if Derror:
+            raise
+    except SylphTypeError as e:
+        print(e.nice_error_message(filename=fname, source=data))
+        if Derror:
+            raise
     return 0
 
 

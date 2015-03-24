@@ -17,11 +17,12 @@ register_code('BINARY_EQ', 8)
 register_code('BINARY_LT', 9)
 register_code('BINARY_GT', 10)
 register_code('JUMP_IF_FALSE', 11)
-register_code('JUMP_BACK', 12)
-register_code('CALL_FUNCTION', 13)
-register_code('MAKE_FUNCTION', 14)
-register_code('RETURN', 15)
-register_code('PRINT', 16)
+register_code('JUMP_FORWARD', 12)
+register_code('JUMP_BACK', 13)
+register_code('CALL_FUNCTION', 14)
+register_code('MAKE_FUNCTION', 15)
+register_code('RETURN', 16)
+register_code('PRINT', 17)
 
 BINOP = {'+': BINARY_ADD, '-': BINARY_SUB, '*': BINARY_MULT, '==': BINARY_EQ, '<': BINARY_LT, '>': BINARY_GT}
 unary_ops = [BINARY_ADD, BINARY_SUB, BINARY_MULT, BINARY_EQ, BINARY_LT, BINARY_GT, RETURN, PRINT]
@@ -37,6 +38,7 @@ STACK_CHANGE = {
     BINARY_LT: -1,
     BINARY_GT: -1,
     JUMP_IF_FALSE: -1,
+    JUMP_FORWARD: 0,
     JUMP_BACK: 0,
     CALL_FUNCTION: 999, # sentinel meaning -arg
     MAKE_FUNCTION: 0,

@@ -4,7 +4,7 @@ from .. import bytecode, codegen, compilercontext, interpreter
 
 
 def interpret(bcode):
-    frame = interpreter.Frame(bcode)
+    frame = interpreter.Frame(bcode, None)
     return frame.execute()
 
 
@@ -12,23 +12,27 @@ def make_simple_function(ctx, name):
     def code_cb(cctx):
         codegen.load_constant_int(cctx, 0)
         cctx.emit(bytecode.RETURN)
-    return codegen.make_function(ctx, name, code_cb)
+    return codegen.make_function(ctx, name, code_cb, [])
 
 
 class VariableTests(TestCase):
 
     def test_store_load(self):
+        varname = 'a'
         ctx = compilercontext.CompilerContext()
+        ctx.locals = [varname]
         codegen.load_constant_int(ctx, 99)
-        codegen.assignment(ctx, 'a')
-        codegen.load_var(ctx, 'a')
+        codegen.assignment(ctx, varname)
+        codegen.load_var(ctx, varname)
         codegen.do_return(ctx)
         ret = interpret(ctx.create_bytecode())
         self.assertEqual(99, ret.intval)
 
     def test_load_before_store(self):
+        varname = 'a'
         ctx = compilercontext.CompilerContext()
-        codegen.load_var(ctx, 'a')
+        ctx.locals = [varname]
+        codegen.load_var(ctx, varname)
         codegen.do_return(ctx)
         self.assertRaises(AssertionError, interpret, ctx.create_bytecode())
 
@@ -120,52 +124,62 @@ class BinaryOperationTests(TestCase):
 class JumpTests(TestCase):
 
     def test_jump_if_false__false(self):
+        varname = 'a'
         ctx = compilercontext.CompilerContext()
+        ctx.locals = [varname]
         codegen.load_constant_int(ctx, 99)
-        codegen.assignment(ctx, 'a')
+        codegen.assignment(ctx, varname)
         codegen.load_constant_int(ctx, 99)
         codegen.load_constant_int(ctx, 2)
         codegen.binary_operation(ctx, '==')
         def block_cb(cctx):
             codegen.load_constant_int(cctx, 2)
-            codegen.assignment(cctx, 'a')
-        codegen.conditional(ctx, block_cb)
-        codegen.load_var(ctx, 'a')
+            codegen.assignment(cctx, varname)
+        def else_cb(cctx):
+            pass
+        codegen.conditional(ctx, block_cb, else_cb)
+        codegen.load_var(ctx, varname)
         codegen.do_return(ctx)
         ret = interpret(ctx.create_bytecode())
         self.assertEqual(99, ret.intval)
 
     def test_jump_if_false__true(self):
+        varname = 'a'
         ctx = compilercontext.CompilerContext()
+        ctx.locals = [varname]
         codegen.load_constant_int(ctx, 99)
-        codegen.assignment(ctx, 'a')
+        codegen.assignment(ctx, varname)
         codegen.load_constant_int(ctx, 99)
         codegen.load_constant_int(ctx, 99)
         codegen.binary_operation(ctx, '==')
         def block_cb(cctx):
             codegen.load_constant_int(cctx, 2)
-            codegen.assignment(cctx, 'a')
-        codegen.conditional(ctx, block_cb)
-        codegen.load_var(ctx, 'a')
+            codegen.assignment(cctx, varname)
+        def else_cb(cctx):
+            pass
+        codegen.conditional(ctx, block_cb, else_cb)
+        codegen.load_var(ctx, varname)
         codegen.do_return(ctx)
         ret = interpret(ctx.create_bytecode())
         self.assertEqual(2, ret.intval)
 
     def test_jump_back(self):
+        varname = 'a'
         ctx = compilercontext.CompilerContext()
+        ctx.locals = [varname]
         codegen.load_constant_int(ctx, 1)
-        codegen.assignment(ctx, 'a')
+        codegen.assignment(ctx, varname)
         def condition_cb(cctx):
-            codegen.load_var(ctx, 'a')
+            codegen.load_var(ctx, varname)
             codegen.load_constant_int(ctx, 0)
             codegen.binary_operation(ctx, '>')
         def block_cb(cctx):
-            codegen.load_var(cctx, 'a')
+            codegen.load_var(cctx, varname)
             codegen.load_constant_int(cctx, 1)
             codegen.binary_operation(cctx, '-')
-            codegen.assignment(cctx, 'a')
+            codegen.assignment(cctx, varname)
         codegen.while_loop(ctx, condition_cb, block_cb)
-        codegen.load_var(ctx, 'a')
+        codegen.load_var(ctx, varname)
         codegen.do_return(ctx)
         ret = interpret(ctx.create_bytecode())
         self.assertEqual(0, ret.intval)
@@ -189,7 +203,7 @@ class FunctionTests(TestCase):
         def code_cb(cctx):
             codegen.load_var(cctx, 'a')
             codegen.do_return(cctx)
-        fvar = codegen.make_function(ctx, fname, code_cb)
+        fvar = codegen.make_function(ctx, fname, code_cb, ['a'])
         ctx.emit(bytecode.LOAD_VAR, fvar)
         codegen.load_constant_int(ctx, 1)
         ctx.emit(bytecode.CALL_FUNCTION, 1)
@@ -205,7 +219,7 @@ class FunctionTests(TestCase):
             codegen.load_var(cctx, 'b')
             codegen.binary_operation(cctx, '-')
             codegen.do_return(cctx)
-        fvar = codegen.make_function(ctx, fname, code_cb)
+        fvar = codegen.make_function(ctx, fname, code_cb, ['a', 'b'])
         ctx.emit(bytecode.LOAD_VAR, fvar)
         codegen.load_constant_int(ctx, 1)
         codegen.load_constant_int(ctx, 2)

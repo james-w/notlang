@@ -1,7 +1,7 @@
 import py
 from rpython.rlib.objectmodel import we_are_translated
 from rpython.rlib.parsing.ebnfparse import parse_ebnf
-from rpython.rlib.parsing.parsing import PackratParser, ParseError
+from rpython.rlib.parsing.parsing import PackratParser, ParseError, ErrorInformation
 from rpython.rlib.parsing.tree import RPythonVisitor
 
 from . import ast, lexer as mod_lexer, sylphdir
@@ -45,11 +45,12 @@ def make_parse_function(regexs, rules, eof=False):
     return parse
 
 
-grammar = py.path.local(sylphdir).join('grammar.txt').read("rt")
+grammar_filename = py.path.local(sylphdir).join('grammar.txt')
+grammar = grammar_filename.read("rt")
 try:
     regexs, rules, ToAST = parse_ebnf(grammar)
 except ParseError as e:
-    print e.nice_error_message()
+    print e.nice_error_message(filename=grammar_filename, source=grammar)
     raise
 _parse = make_parse_function(regexs, rules, eof=True)
 
@@ -81,7 +82,10 @@ class Transformer(RPythonVisitor):
     def visit_assignment(self, node):
         if len(node.children) == 1:
             return self.dispatch(node.children[0])
-        return ast.Assignment(self.dispatch(node.children[0]),
+        target = self.dispatch(node.children[0])
+        if not isinstance(target, ast.Variable):
+            raise ParseError(target.sourcepos, ErrorInformation(target.sourcepos.i, ["variable"]))
+        return ast.Assignment(target,
                               self.dispatch(node.children[1]), node.getsourcepos())
 
     def visit_statement(self, node):
@@ -124,7 +128,11 @@ class Transformer(RPythonVisitor):
         return ast.Return(arg, node.getsourcepos())
 
     def visit_conditional(self, node):
-        return ast.Conditional(self.dispatch(node.children[1]), self.dispatch(node.children[2]), node.getsourcepos())
+        if len(node.children) > 3:
+            else_block = self.dispatch(node.children[3])
+        else:
+            else_block = None
+        return ast.Conditional(self.dispatch(node.children[1]), self.dispatch(node.children[2]), else_block, node.getsourcepos())
 
     def visit_while_loop(self, node):
         return ast.While(self.dispatch(node.children[1]), self.dispatch(node.children[2]), node.getsourcepos())

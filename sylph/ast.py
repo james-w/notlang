@@ -96,8 +96,8 @@ class Function(NonTerminal):
 
 class Conditional(NonTerminal):
 
-    def __init__(self, condition, true_block, sourcepos):
-        self.children = [condition, true_block]
+    def __init__(self, condition, true_block, false_block, sourcepos):
+        self.children = [condition, true_block, false_block]
         self.sourcepos = sourcepos
 
 
@@ -191,16 +191,43 @@ class ASTVisitor(object):
 class GatherNames(ASTVisitor):
 
     def visit_Variable(self, node):
-        return set([node.varname])
+        return [node.varname]
 
     def visit_FuncDef(self, node):
-        return set([node.name])
+        return [node.name]
 
     def general_terminal_visit(self, node):
-        return set()
+        return []
 
     def general_nonterminal_visit(self, node):
-        names = set()
+        names = []
         for child in node.children:
-            names.update(self.dispatch(child))
+            cnames = self.dispatch(child)
+            for name in cnames:
+                if name not in names:
+                    names.append(name)
+        return names
+
+
+class GatherAssignedNames(ASTVisitor):
+
+    def visit_Variable(self, node):
+        return []
+
+    def visit_Assignment(self, node):
+        return [node.var.varname]
+
+    def visit_FuncDef(self, node):
+        return [node.name]
+
+    def general_terminal_visit(self, node):
+        return []
+
+    def general_nonterminal_visit(self, node):
+        names = []
+        for child in node.children:
+            cnames = self.dispatch(child)
+            for name in cnames:
+                if name not in names:
+                    names.append(name)
         return names

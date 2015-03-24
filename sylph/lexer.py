@@ -17,7 +17,7 @@ class AbstractIndentTrackingLexingDFARunner(deterministic.DFARunner):
         self.lineno = 0
         self.columnno = 0
         self.check_indent = False
-        self.current_indent = 0
+        self.indents = [0]
 
     def find_next_token(self):
         while 1:
@@ -40,11 +40,12 @@ class AbstractIndentTrackingLexingDFARunner(deterministic.DFARunner):
                         indent += 1
                     else:
                         break
-                if indent > self.current_indent:
-                    self.current_indent = indent
+                if indent > self.indents[-1]:
+                    self.indents.append(indent)
                     return self.make_token(start, -2, "")
-                elif indent < self.current_indent:
-                    self.current_indent = indent
+                elif indent < self.indents[-1]:
+                    self.check_indent = True
+                    self.indents.pop()
                     return self.make_token(start, -3, "")
 
             i = self.inner_loop(start)

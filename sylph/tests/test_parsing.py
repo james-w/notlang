@@ -2,7 +2,15 @@ from rpython.rlib.parsing.parsing import ParseError
 from testtools import TestCase
 
 from .. import ast
-from ..parsing import parse
+from ..parsing import parse as _parse
+
+
+def parse(code):
+    try:
+        return _parse(code)
+    except ParseError as e:
+        print e.nice_error_message(source=code)
+        raise
 
 
 class BasicParsingTests(TestCase):
@@ -12,7 +20,7 @@ class BasicParsingTests(TestCase):
         try:
             assert isinstance(parse(string), ast.Block)
         except ParseError as e:
-            raise AssertionError(e.nice_error_message())
+            raise AssertionError(e.nice_error_message(source=string))
 
     def test_empty(self):
         self.skip("Bug in rlib? that means getsourcepos on blocks with no statements fail")
@@ -140,6 +148,11 @@ class ASTTests(TestCase):
         self.assertIsInstance(ass.children[0], ast.ConstantInt)
         self.assertEqual(1, ass.sourcepos.i)
 
+    def test_Assignment_to_non_var(self):
+        err = self.assertRaises(ParseError, parse, " 1 = 1\n")
+        self.assertEqual("variable", err.errorinformation.failure_reasons[0])
+        self.assertEqual(1, err.source_pos.i)
+
     def test_comparison(self):
         node = parse(" a == 1\n")
         self.assertIsInstance(node, ast.Block)
@@ -219,10 +232,22 @@ class ASTTests(TestCase):
         self.assertIsInstance(node, ast.Block)
         cond = node.children[0].children[0]
         self.assertIsInstance(cond, ast.Conditional)
-        self.assertEqual(2, len(cond.children))
+        self.assertEqual(3, len(cond.children))
         self.assertIsInstance(cond.children[0], ast.BinOp)
         self.assertIsInstance(cond.children[1], ast.Block)
+        self.assertIs(None, cond.children[2])
         self.assertEqual(1, cond.sourcepos.i)
+
+    def test_Conditional_with_else(self):
+        node = parse("if a == 1:\n    2\nelse:\n    1\n\n")
+        self.assertIsInstance(node, ast.Block)
+        cond = node.children[0].children[0]
+        self.assertIsInstance(cond, ast.Conditional)
+        self.assertEqual(3, len(cond.children))
+        self.assertIsInstance(cond.children[0], ast.BinOp)
+        self.assertIsInstance(cond.children[1], ast.Block)
+        self.assertIsInstance(cond.children[2], ast.Block)
+        self.assertEqual(0, cond.sourcepos.i)
 
     def test_While(self):
         node = parse(" while a == 1:\n     2\n\n")

@@ -2,8 +2,12 @@ from . import bytecode, compilercontext, objectspace
 
 
 def load_var(ctx, name):
+    if ctx.is_local(name):
+        op = bytecode.LOAD_VAR
+    else:
+        op = bytecode.LOAD_GLOBAL
     vnum = ctx.register_var(name)
-    ctx.emit(bytecode.LOAD_VAR, vnum)
+    ctx.emit(op, vnum)
     return vnum
 
 
@@ -13,8 +17,9 @@ def load_constant_int(ctx, val):
     return vnum
 
 
-def make_function(ctx, name, code_cb):
+def make_function(ctx, name, code_cb, args):
     cctx = compilercontext.CompilerContext()
+    cctx.locals = args
     code_cb(cctx)
     cctx.emit(bytecode.LOAD_CONSTANT, cctx.register_constant(objectspace.TheNone))
     cctx.emit(bytecode.RETURN)
@@ -44,18 +49,22 @@ def do_print(ctx):
 
 
 def function_call(ctx, name, numargs, args_cb):
-    fnum = ctx.register_var(name)
-    ctx.emit(bytecode.LOAD_VAR, fnum)
+    fnum = load_var(ctx, name)
     args_cb(ctx)
     ctx.emit(bytecode.CALL_FUNCTION, numargs)
     return fnum
 
 
-def conditional(ctx, true_block_cb):
-    jump_instr = ctx.next_instruction_index()
+def conditional(ctx, true_block_cb, false_block_cb):
+    # TODO: can optimise out the jump after the true block if there is no false block
+    jump_back_instr = ctx.next_instruction_index()
     ctx.emit(bytecode.JUMP_IF_FALSE)
     true_block_cb(ctx)
-    ctx.adjust_arg(jump_instr, ctx.next_instruction_index()-jump_instr-2)
+    jump_forward_instr = ctx.next_instruction_index()
+    ctx.emit(bytecode.JUMP_FORWARD)
+    ctx.adjust_arg(jump_back_instr, ctx.next_instruction_index()-jump_back_instr-2)
+    false_block_cb(ctx)
+    ctx.adjust_arg(jump_forward_instr, ctx.next_instruction_index()-jump_forward_instr-2)
 
 
 def while_loop(ctx, condition_cb, block_cb):

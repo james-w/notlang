@@ -96,13 +96,26 @@ class TypeCollectorTests(TestCase):
         varname = "a"
         condition = ast.ConstantInt(1, self.spos)
         block = ast.Assignment(ast.Variable(varname, self.spos), ast.ConstantInt(2, self.spos), self.spos)
-        node = ast.Conditional(condition, block, self.spos)
+        node = ast.Conditional(condition, block, None, self.spos)
         t = typer.TypeCollector()
         rtype = t.dispatch(node)
         self.assertIs(None, rtype)
         self.assertEqual(2, len(t.equalities))
         self.assertEqual((typer.BOOL, typer.INT, [self.spos]), t.equalities[0])
         self.assertEqual((typer.TypeVariable(varname), typer.INT, [self.spos]), t.equalities[1])
+
+    def test_Conditional_with_else(self):
+        varname = "a"
+        condition = ast.ConstantInt(1, self.spos)
+        block = ast.Assignment(ast.Variable(varname, self.spos), ast.ConstantInt(2, self.spos), self.spos)
+        node = ast.Conditional(condition, block, block, self.spos)
+        t = typer.TypeCollector()
+        rtype = t.dispatch(node)
+        self.assertIs(None, rtype)
+        self.assertEqual(3, len(t.equalities))
+        self.assertEqual((typer.BOOL, typer.INT, [self.spos]), t.equalities[0])
+        self.assertEqual((typer.TypeVariable(varname), typer.INT, [self.spos]), t.equalities[1])
+        self.assertEqual((typer.TypeVariable(varname), typer.INT, [self.spos]), t.equalities[2])
 
     def test_While(self):
         varname = "a"

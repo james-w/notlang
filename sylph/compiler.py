@@ -33,14 +33,15 @@ class Compiler(ast.ASTVisitor):
 
     def visit_Conditional(self, node):
         self.dispatch(node.children[0])
-        codegen.conditional(self.ctx, CallbackHelper(node).conditional_true_block_cb)
+        helper = CallbackHelper(node)
+        codegen.conditional(self.ctx, helper.conditional_true_block_cb, helper.conditional_false_block_cb)
 
     def visit_While(self, node):
         helper = CallbackHelper(node)
         codegen.while_loop(self.ctx, helper.while_condition_cb, helper.while_block_cb)
 
     def visit_FuncDef(self, node):
-        codegen.make_function(self.ctx, node.name, CallbackHelper(node).funcdef_code_cb)
+        codegen.make_function(self.ctx, node.name, CallbackHelper(node).funcdef_code_cb, node.args)
 
     def visit_Return(self, node):
         if node.children:
@@ -56,6 +57,9 @@ class CallbackHelper(object):
         self.node = node
 
     def funcdef_code_cb(self, ctx):
+        for local in ast.GatherAssignedNames().dispatch(self.node.children[0]):
+            if local not in ctx.locals:
+                ctx.locals.append(local)
         [ctx.register_var(a) for a in self.node.args]
         Compiler(ctx).dispatch(self.node.children[0])
 
@@ -64,6 +68,11 @@ class CallbackHelper(object):
 
     def conditional_true_block_cb(self, ctx):
         Compiler(ctx).dispatch(self.node.children[1])
+
+    def conditional_false_block_cb(self, ctx):
+        false_block = self.node.children[2]
+        if false_block is not None:
+            Compiler(ctx).dispatch(false_block)
 
     def while_condition_cb(self, ctx):
         Compiler(ctx).dispatch(self.node.children[0])
@@ -112,6 +121,7 @@ def max_stacksize(code):
 def get_compiler(astnode):
     typer.typecheck(astnode)
     c = compilercontext.CompilerContext()
+    c.locals = ast.GatherAssignedNames().dispatch(astnode)
     Compiler(c).dispatch(astnode)
     c.emit(bytecode.LOAD_CONSTANT, c.register_constant(TheNone))
     c.emit(bytecode.RETURN)

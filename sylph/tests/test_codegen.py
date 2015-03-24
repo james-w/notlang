@@ -11,11 +11,19 @@ class CodeGenTests(TestCase):
     def test_load_var(self):
         varname = "foo"
         ctx = CompilerContext()
+        ctx.locals = [varname]
         vnum = codegen.load_var(ctx, varname)
         self.assertEqual([varname], ctx.names)
         self.assertEqual(0, vnum)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_VAR, 0]))
 
+    def test_load_global(self):
+        varname = "foo"
+        ctx = CompilerContext()
+        vnum = codegen.load_var(ctx, varname)
+        self.assertEqual([varname], ctx.names)
+        self.assertEqual(0, vnum)
+        self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_GLOBAL, 0]))
 
     def test_load_constant_int(self):
         ctx = CompilerContext()
@@ -30,7 +38,7 @@ class CodeGenTests(TestCase):
         ctx = CompilerContext()
         def code_cb(cctx):
             pass
-        fvar = codegen.make_function(ctx, fname, code_cb)
+        fvar = codegen.make_function(ctx, fname, code_cb, [])
         self.assertEqual(0, fvar)
         self.assertEqual(1, len(ctx.constants))
         self.assertIsInstance(ctx.constants[0], objectspace.W_Code)
@@ -69,7 +77,7 @@ class CodeGenTests(TestCase):
         self.assertEqual(0, fnum)
         self.assertEqual([fname], ctx.names)
         self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_VAR, 0,
+            BytecodeMatches([bytecode.LOAD_GLOBAL, 0,
                              bytecode.LOAD_CONSTANT, 99,
                              bytecode.CALL_FUNCTION, numargs]))
 
@@ -77,10 +85,14 @@ class CodeGenTests(TestCase):
         ctx = CompilerContext()
         def true_block_cb(cctx):
             cctx.emit(bytecode.LOAD_CONSTANT, 99)
-        codegen.conditional(ctx, true_block_cb)
+        def false_block_cb(cctx):
+            cctx.emit(bytecode.LOAD_CONSTANT, 98)
+        codegen.conditional(ctx, true_block_cb, false_block_cb)
         self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.JUMP_IF_FALSE, 2,
-                             bytecode.LOAD_CONSTANT, 99]))
+            BytecodeMatches([bytecode.JUMP_IF_FALSE, 4,
+                             bytecode.LOAD_CONSTANT, 99,
+                             bytecode.JUMP_FORWARD, 2,
+                             bytecode.LOAD_CONSTANT, 98]))
 
     def test_while(self):
         ctx = CompilerContext()
