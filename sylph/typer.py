@@ -116,7 +116,8 @@ class TypeCollector(ASTVisitor):
         return None
 
     def visit_Variable(self, node):
-        # XXX: check use before assignment here or in the checker?
+        if node.varname not in self.varmap:
+            raise SylphNameError("%s referenced before assignment" % node.varname, [node.sourcepos])
         return self.get_typevar(node.varname)
 
     def visit_Conditional(self, node):
@@ -149,14 +150,12 @@ class TypeCollector(ASTVisitor):
 
     def visit_FuncDef(self, node):
         child = TypeCollector()
-        # XXX: catch redfinition of functions
         self.child_contexts[node.name] = child
         if node.rtype:
             child.rtype = type_from_decl(node.rtype)
         for i, argtype_str in enumerate(node.argtypes):
             argtype = TypeExpr(node.args[i])
             if argtype_str is not None:
-                # XXX: should look up type based on name
                 argtype = type_from_decl(argtype_str)
             child.varmap[node.args[i]] = argtype
         ftype = self.get_typevar(node.name)
@@ -354,7 +353,7 @@ def check_functions_exist(substitions, functions, args):
                 break
         else:
             if s.name not in functions:
-                raise AssertionError("%s is not a function" % s.name)
+                raise SylphTypeError("%s is not a function" % s.name, pos)
     return constraints
 
 
