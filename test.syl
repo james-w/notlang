@@ -1,4 +1,4 @@
-def triple(arg:int, count:int) -> int:
+def triple(arg: int, count: int) -> int:
     if count > 1:
         return arg * triple(arg, count-1)
     else:
