@@ -97,21 +97,19 @@ def type_from_decl(type_str):
         raise AssertionError("Unknown type: %s" % type_str)
 
 
-def create_typevars(arg, sourcepos):
-    equalities = []
-    if isinstance(arg, FunctionCallType):
-        new_tvar = TypeExpr("(rtype of %s)" % str(arg))
-        equalities.append((new_tvar, arg, [sourcepos]))
-        return new_tvar, equalities
-    else:
-        return arg, equalities
+SUPERTYPE_OF = ">>>"
+SUBTYPE_OF = "<<<"
 
+INVERSE_CONSTRAINT = {
+    SUPERTYPE_OF: SUBTYPE_OF,
+    SUBTYPE_OF: SUPERTYPE_OF,
+}
 
 class TypeCollector(ASTVisitor):
 
     def __init__(self):
         self.varmap = {}
-        self.equalities = []
+        self.constraints = []
         self.rtype = TypeExpr("return")
         self.child_contexts = {}
         self.args = []
@@ -128,7 +126,7 @@ class TypeCollector(ASTVisitor):
         target = node.var
         source_type = self.dispatch(source)
         target_type = self.get_typevar(target.varname)
-        self.equalities.append((target_type, source_type, [node.sourcepos]))
+        self.constraints.append((target_type, SUPERTYPE_OF, source_type, [node.sourcepos]))
         return target_type
 
     def visit_Return(self, node):
@@ -136,7 +134,7 @@ class TypeCollector(ASTVisitor):
             source_type = self.dispatch(node.children[0])
         else:
             source_type = NONE
-        self.equalities.append((self.rtype, source_type, [node.sourcepos]))
+        self.constraints.append((self.rtype, SUPERTYPE_OF, source_type, [node.sourcepos]))
         return None
 
     def visit_Variable(self, node):
@@ -145,7 +143,7 @@ class TypeCollector(ASTVisitor):
 
     def visit_Conditional(self, node):
         condition, true_block, false_block = node.children
-        self.equalities.append((self.dispatch(condition), BOOL, [condition.sourcepos]))
+        self.constraints.append((self.dispatch(condition), SUBTYPE_OF, BOOL, [condition.sourcepos]))
         self.dispatch(true_block)
         if false_block is not None:
             self.dispatch(false_block)
@@ -153,7 +151,7 @@ class TypeCollector(ASTVisitor):
 
     def visit_While(self, node):
         condition, block = node.children
-        self.equalities.append((self.dispatch(condition), BOOL, [condition.sourcepos]))
+        self.constraints.append((self.dispatch(condition), SUBTYPE_OF, BOOL, [condition.sourcepos]))
         self.dispatch(block)
         return None
 
@@ -162,7 +160,7 @@ class TypeCollector(ASTVisitor):
         args = [self.dispatch(c) for c in node.children]
         ftype = self.get_typevar(name)
         rtype = TypeExpr("return of %s" % ftype)
-        self.equalities.append((rtype, ReturnType(Apply(ftype, args)), [node.sourcepos]))
+        self.constraints.append((rtype, SUPERTYPE_OF, ReturnType(Apply(ftype, args)), [node.sourcepos]))
         return rtype
 
     def visit_BinOp(self, node):
@@ -244,8 +242,10 @@ class SylphTypeError(Exception):
         return "\n".join(lines)
 
 
-def unify_types(a, b):
-    if a is ANY or b is ANY:
+def unify_types(a, b, constraint):
+    if constraint == SUPERTYPE_OF and a is ANY:
+        return ANY
+    if constraint == SUBTYPE_OF and b is ANY:
         return ANY
     if a == b:
         return a
@@ -289,7 +289,7 @@ def update_substitution(substition, lhs, rhs, positions):
     substition[lhs] = rhs
 
 
-def handle_return_type(rtype, required_rtype, equalities, functions, substition, positions):
+def handle_return_type(rtype, required_rtype, constraint, constraints, functions, substition, positions):
     tapply = rtype.name
     ftype = tapply.ftype
     defined = ftype
@@ -309,28 +309,27 @@ def handle_return_type(rtype, required_rtype, equalities, functions, substition,
             return instantiated_vars.setdefault(arg, TypeExpr(arg1.name))
         return arg
     for arg1, arg2 in zip(defined.args, tapply.args):
-        equalities.insert(0, (arg2, instantiate(arg1), positions))
-    equalities.insert(0, (required_rtype, instantiate(defined.rtype), positions))
+        constraints.insert(0, (arg2, SUBTYPE_OF, instantiate(arg1), positions))
+    constraints.insert(0, (required_rtype, INVERSE_CONSTRAINT[constraint], instantiate(defined.rtype), positions))
 
 
-def satisfy_equalities(equalities, varmap, functions):
+def satisfy_constraints(constraints, varmap, functions):
     substition = dict()
-    while equalities:
-        equality = equalities.pop(0)
-        lhs, rhs, positions = equality
-        print "%r == %r" % (lhs, rhs)
+    while constraints:
+        equality = constraints.pop(0)
+        lhs, constraint, rhs, positions = equality
         if isinstance(lhs, TypeExpr):
             if lhs in substition:
                 # TODO: store positions in the substition and update
                 # the list as things are replaced to get full list of
                 # involved lines?
-                equalities.insert(0, (substition[lhs], rhs, positions))
+                constraints.insert(0, (substition[lhs], constraint, rhs, positions))
                 continue
             else:
                 if isinstance(lhs, ReturnType):
-                    handle_return_type(lhs, rhs, equalities, functions, substition, positions)
+                    handle_return_type(lhs, rhs, constraint, constraints, functions, substition, positions)
                 elif isinstance(rhs, ReturnType):
-                    handle_return_type(rhs, lhs, equalities, functions, substition, positions)
+                    handle_return_type(rhs, lhs, INVERSE_CONSTRAINT[constraint], constraints, functions, substition, positions)
                 if lhs != rhs:
                     update_substitution(substition, lhs, rhs, positions)
         elif isinstance(lhs, FunctionType):
@@ -339,21 +338,21 @@ def satisfy_equalities(equalities, varmap, functions):
             if len(lhs.args) != len(rhs.args):
                 raise SylphTypeError("Types don't match %s != %s, argument lengths differ" % (lhs, rhs), positions)
             for i, arg in enumerate(lhs.args):
-                equalities.insert(0, (arg, rhs.args[i], positions))
+                constraints.insert(0, (arg, constraint, rhs.args[i], positions))
         else:
             if isinstance(rhs, TypeExpr):
                 if rhs in substition:
-                    equalities.insert(0, (lhs, substition[rhs], positions))
+                    constraints.insert(0, (lhs, constraint, substition[rhs], positions))
                     continue
                 else:
                     if isinstance(rhs, ReturnType):
-                        handle_return_type(rhs, lhs, equalities, functions, substition, positions)
+                        handle_return_type(rhs, lhs, INVERSE_CONSTRAINT[constraint], constraints, functions, substition, positions)
                     if lhs != rhs:
                         update_substitution(substition, rhs, lhs, positions)
                     continue
-            newtype = unify_types(lhs, rhs)
+            newtype = unify_types(lhs, rhs, constraint)
             if newtype is None:
-                raise SylphTypeError("Types don't match %s != %s" % (lhs, rhs), positions)
+                raise SylphTypeError("Types don't match %s !%s %s" % (lhs, constraint, rhs), positions)
     return substition
 
 
@@ -389,9 +388,8 @@ def _typecheck(t):
         context.fname = name
         child_subs = _typecheck(context)
         functions[name] = function_type_from_context(context, substitions=child_subs)
-        print "%s is %s" % (name, functions[name])
     functions.update(functions_from_vars(t.varmap))
-    return satisfy_equalities(t.equalities, varmap, functions)
+    return satisfy_constraints(t.constraints, varmap, functions)
 
 
 def typecheck(node):
