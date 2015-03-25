@@ -4,6 +4,13 @@ def triple(arg: int, count: int) -> int:
     else:
         return arg
 
+def truer(arg):
+    return arg
+
+d = truer(2)
+e = truer(1)
+f = d + e
+
 a = 1
 b = a
 while a > 0:

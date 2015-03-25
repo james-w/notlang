@@ -13,6 +13,18 @@ class Type(object):
         return "<Type:%s>" % str(self)
 
 
+class TypeExpr(Type):
+
+    def __init__(self, name):
+        self.name = name
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return "<TypeExpr:%s>" % str(self)
+
+
 class TypeVariable(Type):
 
     def __init__(self, name):
@@ -43,7 +55,7 @@ class FunctionType(Type):
         return "<FunctionCall:%s>" % str(self)
 
 
-class ReturnType(TypeVariable):
+class ReturnType(TypeExpr):
 
     def __str__(self):
         return "return of " + str(self.name)
@@ -68,7 +80,7 @@ class Apply(Type):
 ANY = Type("ANY")
 INT = Type("int")
 NONE = Type("None")
-BOOL = Type("Boolean")
+BOOL = Type("bool")
 
 BASE_TYPES = {
     "any": ANY,
@@ -88,7 +100,7 @@ def type_from_decl(type_str):
 def create_typevars(arg, sourcepos):
     equalities = []
     if isinstance(arg, FunctionCallType):
-        new_tvar = TypeVariable("(rtype of %s)" % str(arg))
+        new_tvar = TypeExpr("(rtype of %s)" % str(arg))
         equalities.append((new_tvar, arg, [sourcepos]))
         return new_tvar, equalities
     else:
@@ -100,13 +112,13 @@ class TypeCollector(ASTVisitor):
     def __init__(self):
         self.varmap = {}
         self.equalities = []
-        self.rtype = TypeVariable("return")
+        self.rtype = TypeExpr("return")
         self.child_contexts = {}
         self.args = []
         self.fname = None
 
     def get_typevar(self, name):
-        return self.varmap.setdefault(name, TypeVariable(name))
+        return self.varmap.setdefault(name, TypeExpr(name))
 
     def visit_ConstantInt(self, node):
         return INT
@@ -146,9 +158,12 @@ class TypeCollector(ASTVisitor):
         return None
 
     def _handle_function(self, node, name):
+        # TODO: this needs to carry the sourcepos for the args somehow
         args = [self.dispatch(c) for c in node.children]
         ftype = self.get_typevar(name)
-        return ReturnType(Apply(ftype, args))
+        rtype = TypeExpr("return of %s" % ftype)
+        self.equalities.append((rtype, ReturnType(Apply(ftype, args)), [node.sourcepos]))
+        return rtype
 
     def visit_BinOp(self, node):
         return self._handle_function(node, node.op)
@@ -163,7 +178,7 @@ class TypeCollector(ASTVisitor):
         if node.rtype:
             child.rtype = type_from_decl(node.rtype)
         for i, argtype_str in enumerate(node.argtypes):
-            argtype = TypeVariable(node.args[i])
+            argtype = TypeExpr(node.args[i])
             if argtype_str is not None:
                 # XXX: should look up type based on name
                 argtype = type_from_decl(argtype_str)
@@ -242,7 +257,7 @@ def occurs(lhs, rhs):
             return True
         if occurs(lhs, rhs.name):
             return True
-    elif isinstance(rhs, TypeVariable):
+    elif isinstance(rhs, TypeExpr):
         pass
     elif isinstance(rhs, FunctionType):
         if lhs == rhs:
@@ -288,9 +303,14 @@ def handle_return_type(rtype, required_rtype, equalities, functions, substition,
         raise SylphTypeError("Attempted to call a non-function %s" % (defined.name), positions)
     if len(defined.args) != len(tapply.args):
         raise SylphTypeError("Incorrect number of args for function %s, expected %d, got %d" % (defined.name, len(defined.args), len(tapply.args)), positions)
+    instantiated_vars = {}
+    def instantiate(arg):
+        if isinstance(arg, TypeVariable):
+            return instantiated_vars.setdefault(arg, TypeExpr(arg1.name))
+        return arg
     for arg1, arg2 in zip(defined.args, tapply.args):
-        equalities.insert(0, (arg2, arg1, positions))
-    equalities.insert(0, (required_rtype, defined.rtype, positions))
+        equalities.insert(0, (arg2, instantiate(arg1), positions))
+    equalities.insert(0, (required_rtype, instantiate(defined.rtype), positions))
 
 
 def satisfy_equalities(equalities, varmap, functions):
@@ -298,7 +318,8 @@ def satisfy_equalities(equalities, varmap, functions):
     while equalities:
         equality = equalities.pop(0)
         lhs, rhs, positions = equality
-        if isinstance(lhs, TypeVariable):
+        print "%r == %r" % (lhs, rhs)
+        if isinstance(lhs, TypeExpr):
             if lhs in substition:
                 # TODO: store positions in the substition and update
                 # the list as things are replaced to get full list of
@@ -320,15 +341,18 @@ def satisfy_equalities(equalities, varmap, functions):
             for i, arg in enumerate(lhs.args):
                 equalities.insert(0, (arg, rhs.args[i], positions))
         else:
-            if isinstance(rhs, TypeVariable):
+            if isinstance(rhs, TypeExpr):
                 if rhs in substition:
                     equalities.insert(0, (lhs, substition[rhs], positions))
                     continue
                 else:
                     if isinstance(rhs, ReturnType):
                         handle_return_type(rhs, lhs, equalities, functions, substition, positions)
-                        continue
-            if not unify_types(lhs, rhs):
+                    if lhs != rhs:
+                        update_substitution(substition, rhs, lhs, positions)
+                    continue
+            newtype = unify_types(lhs, rhs)
+            if newtype is None:
                 raise SylphTypeError("Types don't match %s != %s" % (lhs, rhs), positions)
     return substition
 
@@ -337,18 +361,19 @@ def functions_from_vars(varmap):
     functions = {}
     for name, t in varmap.items():
         if isinstance(t, FunctionType):
-            functions[TypeVariable(name)] = t
+            functions[TypeExpr(name)] = t
     return functions
 
 
 def function_type_from_context(t, prefix_names=True, substitions=None):
     if substitions is None:
         substitions = {}
+    vars = {}
     def get_substituted(var):
         while var in substitions:
             var = substitions[var]
-        if prefix_names and isinstance(var, TypeVariable):
-            var = TypeVariable(t.fname + ":" + var.name)
+        if prefix_names and isinstance(var, TypeExpr):
+            var = vars.setdefault(var, TypeVariable(t.fname + ":" + var.name))
         return var
     rtype = get_substituted(t.rtype)
     args = [get_substituted(t.varmap[arg]) for arg in t.args]
@@ -364,6 +389,7 @@ def _typecheck(t):
         context.fname = name
         child_subs = _typecheck(context)
         functions[name] = function_type_from_context(context, substitions=child_subs)
+        print "%s is %s" % (name, functions[name])
     functions.update(functions_from_vars(t.varmap))
     return satisfy_equalities(t.equalities, varmap, functions)
 
