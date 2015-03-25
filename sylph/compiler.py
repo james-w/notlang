@@ -60,11 +60,10 @@ class CallbackHelper(object):
         for local in ast.GatherAssignedNames().dispatch(self.node.children[0]):
             if local not in ctx.locals:
                 ctx.locals.append(local)
-        [ctx.register_var(a) for a in self.node.args]
         Compiler(ctx).dispatch(self.node.children[0])
 
     def function_args_cb(self, ctx):
-        Compiler(ctx).general_nonterminal_visit(self.node)
+        [Compiler(ctx).dispatch(c) for c in reversed(self.node.children)]
 
     def conditional_true_block_cb(self, ctx):
         Compiler(ctx).dispatch(self.node.children[1])

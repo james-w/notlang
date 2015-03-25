@@ -80,16 +80,19 @@ class TestCompiler(TestCase):
 
     def test_function(self):
         fname = "foo"
-        arg = ast.ConstantInt(2, self.spos)
-        node = ast.Function(fname, [arg], self.spos)
+        arg1 = ast.ConstantInt(2, self.spos)
+        arg2 = ast.ConstantInt(99, self.spos)
+        node = ast.Function(fname, [arg1, arg2], self.spos)
         ctx = compile(node)
-        self.assertEqual(1, len(ctx.constants))
-        self.assertEqual(2, ctx.constants[0].intval)
+        self.assertEqual(2, len(ctx.constants))
+        self.assertEqual(99, ctx.constants[0].intval)
+        self.assertEqual(2, ctx.constants[1].intval)
         self.assertEqual([fname], ctx.names)
         self.assertThat(ctx.data,
             BytecodeMatches([bytecode.LOAD_GLOBAL, 0,
                              bytecode.LOAD_CONSTANT, 0,
-                             bytecode.CALL_FUNCTION, 1]))
+                             bytecode.LOAD_CONSTANT, 1,
+                             bytecode.CALL_FUNCTION, 2]))
 
     def test_conditional(self):
         condition = ast.ConstantInt(1, self.spos)

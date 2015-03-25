@@ -10,6 +10,8 @@ def truer(arg):
 def mappish(f, a):
     return f(a)
 
+mappish(truer, 1)
+
 d = truer(2)
 e = truer(1)
 f = d + e

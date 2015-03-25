@@ -19,6 +19,8 @@ def load_constant_int(ctx, val):
 
 def make_function(ctx, name, code_cb, args):
     cctx = compilercontext.CompilerContext()
+    for arg in args:
+        cctx.register_var(arg)
     cctx.locals = args
     code_cb(cctx)
     cctx.emit(bytecode.LOAD_CONSTANT, cctx.register_constant(objectspace.TheNone))
