@@ -7,6 +7,9 @@ def triple(arg: int, count: int) -> int:
 def truer(arg):
     return arg
 
+def mappish(f, a):
+    return f(a)
+
 d = truer(2)
 e = truer(1)
 f = d + e
@@ -21,5 +24,5 @@ if a == 1:
 else:
     b = 5
 trip = triple
-c = trip(b+1, 2) + 1
+c = trip(b+1, 4) + 1
 print(c)

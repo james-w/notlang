@@ -19,7 +19,7 @@ class TypeExpr(Type):
         self.name = name
 
     def __str__(self):
-        return self.name
+        return str(self.name)
 
     def __repr__(self):
         return "<TypeExpr:%s>" % str(self)
@@ -31,7 +31,7 @@ class TypeVariable(Type):
         self.name = name
 
     def __str__(self):
-        return self.name
+        return str(self.name)
 
     def __repr__(self):
         return "<TypeVariable:%s>" % str(self)
@@ -49,32 +49,10 @@ class FunctionType(Type):
             arg_str = " -> ".join([str(a) for a in self.args])
         else:
             arg_str = "(noargs)"
-        return str(self.name) + "(" + arg_str + ") -> " + str(self.rtype)
+        return "(" + str(self.name) + " " + arg_str + " -> " + str(self.rtype) + ")"
 
     def __repr__(self):
-        return "<FunctionCall:%s>" % str(self)
-
-
-class ReturnType(TypeExpr):
-
-    def __str__(self):
-        return "return of " + str(self.name)
-
-    def __repr__(self):
-        return "<ReturnType:%s>" % str(self)
-
-
-class Apply(Type):
-
-    def __init__(self, ftype, args):
-        self.ftype = ftype
-        self.args = args
-
-    def __str__(self):
-        return "Application of %s to %s" % (str(self.ftype), str(self.args))
-
-    def __repr__(self):
-        return "<Apply:%s(%s)>" % (str(self.ftype), str(self.args))
+        return "<FunctionType:%s>" % str(self)
 
 
 ANY = Type("ANY")
@@ -97,8 +75,8 @@ def type_from_decl(type_str):
         raise AssertionError("Unknown type: %s" % type_str)
 
 
-SUPERTYPE_OF = ">>>"
-SUBTYPE_OF = "<<<"
+SUPERTYPE_OF = "supertype of"
+SUBTYPE_OF = "subtype of"
 
 INVERSE_CONSTRAINT = {
     SUPERTYPE_OF: SUBTYPE_OF,
@@ -158,9 +136,9 @@ class TypeCollector(ASTVisitor):
     def _handle_function(self, node, name):
         # TODO: this needs to carry the sourcepos for the args somehow
         args = [self.dispatch(c) for c in node.children]
-        ftype = self.get_typevar(name)
-        rtype = TypeExpr("return of %s" % ftype)
-        self.constraints.append((rtype, SUPERTYPE_OF, ReturnType(Apply(ftype, args)), [node.sourcepos]))
+        type_name = self.get_typevar(name)
+        rtype = TypeExpr("r" + str(type_name))
+        self.constraints.append((type_name, SUPERTYPE_OF, FunctionType(type_name, args, rtype), [node.sourcepos]))
         return rtype
 
     def visit_BinOp(self, node):
@@ -218,8 +196,9 @@ class SylphNameError(Exception):
         lines.append("NameError: " + self.message)
         lines.append("at line %d of %s" % (self.positions[0].lineno, filename))
         if source:
-            lines.append(source.splitlines()[self.positions[0].lineno])
-            lines.append(" " * (self.positions[0].columnno) + "^~~~~")
+            for pos in self.positions:
+                lines.append(source.splitlines()[pos.lineno])
+                lines.append(" " * (pos.columnno) + "^~~~~")
         return "\n".join(lines)
 
 
@@ -237,8 +216,9 @@ class SylphTypeError(Exception):
         lines.append("TypeError: " + self.message)
         lines.append("at line %d of %s" % (self.positions[0].lineno, filename))
         if source:
-            lines.append(source.splitlines()[self.positions[0].lineno])
-            lines.append(" " * (self.positions[0].columnno) + "^~~~~")
+            for pos in self.positions:
+                lines.append(source.splitlines()[pos.lineno])
+                lines.append(" " * (pos.columnno) + "^~~~~")
         return "\n".join(lines)
 
 
@@ -252,13 +232,8 @@ def unify_types(a, b, constraint):
 
 
 def occurs(lhs, rhs):
-    if isinstance(rhs, ReturnType):
-        if lhs == rhs:
-            return True
-        if occurs(lhs, rhs.name):
-            return True
-    elif isinstance(rhs, TypeExpr):
-        pass
+    if isinstance(rhs, TypeExpr):
+        return False
     elif isinstance(rhs, FunctionType):
         if lhs == rhs:
             return True
@@ -267,53 +242,21 @@ def occurs(lhs, rhs):
                 return True
         if occurs(lhs, rhs.rtype):
             return True
-    elif isinstance(rhs, Apply):
-        if lhs == rhs:
-            return True
-        if occurs(lhs, rhs.ftype):
-            return True
-        for arg in rhs.args:
-            if occurs(lhs, arg):
-                return True
 
 
 def update_substitution(substition, lhs, rhs, positions):
     if occurs(lhs, rhs):
         raise SylphTypeError("Recursive type definition: %s = %s" % (lhs, rhs), positions)
-    for other_lhs, candidate in substition.items():
+    for other_lhs, (candidate, pos) in substition.items():
         # TODO: recurse in to function types in rhs?
         if candidate == lhs:
-            substition[other_lhs] = rhs
+            substition[other_lhs] = (rhs, pos + positions)
         if other_lhs == lhs:
-            substition[rhs] = candidate
-    substition[lhs] = rhs
+            substition[rhs] = (candidate, pos + positions)
+    substition[lhs] = (rhs, positions)
 
 
-def handle_return_type(rtype, required_rtype, constraint, constraints, functions, substition, positions):
-    tapply = rtype.name
-    ftype = tapply.ftype
-    defined = ftype
-    if defined in substition:
-        defined = substition[ftype]
-    if not isinstance(defined, FunctionType):
-        if defined.name not in functions:
-            raise SylphNameError("Unknown function: %s" % defined.name, positions)
-        defined = functions.get(defined.name)
-    if not isinstance(defined, FunctionType):
-        raise SylphTypeError("Attempted to call a non-function %s" % (defined.name), positions)
-    if len(defined.args) != len(tapply.args):
-        raise SylphTypeError("Incorrect number of args for function %s, expected %d, got %d" % (defined.name, len(defined.args), len(tapply.args)), positions)
-    instantiated_vars = {}
-    def instantiate(arg):
-        if isinstance(arg, TypeVariable):
-            return instantiated_vars.setdefault(arg, TypeExpr(arg1.name))
-        return arg
-    for arg1, arg2 in zip(defined.args, tapply.args):
-        constraints.insert(0, (arg2, SUBTYPE_OF, instantiate(arg1), positions))
-    constraints.insert(0, (required_rtype, INVERSE_CONSTRAINT[constraint], instantiate(defined.rtype), positions))
-
-
-def satisfy_constraints(constraints, varmap, functions):
+def satisfy_constraints(constraints):
     substition = dict()
     while constraints:
         equality = constraints.pop(0)
@@ -323,13 +266,10 @@ def satisfy_constraints(constraints, varmap, functions):
                 # TODO: store positions in the substition and update
                 # the list as things are replaced to get full list of
                 # involved lines?
-                constraints.insert(0, (substition[lhs], constraint, rhs, positions))
+                newlhs, newpos = substition[lhs]
+                constraints.insert(0, (newlhs, constraint, rhs, positions + newpos))
                 continue
             else:
-                if isinstance(lhs, ReturnType):
-                    handle_return_type(lhs, rhs, constraint, constraints, functions, substition, positions)
-                elif isinstance(rhs, ReturnType):
-                    handle_return_type(rhs, lhs, INVERSE_CONSTRAINT[constraint], constraints, functions, substition, positions)
                 if lhs != rhs:
                     update_substitution(substition, lhs, rhs, positions)
         elif isinstance(lhs, FunctionType):
@@ -339,20 +279,20 @@ def satisfy_constraints(constraints, varmap, functions):
                 raise SylphTypeError("Types don't match %s != %s, argument lengths differ" % (lhs, rhs), positions)
             for i, arg in enumerate(lhs.args):
                 constraints.insert(0, (arg, constraint, rhs.args[i], positions))
+            constraints.insert(0, (lhs.rtype, constraint, rhs.rtype, positions))
         else:
             if isinstance(rhs, TypeExpr):
                 if rhs in substition:
-                    constraints.insert(0, (lhs, constraint, substition[rhs], positions))
+                    newrhs, newpos = substition[rhs]
+                    constraints.insert(0, (lhs, constraint, newrhs, positions + newpos))
                     continue
                 else:
-                    if isinstance(rhs, ReturnType):
-                        handle_return_type(rhs, lhs, INVERSE_CONSTRAINT[constraint], constraints, functions, substition, positions)
                     if lhs != rhs:
                         update_substitution(substition, rhs, lhs, positions)
                     continue
             newtype = unify_types(lhs, rhs, constraint)
             if newtype is None:
-                raise SylphTypeError("Types don't match %s !%s %s" % (lhs, constraint, rhs), positions)
+                raise SylphTypeError("Types don't match %s is not a %s of %s" % (lhs, constraint, rhs), positions)
     return substition
 
 
@@ -364,19 +304,58 @@ def functions_from_vars(varmap):
     return functions
 
 
+def get_substituted(var, substitions):
+    while var in substitions:
+        var = substitions[var][0]
+    return var
+
+
 def function_type_from_context(t, prefix_names=True, substitions=None):
     if substitions is None:
         substitions = {}
     vars = {}
-    def get_substituted(var):
-        while var in substitions:
-            var = substitions[var]
-        if prefix_names and isinstance(var, TypeExpr):
-            var = vars.setdefault(var, TypeVariable(t.fname + ":" + var.name))
+    def get_substituted_and_generalised(var):
+        var = get_substituted(var, substitions)
+        if isinstance(var, TypeExpr):
+            var = vars.setdefault(var, TypeVariable(var.name))
+        elif isinstance(var, FunctionType):
+            var = FunctionType(var.name, [get_substituted_and_generalised(a) for a in var.args], get_substituted_and_generalised(var.rtype))
         return var
-    rtype = get_substituted(t.rtype)
-    args = [get_substituted(t.varmap[arg]) for arg in t.args]
+    rtype = get_substituted_and_generalised(t.rtype)
+    args = [get_substituted_and_generalised(t.varmap[arg]) for arg in t.args]
     return FunctionType(t.fname, args, rtype)
+
+
+def instantiated(ftype):
+    instantiated_vars = {}
+    def instantiate(arg):
+        if isinstance(arg, TypeVariable):
+            return instantiated_vars.setdefault(arg, TypeExpr(arg))
+        if isinstance(arg, FunctionType):
+            return instantiated(arg)
+        return arg
+    return FunctionType(ftype.name, [instantiate(a) for a in ftype.args], instantiate(ftype.rtype))
+
+
+def check_functions_exist(substitions, functions, args):
+    constraints = []
+    ftypes = {}
+    for s, (t, pos) in substitions.items():
+        if isinstance(t, FunctionType):
+            ftypes.setdefault(t, []).append((s, pos))
+    for t, names in ftypes.items():
+        for s, pos in names:
+            assert isinstance(s, TypeExpr), "Hope this doesn't fail!"
+            if s.name in args:
+                break
+            if s.name in functions:
+                defined = functions[s.name]
+                constraints.append((t, SUBTYPE_OF, instantiated(defined), pos))
+                break
+        else:
+            if s.name not in functions:
+                raise AssertionError("%s is not a function" % s.name)
+    return constraints
 
 
 def _typecheck(t):
@@ -389,7 +368,10 @@ def _typecheck(t):
         child_subs = _typecheck(context)
         functions[name] = function_type_from_context(context, substitions=child_subs)
     functions.update(functions_from_vars(t.varmap))
-    return satisfy_constraints(t.constraints, varmap, functions)
+    substitions = satisfy_constraints(t.constraints[:])
+    new_constraints = check_functions_exist(substitions, functions, t.args)
+    satisfy_constraints(t.constraints[:] + new_constraints)
+    return substitions
 
 
 def typecheck(node):
