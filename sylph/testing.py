@@ -24,9 +24,28 @@ class BytecodeMatches(object):
 class IsTypeExpr(object):
 
     def __init__(self, name):
+        def get_name(a):
+            return getattr(a, 'name', None)
         self.matcher = MatchesAll(
             IsInstance(typer.TypeExpr),
-            AfterPreprocessing(lambda a: a.name, Equals(name))
+            AfterPreprocessing(get_name, Equals(name))
+        )
+
+    def __str__(self):
+        return str(self.matcher)
+
+    def match(self, actual):
+        return self.matcher.match(actual)
+
+
+class IsTypeVariable(object):
+
+    def __init__(self, name):
+        def get_name(a):
+            return getattr(a, 'name', None)
+        self.matcher = MatchesAll(
+            IsInstance(typer.TypeVariable),
+            AfterPreprocessing(get_name, Equals(name))
         )
 
     def __str__(self):
@@ -39,11 +58,34 @@ class IsTypeExpr(object):
 class IsFunctionType(object):
 
     def __init__(self, name, args, rtype):
+        def get_name(a):
+            return getattr(a, 'name', None)
+        def get_args(a):
+            return getattr(a, 'args', [])
+        def get_rtype(a):
+            return getattr(a, 'rtype', None)
         self.matcher = MatchesAll(
             IsInstance(typer.FunctionType),
-            AfterPreprocessing(lambda a: a.name, name),
-            AfterPreprocessing(lambda a: a.args, MatchesListwise(args)),
-            AfterPreprocessing(lambda a: a.rtype, rtype),
+            AfterPreprocessing(get_name, name),
+            AfterPreprocessing(get_args, MatchesListwise(args)),
+            AfterPreprocessing(get_rtype, rtype),
+        )
+
+    def __str__(self):
+        return str(self.matcher)
+
+    def match(self, actual):
+        return self.matcher.match(actual)
+
+
+class IsInstantiate(object):
+
+    def __init__(self, ftype):
+        def get_ftype(a):
+            return getattr(a, 'ftype', None)
+        self.matcher = MatchesAll(
+            IsInstance(typer.Instantiate),
+            AfterPreprocessing(get_ftype, ftype),
         )
 
     def __str__(self):
