@@ -1,0 +1,6 @@
+def truer(arg):
+    return arg
+
+truer(1)
+truer(true())
+

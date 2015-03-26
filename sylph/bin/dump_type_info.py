@@ -40,5 +40,10 @@ if __name__ == '__main__':
     with open(sys.argv[1]) as f:
         source = f.read()
     parsed = parse(source)
-    checker, substitutions = typer.typecheck(parsed)
-    dump(checker, substitutions)
+    try:
+        checker, substitutions = typer.typecheck(parsed)
+    except (typer.SylphNameError, typer.SylphTypeError) as e:
+        print e.nice_error_message(source=source, filename=sys.argv[1])
+        sys.exit(1)
+    else:
+        dump(checker, substitutions)

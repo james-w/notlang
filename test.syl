@@ -4,8 +4,18 @@ def triple(arg: int, count: int) -> int:
     else:
         return arg
 
+def aaa(x):
+    return bbb(x)
+
+
+def bbb(i):
+    if i > 0:
+        return aaa(i - 1)
+    else:
+        return 0
+
 def caller(arg):
-    return plusone(1)
+    return plusone(arg)
 
 def plusone(arg):
     return arg + 1
@@ -23,7 +33,6 @@ caller(1)
 d = truer(2)
 e = truer(1)
 f = d + e
-
 
 a = 1
 b = a

@@ -93,3 +93,29 @@ class IsInstantiate(object):
 
     def match(self, actual):
         return self.matcher.match(actual)
+
+
+class ConstraintMatches(object):
+
+    def __init__(self, a, constraint, b, positions):
+        def get_a(o):
+            return getattr(o, 'a', None)
+        def get_b(o):
+            return getattr(o, 'b', None)
+        def get_constraint(o):
+            return getattr(o, 'constraint', None)
+        def get_positions(o):
+            return getattr(o, 'positions', None)
+        self.matcher = MatchesAll(
+            IsInstance(typer.Constraint),
+            AfterPreprocessing(get_a, a),
+            AfterPreprocessing(get_b, b),
+            AfterPreprocessing(get_constraint, Equals(constraint)),
+            AfterPreprocessing(get_positions, MatchesListwise(positions)),
+        )
+
+    def __str__(self):
+        return str(self.matcher)
+
+    def match(self, actual):
+        return self.matcher.match(actual)

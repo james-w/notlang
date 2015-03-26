@@ -28,7 +28,7 @@ class TypeCollectorTests(TestCase):
         rtype = t.dispatch(node)
         self.assertThat(rtype, testing.IsTypeExpr(varname))
         self.assertEqual(1, len(t.constraints))
-        self.assertEqual((rtype, typer.SUPERTYPE_OF, typer.INT, [self.spos]), t.constraints[0])
+        self.assertThat(t.constraints[0], testing.ConstraintMatches(Is(rtype), typer.SUPERTYPE_OF, Is(typer.INT), [Is(self.spos)]))
         self.assertEqual(rtype, t.varmap[varname])
 
     def test_Return(self):
@@ -38,7 +38,9 @@ class TypeCollectorTests(TestCase):
         rtype = t.dispatch(node)
         self.assertIs(None, rtype)
         self.assertEqual(1, len(t.constraints))
-        self.assertEqual((t.rtype, typer.SUPERTYPE_OF, typer.INT, [self.spos]), t.constraints[0])
+        self.assertThat(
+            t.constraints[0],
+            testing.ConstraintMatches(Is(t.rtype), typer.SUPERTYPE_OF, Is(typer.INT), [Is(self.spos)]))
 
     def test_Return_noarg(self):
         node = ast.Return(None, self.spos)
@@ -46,7 +48,9 @@ class TypeCollectorTests(TestCase):
         rtype = t.dispatch(node)
         self.assertIs(None, rtype)
         self.assertEqual(1, len(t.constraints))
-        self.assertEqual((t.rtype, typer.SUPERTYPE_OF, typer.NONE, [self.spos]), t.constraints[0])
+        self.assertThat(
+            t.constraints[0],
+            testing.ConstraintMatches(Is(t.rtype), typer.SUPERTYPE_OF, Is(typer.NONE), [Is(self.spos)]))
 
     def test_Variable_existing(self):
         varname = "a"
@@ -73,12 +77,13 @@ class TypeCollectorTests(TestCase):
         self.assertIsInstance(rtype, typer.TypeExpr)
         self.assertEqual("r+", rtype.name)
         self.assertEqual(1, len(t.constraints))
-        constraint = t.constraints[0]
-        constraint = t.constraints[0]
-        self.assertThat(constraint[0], testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], Is(typer.INT)))
-        self.assertEqual(constraint[1], typer.SUPERTYPE_OF)
-        self.assertThat(constraint[2], testing.IsInstantiate(testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], testing.IsTypeExpr("r+"))))
-        self.assertEqual([self.spos], constraint[3])
+        self.assertThat(
+            t.constraints[0],
+            testing.ConstraintMatches(
+                testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], Is(typer.INT)),
+                typer.SUPERTYPE_OF,
+                testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], testing.IsTypeExpr("r+")),
+                [Is(self.spos)]))
 
     def test_nested_BinOp(self):
         varname = "a"
@@ -92,16 +97,24 @@ class TypeCollectorTests(TestCase):
         self.assertIsInstance(rtype, typer.TypeExpr)
         self.assertEqual("r+", rtype.name)
         self.assertEqual(2, len(t.constraints))
-        constraint = t.constraints[0]
-        self.assertThat(constraint[0], testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], Is(typer.INT)))
-        self.assertEqual(constraint[1], typer.SUPERTYPE_OF)
-        self.assertThat(constraint[2], testing.IsInstantiate(testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], testing.IsTypeExpr("r+"))))
-        self.assertEqual([self.spos], constraint[3])
-        constraint = t.constraints[1]
-        self.assertThat(constraint[0], testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], Is(typer.INT)))
-        self.assertEqual(constraint[1], typer.SUPERTYPE_OF)
-        self.assertThat(constraint[2], testing.IsInstantiate(testing.IsFunctionType(Equals("+"), [Equals(typer.INT), testing.IsTypeExpr("r+")], testing.IsTypeExpr("r+"))))
-        self.assertEqual([self.spos], constraint[3])
+        self.assertThat(
+            t.constraints[0],
+            testing.ConstraintMatches(
+                testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], Is(typer.INT)),
+                typer.SUPERTYPE_OF,
+                testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], testing.IsTypeExpr("r+")),
+                [Is(self.spos)],
+                )
+            )
+        self.assertThat(
+            t.constraints[1],
+            testing.ConstraintMatches(
+                testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], Is(typer.INT)),
+                typer.SUPERTYPE_OF,
+                testing.IsFunctionType(Equals("+"), [Is(typer.INT), testing.IsTypeExpr("r+")], testing.IsTypeExpr("r+")),
+                [Is(self.spos)],
+                )
+            )
         # probably applies to foo(bar(baz)) too?
         # also test foo(bar) + 1 etc.
         # Maybe need to create a lot more typevars and add equalities?
@@ -115,9 +128,20 @@ class TypeCollectorTests(TestCase):
         rtype = t.dispatch(node)
         self.assertIs(None, rtype)
         self.assertEqual(2, len(t.constraints))
-        self.assertEqual((typer.INT, typer.SUBTYPE_OF, typer.BOOL, [self.spos]), t.constraints[0])
-        self.assertEqual((typer.SUPERTYPE_OF, typer.INT, [self.spos]), t.constraints[1][1:])
-        self.assertThat(t.constraints[1][0], testing.IsTypeExpr(varname))
+        self.assertThat(
+            t.constraints[0],
+            testing.ConstraintMatches(
+                Is(typer.INT),
+                typer.SUBTYPE_OF,
+                Is(typer.BOOL),
+                [Is(self.spos)]))
+        self.assertThat(
+            t.constraints[1],
+            testing.ConstraintMatches(
+                testing.IsTypeExpr(varname),
+                typer.SUPERTYPE_OF,
+                Is(typer.INT),
+                [Is(self.spos)]))
 
     def test_Conditional_with_else(self):
         varname = "a"
@@ -128,11 +152,27 @@ class TypeCollectorTests(TestCase):
         rtype = t.dispatch(node)
         self.assertIs(None, rtype)
         self.assertEqual(3, len(t.constraints))
-        self.assertEqual((typer.INT, typer.SUBTYPE_OF, typer.BOOL, [self.spos]), t.constraints[0])
-        self.assertEqual((typer.SUPERTYPE_OF, typer.INT, [self.spos]), t.constraints[1][1:])
-        self.assertThat(t.constraints[1][0], testing.IsTypeExpr(varname))
-        self.assertEqual((typer.SUPERTYPE_OF, typer.INT, [self.spos]), t.constraints[2][1:])
-        self.assertThat(t.constraints[1][0], testing.IsTypeExpr(varname))
+        self.assertThat(
+            t.constraints[0],
+            testing.ConstraintMatches(
+                Is(typer.INT),
+                typer.SUBTYPE_OF,
+                Is(typer.BOOL),
+                [Is(self.spos)]))
+        self.assertThat(
+            t.constraints[1],
+            testing.ConstraintMatches(
+                testing.IsTypeExpr(varname),
+                typer.SUPERTYPE_OF,
+                Is(typer.INT),
+                [Is(self.spos)]))
+        self.assertThat(
+            t.constraints[2],
+            testing.ConstraintMatches(
+                testing.IsTypeExpr(varname),
+                typer.SUPERTYPE_OF,
+                Is(typer.INT),
+                [Is(self.spos)]))
 
     def test_While(self):
         varname = "a"
@@ -143,11 +183,14 @@ class TypeCollectorTests(TestCase):
         rtype = t.dispatch(node)
         self.assertIs(None, rtype)
         self.assertEqual(2, len(t.constraints))
-        constraint = t.constraints[0]
-        self.assertEqual((typer.INT, typer.SUBTYPE_OF, typer.BOOL, [self.spos]), constraint)
-        constraint = t.constraints[1]
-        self.assertEqual((typer.SUPERTYPE_OF, typer.INT, [self.spos]), constraint[1:])
-        self.assertThat(constraint[0], testing.IsTypeExpr(varname))
+        self.assertThat(
+            t.constraints[0],
+            testing.ConstraintMatches(Is(typer.INT), typer.SUBTYPE_OF, Is(typer.BOOL), [Is(self.spos)]),
+            )
+        self.assertThat(
+            t.constraints[1],
+            testing.ConstraintMatches(testing.IsTypeExpr(varname), typer.SUPERTYPE_OF, Is(typer.INT), [Is(self.spos)]),
+            )
 
     def test_Function_noargs(self):
         fname = "foo"
@@ -156,11 +199,14 @@ class TypeCollectorTests(TestCase):
         t.functions[fname] = typer.TypeExpr(fname)
         rtype = t.dispatch(node)
         self.assertThat(rtype, testing.IsTypeExpr("rfoo"))
-        constraint = t.constraints[0]
-        self.assertThat(constraint[0], testing.IsTypeExpr(fname))
-        self.assertEqual(typer.SUPERTYPE_OF, constraint[1])
-        self.assertThat(constraint[2], testing.IsInstantiate(testing.IsFunctionType(Equals(fname), [], Is(rtype))))
-        self.assertEqual([self.spos], constraint[3])
+        self.assertEqual(1, len(t.constraints))
+        self.assertThat(
+            t.constraints[0],
+            testing.ConstraintMatches(
+                testing.IsTypeExpr(fname),
+                typer.SUPERTYPE_OF,
+                testing.IsFunctionType(Equals(fname), [], Is(rtype)),
+                [Is(self.spos)]))
 
     # TODO: test recursion
 
@@ -172,11 +218,14 @@ class TypeCollectorTests(TestCase):
         t.functions[fname] = typer.TypeExpr(fname)
         rtype = t.dispatch(node)
         self.assertThat(rtype, testing.IsTypeExpr("rfoo"))
-        constraint = t.constraints[0]
-        self.assertThat(constraint[0], testing.IsTypeExpr(fname))
-        self.assertEqual(typer.SUPERTYPE_OF, constraint[1])
-        self.assertThat(constraint[2], testing.IsInstantiate(testing.IsFunctionType(Equals(fname), [Is(typer.INT)], Is(rtype))))
-        self.assertEqual([self.spos], constraint[3])
+        self.assertEqual(1, len(t.constraints))
+        self.assertThat(
+            t.constraints[0],
+            testing.ConstraintMatches(
+                testing.IsTypeExpr(fname),
+                typer.SUPERTYPE_OF,
+                testing.IsFunctionType(Equals(fname), [Is(typer.INT)], Is(rtype)),
+                [Is(self.spos)]))
 
     def test_FuncDef(self):
         fname = "foo"
@@ -186,23 +235,21 @@ class TypeCollectorTests(TestCase):
         t = self.get_typecollector()
         rtype = t.dispatch(node)
         self.assertIs(None, rtype)
-        self.assertEqual(2, len(t.constraints))
+        self.assertEqual(0, len(t.constraints))
         self.assertEqual(1, len(t.child_contexts))
         self.assertIn(fname, t.child_contexts)
         context = t.child_contexts[fname]
         self.assertIsInstance(context, typer.TypeCollector)
-        self.assertEqual([(context.rtype, typer.SUPERTYPE_OF, context.varmap[argname], [self.spos])], context.constraints)
+        self.assertThat(
+            context.constraints[0],
+            testing.ConstraintMatches(
+                Is(context.rtype),
+                typer.SUPERTYPE_OF,
+                Is(context.varmap[argname]),
+                [Is(self.spos)]))
         self.assertEqual(2, len(context.varmap))
         self.assertThat(context.varmap[argname], testing.IsTypeExpr(argname))
         self.assertThat(context.varmap[fname], testing.IsTypeExpr(fname))
-        self.assertThat(t.constraints[0][0], testing.IsTypeExpr("return"))
-        self.assertEqual(typer.SUPERTYPE_OF, t.constraints[0][1])
-        self.assertThat(t.constraints[0][2], testing.IsTypeExpr(argname))
-        self.assertEqual([self.spos], t.constraints[0][3])
-        self.assertThat(t.constraints[1][0], testing.IsTypeExpr(fname))
-        self.assertEqual(typer.SUPERTYPE_OF, t.constraints[1][1])
-        self.assertThat(t.constraints[1][2], testing.IsFunctionType(Equals(fname), [testing.IsTypeVariable(argname)], testing.IsTypeVariable(argname)))
-        self.assertEqual([self.spos], t.constraints[1][3])
 
     def test_FuncDef_with_annotations(self):
         fname = "foo"
@@ -213,16 +260,18 @@ class TypeCollectorTests(TestCase):
         node = ast.FuncDef(fname, [argname], code, self.spos, rtype=rtype, argtypes=[argtype])
         t = self.get_typecollector()
         self.assertIs(None, t.dispatch(node))
-        self.assertEqual(2, len(t.constraints))
+        self.assertEqual(0, len(t.constraints))
         self.assertEqual(1, len(t.child_contexts))
         self.assertIn(fname, t.child_contexts)
         context = t.child_contexts[fname]
         self.assertIsInstance(context, typer.TypeCollector)
-        self.assertEqual([(typer.INT, typer.SUPERTYPE_OF, typer.INT, [self.spos])], context.constraints)
-        self.assertEqual((typer.INT, typer.SUPERTYPE_OF, typer.INT, [self.spos]), t.constraints[0])
-        self.assertThat(t.constraints[1][0], testing.IsTypeExpr(fname))
-        self.assertEqual(typer.SUPERTYPE_OF, t.constraints[1][1])
-        self.assertThat(t.constraints[1][2], testing.IsFunctionType(Equals(fname), [Is(typer.INT)], Is(typer.INT)))
+        self.assertThat(
+            context.constraints[0],
+            testing.ConstraintMatches(
+                Is(typer.INT),
+                typer.SUPERTYPE_OF,
+                Is(typer.INT),
+                [Is(self.spos)]))
         self.assertEqual(typer.INT, context.rtype)
         self.assertEqual(typer.INT, context.varmap[argname])
 
@@ -248,22 +297,22 @@ class SatisfyConstraintsTests(TestCase):
         self.satisfy_constraints([])
 
     def test_trivially_equal(self):
-        self.satisfy_constraints([(typer.INT, typer.SUPERTYPE_OF, typer.INT, [self.spos])])
+        self.satisfy_constraints([typer.Constraint(typer.INT, typer.SUPERTYPE_OF, typer.INT, [self.spos])])
 
     def test_trivially_not_equal(self):
         self.assertRaises(typer.SylphTypeError, self.satisfy_constraints,
-            [(typer.NONE, typer.SUPERTYPE_OF, typer.INT, [self.spos])])
+            [typer.Constraint(typer.NONE, typer.SUPERTYPE_OF, typer.INT, [self.spos])])
 
     def test_not_equal_across_two(self):
         vartype = typer.TypeVariable("a")
         self.assertRaises(typer.SylphTypeError, self.satisfy_constraints,
-            [(vartype, typer.SUPERTYPE_OF, typer.INT, [self.spos]),
-             (vartype, typer.SUPERTYPE_OF, typer.NONE, [self.spos])])
+            [typer.Constraint(vartype, typer.SUPERTYPE_OF, typer.INT, [self.spos]),
+             typer.Constraint(vartype, typer.SUPERTYPE_OF, typer.NONE, [self.spos])])
 
     def test_not_equal_across_three(self):
         vartype1 = typer.TypeVariable("a")
         vartype2 = typer.TypeVariable("b")
         self.assertRaises(typer.SylphTypeError, self.satisfy_constraints,
-            [(vartype1, typer.SUPERTYPE_OF, typer.INT, [self.spos]),
-             (vartype2, typer.SUPERTYPE_OF, vartype1, [self.spos]),
-             (vartype2, typer.SUPERTYPE_OF, typer.NONE, [self.spos])])
+            [typer.Constraint(vartype1, typer.SUPERTYPE_OF, typer.INT, [self.spos]),
+             typer.Constraint(vartype2, typer.SUPERTYPE_OF, vartype1, [self.spos]),
+             typer.Constraint(vartype2, typer.SUPERTYPE_OF, typer.NONE, [self.spos])])
