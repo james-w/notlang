@@ -4,6 +4,12 @@ def triple(arg: int, count: int) -> int:
     else:
         return arg
 
+def caller(arg):
+    return plusone(1)
+
+def plusone(arg):
+    return arg + 1
+
 def truer(arg):
     return arg
 
@@ -11,10 +17,13 @@ def mappish(f, a):
     return f(a)
 
 mappish(truer, 1)
+mappish(truer, 2)
 
+caller(1)
 d = truer(2)
 e = truer(1)
 f = d + e
+
 
 a = 1
 b = a
@@ -26,5 +35,5 @@ if a == 1:
 else:
     b = 5
 trip = triple
-c = trip(b+1, 4) + 1
+c = trip(b+1, 3) + 1
 print(c)

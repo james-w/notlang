@@ -55,6 +55,18 @@ class FunctionType(Type):
         return "<FunctionType:%s>" % str(self)
 
 
+class Instantiate(Type):
+
+    def __init__(self, ftype):
+        self.ftype = ftype
+
+    def __str__(self):
+        return str(self.ftype)
+
+    def __repr__(self):
+        return "<Instantiate:%s>" % str(self)
+
+
 ANY = Type("ANY")
 INT = Type("int")
 NONE = Type("None")
@@ -83,15 +95,35 @@ INVERSE_CONSTRAINT = {
     SUBTYPE_OF: SUPERTYPE_OF,
 }
 
+
+class FirstPass(ASTVisitor):
+
+    def visit_FuncDef(self, node):
+        return [node.name]
+
+    def general_terminal_visit(self, node):
+        return []
+
+    def general_nonterminal_visit(self, node):
+        names = []
+        for child in node.children:
+            cnames = self.dispatch(child)
+            for name in cnames:
+                if name not in names:
+                    names.append(name)
+        return names
+
+
 class TypeCollector(ASTVisitor):
 
-    def __init__(self):
+    def __init__(self, functions):
         self.varmap = {}
         self.constraints = []
         self.rtype = TypeExpr("return")
         self.child_contexts = {}
         self.args = []
         self.fname = None
+        self.functions = functions
 
     def get_typevar(self, name):
         return self.varmap.setdefault(name, TypeExpr(name))
@@ -136,10 +168,15 @@ class TypeCollector(ASTVisitor):
 
     def _handle_function(self, node, name):
         # TODO: this needs to carry the sourcepos for the args somehow
+        if name not in self.varmap:
+            if name not in self.functions:
+                raise SylphNameError("Unknown function %s" % name, [node.sourcepos])
+            ftype = self.functions[name]
+        else:
+            ftype = self.varmap[name]
         args = [self.dispatch(c) for c in node.children]
-        type_name = self.get_typevar(name)
-        rtype = TypeExpr("r" + str(type_name))
-        self.constraints.append((type_name, SUPERTYPE_OF, FunctionType(type_name, args, rtype), [node.sourcepos]))
+        rtype = TypeExpr("r" + name)
+        self.constraints.append((ftype, SUPERTYPE_OF, Instantiate(FunctionType(name, args, rtype)), [node.sourcepos]))
         return rtype
 
     def visit_BinOp(self, node):
@@ -149,8 +186,9 @@ class TypeCollector(ASTVisitor):
         return self._handle_function(node, node.fname)
 
     def visit_FuncDef(self, node):
-        child = TypeCollector()
+        child = TypeCollector(self.functions)
         self.child_contexts[node.name] = child
+        child.fname = node.name
         if node.rtype:
             child.rtype = type_from_decl(node.rtype)
         for i, argtype_str in enumerate(node.argtypes):
@@ -160,10 +198,15 @@ class TypeCollector(ASTVisitor):
             child.varmap[node.args[i]] = argtype
         ftype = self.get_typevar(node.name)
         child.varmap[node.name] = ftype
-        self.varmap[node.name] = ftype
         child.args = node.args
         child.dispatch(node.children[0])
         # XXX: catch function redefinition/shadowing?
+        substitions = satisfy_constraints(child.constraints[:])
+        self.constraints.extend(child.constraints)
+        newftype = function_type_from_context(child, substitions=substitions)
+        self.varmap[node.name] = newftype
+        self.functions[node.name] = newftype
+        self.constraints.append((ftype, SUPERTYPE_OF, newftype, [node.sourcepos]))
         return None
 
     def general_nonterminal_visit(self, node):
@@ -241,6 +284,8 @@ def occurs(lhs, rhs):
                 return True
         if occurs(lhs, rhs.rtype):
             return True
+    elif isinstance(rhs, Instantiate):
+        return occurs(lhs, rhs.ftype)
 
 
 def update_substitution(substition, lhs, rhs, positions):
@@ -272,13 +317,21 @@ def satisfy_constraints(constraints):
                 if lhs != rhs:
                     update_substitution(substition, lhs, rhs, positions)
         elif isinstance(lhs, FunctionType):
+            if isinstance(rhs, Instantiate):
+                constraints.insert(0, (instantiated(lhs), constraint, rhs.ftype, positions))
+                continue
             if not isinstance(rhs, FunctionType):
-                raise SylphTypeError("Types don't match %s != %s" % (lhs, rhs), positions)
+                raise SylphTypeError("Types mismatch: %s != %s" % (lhs, rhs), positions)
             if len(lhs.args) != len(rhs.args):
-                raise SylphTypeError("Types don't match %s != %s, argument lengths differ" % (lhs, rhs), positions)
+                raise SylphTypeError("Types mismatch: %s != %s, argument lengths differ" % (lhs, rhs), positions)
             for i, arg in enumerate(lhs.args):
                 constraints.insert(0, (arg, constraint, rhs.args[i], positions))
             constraints.insert(0, (lhs.rtype, constraint, rhs.rtype, positions))
+        elif isinstance(lhs, Instantiate):
+            if isinstance(rhs, FunctionType):
+                constraints.insert(0, (lhs.ftype, constraint, instantiated(rhs), positions))
+            else:
+                constraints.insert(0, (lhs.ftype, constraint, rhs, positions))
         else:
             if isinstance(rhs, TypeExpr):
                 if rhs in substition:
@@ -291,16 +344,8 @@ def satisfy_constraints(constraints):
                     continue
             newtype = unify_types(lhs, rhs, constraint)
             if newtype is None:
-                raise SylphTypeError("Types don't match %s is not a %s of %s" % (lhs, constraint, rhs), positions)
+                raise SylphTypeError("Type mismatch: %s is not a %s of %s" % (lhs, constraint, rhs), positions)
     return substition
-
-
-def functions_from_vars(varmap):
-    functions = {}
-    for name, t in varmap.items():
-        if isinstance(t, FunctionType):
-            functions[TypeExpr(name)] = t
-    return functions
 
 
 def get_substituted(var, substitions):
@@ -309,19 +354,24 @@ def get_substituted(var, substitions):
     return var
 
 
-def function_type_from_context(t, prefix_names=True, substitions=None):
+def function_type_from_context(t, substitions=None):
     if substitions is None:
         substitions = {}
     vars = {}
-    def get_substituted_and_generalised(var):
+    def get_substituted_and_generalised(var, generalise=True):
         var = get_substituted(var, substitions)
         if isinstance(var, TypeExpr):
-            var = vars.setdefault(var, TypeVariable(var.name))
+            if generalise:
+                var = vars.setdefault(var, TypeVariable(var.name))
+            else:
+                var = vars.get(var, var)
         elif isinstance(var, FunctionType):
-            var = FunctionType(var.name, [get_substituted_and_generalised(a) for a in var.args], get_substituted_and_generalised(var.rtype))
+            var = FunctionType(var.name, [get_substituted_and_generalised(a, generalise=generalise) for a in var.args], get_substituted_and_generalised(var.rtype, generalise=generalise))
+        elif isinstance(var, Instantiate):
+            var = get_substituted_and_generalised(var.ftype)
         return var
-    rtype = get_substituted_and_generalised(t.rtype)
     args = [get_substituted_and_generalised(t.varmap[arg]) for arg in t.args]
+    rtype = get_substituted_and_generalised(t.rtype, generalise=False)
     return FunctionType(t.fname, args, rtype)
 
 
@@ -333,7 +383,11 @@ def instantiated(ftype):
         if isinstance(arg, FunctionType):
             return instantiated(arg)
         return arg
-    return FunctionType(ftype.name, [instantiate(a) for a in ftype.args], instantiate(ftype.rtype))
+    new_args = []
+    for arg in ftype.args:
+        new_args.append(instantiate(arg))
+    new_rtype = instantiate(ftype.rtype)
+    return FunctionType(ftype.name, new_args, new_rtype)
 
 
 def check_functions_exist(substitions, functions, args):
@@ -358,22 +412,17 @@ def check_functions_exist(substitions, functions, args):
 
 
 def _typecheck(t):
-    functions = FUNCTIONS.copy()
-    if t.fname:
-        functions[t.fname] = function_type_from_context(t, prefix_names=False)
     varmap = {}
-    for name, context in t.child_contexts.items():
-        context.fname = name
+    for context in t.child_contexts.values():
         child_subs = _typecheck(context)
-        functions[name] = function_type_from_context(context, substitions=child_subs)
-    functions.update(functions_from_vars(t.varmap))
-    substitions = satisfy_constraints(t.constraints[:])
-    new_constraints = check_functions_exist(substitions, functions, t.args)
-    satisfy_constraints(t.constraints[:] + new_constraints)
-    return substitions
+    return satisfy_constraints(t.constraints[:])
 
 
 def typecheck(node):
-    t = TypeCollector()
+    fnames = FirstPass().dispatch(node)
+    t = TypeCollector(FUNCTIONS.copy())
+    for fname in fnames:
+        func = t.get_typevar(fname)
+        t.functions[fname] = func
     t.dispatch(node)
-    _typecheck(t)
+    return t, _typecheck(t)

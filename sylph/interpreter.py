@@ -96,7 +96,6 @@ class Frame(object):
                 self.vars[arg] = self.pop()
             elif c == bytecode.LOAD_VAR:
                 var = self.vars[arg]
-                print "load ", arg, var
                 if var is None:
                     raise AssertionError("Variable referenced before assignment")
                 self.push(var)
@@ -120,7 +119,6 @@ class Frame(object):
                 child_f = Frame(fobj.code, globals)
                 for i in range(arg):
                     child_f.vars[i] = fargs[i]
-                    print i, fargs[i]
                 ret = child_f.execute()
                 self.push(ret)
             elif c == bytecode.MAKE_FUNCTION:
