@@ -34,7 +34,9 @@ will change the inference when it sees the second declaration.
 We do need to have type declarations for all functions with
 this method though. Otherwise we have to assume ANY when we
 don't know them, and how do you then pass that to something
-that declares need of a more specific type?
+that declares need of a more specific type? Only really
+a problem if we can't do inference on the function when
+it is used, so header files with no types wouldn't work.
 
 Type checking
 -------------
@@ -80,7 +82,13 @@ and
 
    f.readline()
 
-might work fine as long as there were no conflicts (run time error?)
+might work fine as long as there were no conflicts (run time error?).
+The full name could be inferred from surrounding type declarations, so
+
+  def foo(a: File):
+      a.readline()
+
+could be rewritten to a.File:readline() internally.
 
 Case on types
 -------------
@@ -102,8 +110,9 @@ is though, but it probably involves "case".
 getline is then (File => f) -> Maybe str
 File:readline would be something like (File => f) --> MaybeError str
 
-The type checker can then enforce that you use the full expansion in the
-case block.
+The type checker could then enforce that you use the full expansion in the
+case block, but may not be necessary with just type checking on
+what is done with the value.
 
 How do you define a type such as this?
 
@@ -121,3 +130,9 @@ You would construct this like
 
   Maybe.None()
   Maybe.Just(value)
+
+Maybe define two types None() and Just(), and have a Union
+constructor?
+
+Maybe = new Union(None, Just)
+

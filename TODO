@@ -1,4 +1,5 @@
-- Typing
+- Checking that a type var in a declaration is valid. (foo(a: a) when a is used as an int.)
+- Typing enhancements
 - Exceptions
 - Displaying source code on problems (tracebacks with source)
 - JIT
