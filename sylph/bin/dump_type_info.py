@@ -3,7 +3,7 @@
 import sys
 
 from sylph import typer
-from sylph.parsing import parse
+from sylph.parsing import parse, ParseError
 
 
 def get_substituted(var, substitutions):
@@ -39,7 +39,11 @@ if __name__ == '__main__':
         sys.exit(1)
     with open(sys.argv[1]) as f:
         source = f.read()
-    parsed = parse(source)
+    try:
+        parsed = parse(source)
+    except ParseError as e:
+        print e.nice_error_message(source=source, filename=sys.argv[1])
+        sys.exit(1)
     try:
         checker, substitutions = typer.typecheck(parsed)
     except (typer.SylphNameError, typer.SylphTypeError) as e:
