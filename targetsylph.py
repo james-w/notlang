@@ -1,41 +1,37 @@
 """Execute ./sylph-c [-Derror] <filename>
 """
 
+from argparse import ArgumentParser, FileType
 import sys
+
 from rpython.rlib.parsing.parsing import ParseError
-from rpython.rlib.streamio import open_file_as_stream
 from rpython.jit.codewriter.policy import JitPolicy
+from sylph.debug import add_debug_args, show_errors, trace_interp
 from sylph.interpreter import interpret
 from sylph.typer import SylphNameError, SylphTypeError
 
 
 def main(argv):
-    Derror = False
-    if len(argv) < 2 or len(argv) > 3:
-        print __doc__
-        return 1
-    if len(argv) > 2:
-        assert argv[1] == "-Derror"
-        Derror = True
-        fname = argv[2]
-    else:
-        fname = argv[1]
-    f = open_file_as_stream(fname)
-    data = f.readall()
-    f.close()
+    parser = ArgumentParser(description=__doc__, epilog="Thanks for trying sylph. Sorry for the bugs.")
+    parser.add_argument('file', type=FileType('r'), help="The file to execute.")
+    add_debug_args(parser)
+    opts = parser.parse_args()
+    data = opts.file.read()
+    opts.file.close()
+    do_raise = show_errors(opts)
     try:
-        interpret(data)
+        interpret(data, trace=trace_interp(opts))
     except ParseError as e:
         print(e.nice_error_message(filename=fname, source=data))
-        if Derror:
+        if do_raise:
             raise
     except SylphNameError as e:
         print(e.nice_error_message(filename=fname, source=data))
-        if Derror:
+        if do_raise:
             raise
     except SylphTypeError as e:
         print(e.nice_error_message(filename=fname, source=data))
-        if Derror:
+        if do_raise:
             raise
     return 0
 

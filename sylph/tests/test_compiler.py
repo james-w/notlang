@@ -177,3 +177,12 @@ class TestCompiler(TestCase):
         self.assertThat(ctx.data,
             BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
                              bytecode.RETURN, 0]))
+
+    def test_new_type(self):
+        var = ast.Variable("a", self.spos)
+        t = ast.NewType(self.spos)
+        node = ast.Assignment(var, t, self.spos)
+        ctx = compile(node)
+        self.assertEqual(0, len(ctx.constants))
+        self.assertThat(ctx.data,
+            BytecodeMatches([]))

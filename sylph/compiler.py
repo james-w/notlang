@@ -21,6 +21,8 @@ class Compiler(ast.ASTVisitor):
         codegen.binary_operation(self.ctx, node.op)
 
     def visit_Assignment(self, node):
+        if isinstance(node.children[0], ast.NewType):
+            return
         self.general_nonterminal_visit(node)
         codegen.assignment(self.ctx, node.var.varname)
 

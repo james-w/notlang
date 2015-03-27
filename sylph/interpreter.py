@@ -51,7 +51,7 @@ class Frame(object):
     def pop(self):
         return self.popmany(1)[0]
 
-    def execute(self):
+    def execute(self, trace=False):
         code = self.code
         pc = 0
         while True:
@@ -60,6 +60,8 @@ class Frame(object):
             c = ord(code[pc])
             arg = ord(code[pc + 1])
             pc += 2
+            if trace:
+                print("%d %s %d" % (pc-2, bytecode.reverse_map[c], arg))
             if c == bytecode.LOAD_CONSTANT:
                 w_constant = self.constants[arg]
                 self.push(w_constant)
@@ -119,7 +121,7 @@ class Frame(object):
                 child_f = Frame(fobj.code, globals)
                 for i in range(arg):
                     child_f.vars[i] = fargs[i]
-                ret = child_f.execute()
+                ret = child_f.execute(trace=trace)
                 self.push(ret)
             elif c == bytecode.MAKE_FUNCTION:
                 code_obj = self.pop()
@@ -145,8 +147,8 @@ def get_bytecode(source):
     return compiler.compile_ast(parse(source))
 
 
-def interpret(source):
+def interpret(source, trace=False):
     prog = get_bytecode(source)
     frame = Frame(prog, None)
-    frame.execute()
+    frame.execute(trace=trace)
     return frame

@@ -12,7 +12,6 @@ def triple(arg: int, count: int) -> int:
 def aaa(x):
     return bbb(x)
 
-
 def bbb(i):
     if i > 0:
         return aaa(i - 1)
