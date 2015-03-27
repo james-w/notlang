@@ -158,6 +158,9 @@ class Transformer(RPythonVisitor):
             block = node.children[3]
         return ast.FuncDef(name, args, self.dispatch(block), node.getsourcepos(), rtype=rtype, argtypes=argtypes)
 
+    def visit_new_decl(self, node):
+        return ast.NewType(node.getsourcepos())
+
     def visit_IDENTIFIER(self, node):
         return ast.Variable(node.additional_info, node.getsourcepos())
 

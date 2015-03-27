@@ -21,9 +21,11 @@ return_statement: "return" testlist?;
 
 assignment: testlist assignment_trailer?;
 
-assignment_trailer: ["="] <testlist>;
+assignment_trailer: ["="] <testlist> | ["="] new_decl;
 
 testlist: comparison;
+
+new_decl: "new" ["Type"];
 
 comparison: expr comparison_trailer*;
 

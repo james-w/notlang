@@ -134,6 +134,13 @@ class Return(NonTerminal):
         self.sourcepos = sourcepos
 
 
+class NewType(NonTerminal):
+
+    def __init__(self, sourcepos):
+        self.children = []
+        self.sourcepos = sourcepos
+
+
 class VisitError(Exception):
     def __init__(self, node):
         self.node = node

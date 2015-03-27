@@ -1,4 +1,11 @@
-from testtools.matchers import Equals, IsInstance, MatchesAll, AfterPreprocessing, MatchesListwise
+from testtools.matchers import (
+    AfterPreprocessing,
+    Equals,
+    Is,
+    IsInstance,
+    MatchesAll,
+    MatchesListwise,
+)
 
 from . import bytecode, typer
 
@@ -19,6 +26,25 @@ class BytecodeMatches(object):
 
     def match(self, actual):
         return self.matcher.match(map(self.name, self.pair_up(map(ord, actual))))
+
+
+class IsType(object):
+
+    def __init__(self, name):
+        def get_name(a):
+            return getattr(a, 'name', None)
+        def get_class(a):
+            return getattr(a, '__class__', None)
+        self.matcher = MatchesAll(
+            AfterPreprocessing(get_class, Is(typer.Type)),
+            AfterPreprocessing(get_name, Equals(name))
+        )
+
+    def __str__(self):
+        return str(self.matcher)
+
+    def match(self, actual):
+        return self.matcher.match(actual)
 
 
 class IsTypeExpr(object):

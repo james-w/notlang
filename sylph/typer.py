@@ -69,12 +69,14 @@ BASE_TYPES = {
 }
 
 
-def type_from_decl(type_str, vartypes):
+def type_from_decl(type_str, vartypes, types):
     if type_str in vartypes:
         return vartypes[type_str]
     try:
-        return BASE_TYPES[type_str]
+        return types[type_str]
     except KeyError:
+        # FIXME: 1 char -> variable probably not 
+        # the right thing
         if len(type_str) == 1:
             vartype = TypeVariable(type_str)
             vartypes[type_str] = vartype
@@ -123,7 +125,7 @@ class FirstPass(ASTVisitor):
 
 class TypeCollector(ASTVisitor):
 
-    def __init__(self, functions):
+    def __init__(self, functions, types):
         self.varmap = {}
         self.constraints = []
         self.rtype = TypeExpr("return")
@@ -131,6 +133,7 @@ class TypeCollector(ASTVisitor):
         self.args = []
         self.fname = None
         self.functions = functions
+        self.types = types
         self.called_functions = []
 
     def get_typevar(self, name):
@@ -144,7 +147,12 @@ class TypeCollector(ASTVisitor):
         target = node.var
         source_type = self.dispatch(source)
         target_type = self.get_typevar(target.varname)
+        # Not isinstance, as we don't want to match TypeExpr etc.
+        if source_type.__class__ == Type and source_type.name == "<anonymous>":
+            source_type.name = target.varname
         self.constraints.append(Constraint(target_type, SUPERTYPE_OF, source_type, [node.sourcepos]))
+        # XXX: catch shadowing?
+        self.types[target.varname] = source_type
         return target_type
 
     def visit_Return(self, node):
@@ -197,17 +205,17 @@ class TypeCollector(ASTVisitor):
         return self._handle_function(node, node.fname)
 
     def visit_FuncDef(self, node):
-        child = TypeCollector(self.functions)
+        child = TypeCollector(self.functions, self.types)
         self.child_contexts[node.name] = child
         child.fname = node.name
         vartypes = {}
         if node.rtype:
-            child.rtype = type_from_decl(node.rtype, vartypes)
+            child.rtype = type_from_decl(node.rtype, vartypes, self.types)
         argtypes = []
         for i, argtype_str in enumerate(node.argtypes):
             argtype = TypeExpr(node.args[i])
             if argtype_str is not None:
-                argtype = type_from_decl(argtype_str, vartypes)
+                argtype = type_from_decl(argtype_str, vartypes, self.types)
             child.varmap[node.args[i]] = argtype
             argtypes.append(argtype)
         ftype = self.get_typevar(node.name)
@@ -218,6 +226,9 @@ class TypeCollector(ASTVisitor):
         newftype = FunctionType(node.name, argtypes, child.rtype)
         child.constraints.append(Constraint(ftype, SUPERTYPE_OF, newftype, [node.sourcepos]))
         return None
+
+    def visit_NewType(self, node):
+        return Type("<anonymous>")
 
     def general_nonterminal_visit(self, node):
         [self.dispatch(c) for c in node.children]
@@ -468,7 +479,7 @@ def _typecheck(t):
 
 def typecheck(node):
     fnames = FirstPass().dispatch(node)
-    t = TypeCollector(FUNCTIONS.copy())
+    t = TypeCollector(FUNCTIONS.copy(), BASE_TYPES.copy())
     for fname in fnames:
         func = t.get_typevar(fname)
         t.varmap[fname] = func

@@ -1,6 +1,7 @@
 from testtools import TestCase
 from testtools.matchers import Equals, Is
 from rpython.rlib.parsing.lexer import SourcePos
+from rpython.rlib.parsing.parsing import ParseError
 
 from .. import ast, parsing, testing, typer
 
@@ -10,7 +11,7 @@ class TypeCollectorTests(TestCase):
     spos = SourcePos(0, 0, 0)
 
     def get_typecollector(self):
-        return typer.TypeCollector(typer.FUNCTIONS.copy())
+        return typer.TypeCollector(typer.FUNCTIONS.copy(), typer.BASE_TYPES.copy())
 
     def test_ConstantInt(self):
         node = ast.ConstantInt(2, self.spos)
@@ -275,6 +276,25 @@ class TypeCollectorTests(TestCase):
         self.assertEqual(typer.INT, context.rtype)
         self.assertEqual(typer.INT, context.varmap[argname])
 
+    def test_NewType(self):
+        node = ast.NewType(self.spos)
+        t = self.get_typecollector()
+        rtype = t.dispatch(node)
+        self.assertThat(rtype, testing.IsType("<anonymous>"))
+        self.assertEqual(0, len(t.constraints))
+
+    def test_NewType_assigned(self):
+        varname = "atype"
+        node = ast.Assignment(ast.Variable(varname, self.spos), ast.NewType(self.spos), self.spos)
+        t = self.get_typecollector()
+        rtype = t.dispatch(node)
+        self.assertThat(rtype, testing.IsTypeExpr(varname))
+        self.assertEqual(1, len(t.constraints))
+        self.assertThat(
+            t.constraints[0],
+            testing.ConstraintMatches(Is(rtype), typer.SUPERTYPE_OF, testing.IsType(varname), [Is(self.spos)]))
+        self.assertEqual(rtype, t.varmap[varname])
+
     def test_Block(self):
         # Test that children are dispatched to by default
         varname = "a"
@@ -319,7 +339,11 @@ class SatisfyConstraintsTests(TestCase):
 
 
 def get_type_of(name, source):
-    parsed = parsing.parse(source)
+    try:
+        parsed = parsing.parse(source)
+    except ParseError as e:
+        print e.nice_error_message(source=source)
+        raise
     checker, substitutions = typer.typecheck(parsed)
     return substitute(checker.varmap[name], substitutions)
 
@@ -429,6 +453,22 @@ e = a(b, 1)
 """)
         self.assertThat(ftype, Is(typer.INT))
 
+    def test_new_type(self):
+        ftype = get_type_of('Dog', """
+Dog = new Type
+""")
+        self.assertThat(ftype, testing.IsType("Dog"))
+
+    def test_new_type_in_signature(self):
+        ftype = get_type_of('foo', """
+Dog = new Type
+
+def foo(d: Dog):
+    return d
+
+""")
+        self.assertThat(ftype, testing.IsFunctionType(Equals('foo'), [Is(ftype.rtype)], testing.IsType("Dog")))
+
 
 class InstantiateTests(TestCase):
 
@@ -486,7 +526,7 @@ class InstantiateTests(TestCase):
 class FunctionTypeFromContextTests(TestCase):
 
     def test_no_vars(self):
-        t = typer.TypeCollector({})
+        t = typer.TypeCollector({}, {})
         t.fname = "foo"
         argname = "a"
         t.args = [argname]
@@ -501,7 +541,7 @@ class FunctionTypeFromContextTests(TestCase):
                 Is(typer.INT)))
 
     def test_one_var(self):
-        t = typer.TypeCollector({})
+        t = typer.TypeCollector({}, {})
         t.fname = "foo"
         argname = "a"
         t.args = [argname]
@@ -516,7 +556,7 @@ class FunctionTypeFromContextTests(TestCase):
                 Is(typer.INT)))
 
     def test_substituted(self):
-        t = typer.TypeCollector({})
+        t = typer.TypeCollector({}, {})
         t.fname = "foo"
         argname = "a"
         t.args = [argname]

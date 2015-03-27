@@ -108,6 +108,9 @@ class BasicParsingTests(TestCase):
     def test_funcdef_with_argtype(self):
         self.assert_parses_ok("def a(b:int):\n    return 1\n\n")
 
+    def test_new_decl(self):
+        self.assert_parses_ok("Foo = new Type\n")
+
 
 class ASTTests(TestCase):
 
@@ -273,3 +276,13 @@ class ASTTests(TestCase):
         self.assertEqual(1, func.sourcepos.i)
 
     # TODO: more complete FuncDef tests
+
+    def test_NewType(self):
+        node = parse(" a = new Type\n")
+        self.assertIsInstance(node, ast.Block)
+        ass = node.children[0].children[0]
+        self.assertIsInstance(ass, ast.Assignment)
+        t = ass.children[0]
+        self.assertIsInstance(t, ast.NewType)
+        self.assertEqual(0, len(t.children))
+        self.assertEqual(5, t.sourcepos.i)
