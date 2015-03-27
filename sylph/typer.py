@@ -1,3 +1,4 @@
+from . import graph
 from .ast import ASTVisitor, GatherNames
 
 
@@ -214,11 +215,6 @@ class TypeCollector(ASTVisitor):
         child.args = node.args
         child.dispatch(node.children[0])
         # XXX: catch function redefinition/shadowing?
-        #substitutions = satisfy_constraints(child.constraints[:])
-        #self.constraints.extend(child.constraints)
-        #newftype = function_type_from_context(child, substitutions=substitutions, generalise=False)
-        #self.functions[node.name] = newftype
-        #self.varmap[node.name] = ftype
         newftype = FunctionType(node.name, argtypes, child.rtype)
         child.constraints.append(Constraint(ftype, SUPERTYPE_OF, newftype, [node.sourcepos]))
         return None
@@ -288,9 +284,9 @@ def unify_types(a, b, constraint):
 
 
 def occurs(lhs, rhs):
-    if isinstance(rhs, TypeExpr):
-        return False
-    elif isinstance(rhs, FunctionType):
+    if lhs == rhs:
+        return True
+    if isinstance(rhs, FunctionType):
         if lhs == rhs:
             return True
         for arg in rhs.args:
@@ -303,12 +299,6 @@ def occurs(lhs, rhs):
 def update_substitution(substitution, lhs, rhs, positions):
     if occurs(lhs, rhs):
         raise SylphTypeError("Recursive type definition: %s = %s" % (lhs, rhs), positions)
-    for other_lhs, (candidate, pos) in substitution.items():
-        # TODO: recurse in to function types in rhs?
-        if candidate == lhs:
-            substitution[other_lhs] = (rhs, pos + positions)
-        if other_lhs == lhs:
-            substitution[rhs] = (candidate, pos + positions)
     substitution[lhs] = (rhs, positions)
 
 
@@ -327,8 +317,8 @@ def satisfy_constraints(constraints):
                 constraints.insert(0, Constraint(newlhs, constraint, rhs, positions + newpos))
                 continue
             else:
-                if lhs != rhs:
-                    update_substitution(substitution, lhs, rhs, positions)
+                if lhs != get_substituted(rhs, substitution):
+                    update_substitution(substitution, lhs, get_substituted(rhs, substitution), positions)
         elif isinstance(lhs, FunctionType):
             if not isinstance(rhs, FunctionType):
                 raise SylphTypeError("Types mismatch: %s != %s" % (lhs, rhs), positions)
@@ -359,38 +349,86 @@ def get_substituted(var, substitutions):
     return var
 
 
-def function_type_from_context(t, substitutions=None, generalise=True):
-    if substitutions is None:
-        substitutions = {}
+def function_type_from_collector(t, substitutions):
+    """Create a FunctionType from a TypeCollector.
+
+    Looks at the attributes of TypeCollector related to functions
+    (fname, args, rtype) and builds a FunctionType, taking in to
+    account substitutions.
+    """
+    args = [get_substituted(t.varmap[arg], substitutions) for arg in t.args]
+    rtype = get_substituted(t.rtype, substitutions)
+    return FunctionType(t.fname, args, rtype)
+
+
+def generalise(ftype):
+    """Take a FunctionType and generalise it.
+
+    This transforms any unconstrained variables in the type
+    signature and turns them in to TypeVariables.
+
+    It will recurse in to nested FunctionTypes.
+
+    A repeated TypeExpr will be assiged the same TypeVariables for
+    each occurence.
+
+    Raises an error if the return type is unconstrained at the
+    end.
+    """
     vars = {}
-    def get_substituted_and_generalised(var, generalise=True):
-        var = get_substituted(var, substitutions)
+    def _generalise(var, generalise=True):
         if isinstance(var, TypeExpr):
             if generalise:
                 var = vars.setdefault(var, TypeVariable(var.name))
             else:
                 var = vars.get(var, var)
         elif isinstance(var, FunctionType):
-            var = FunctionType(var.name, [get_substituted_and_generalised(a, generalise=generalise) for a in var.args], get_substituted_and_generalised(var.rtype, generalise=generalise))
+            # Not directly recursing, as the
+            # restriction on generalising the rtype
+            # depends on whether you are at the top
+            # level or not
+            var = FunctionType(
+                var.name,
+                [_generalise(a, generalise=generalise) for a in var.args],
+                _generalise(var.rtype, generalise=generalise))
         return var
-    args = [get_substituted_and_generalised(t.varmap[arg], generalise=generalise) for arg in t.args]
-    rtype = get_substituted_and_generalised(t.rtype, generalise=False)
-    return FunctionType(t.fname, args, rtype)
+    args = [_generalise(arg, generalise=True) for arg in ftype.args]
+    rtype = _generalise(ftype.rtype, generalise=False)
+    if isinstance(rtype, TypeExpr):
+        raise AssertionError("%s has an unconstrained return type." % ftype.name)
+    return FunctionType(ftype.name, args, rtype)
 
 
-def instantiated(ftype):
-    instantiated_vars = {}
-    def instantiate(arg):
-        if isinstance(arg, TypeVariable):
-            return instantiated_vars.setdefault(arg, TypeExpr(arg.name))
-        if isinstance(arg, FunctionType):
-            return instantiated(arg)
-        return arg
-    new_args = []
-    for arg in ftype.args:
-        new_args.append(instantiate(arg))
-    new_rtype = instantiate(ftype.rtype)
-    return FunctionType(ftype.name, new_args, new_rtype)
+def instantiate(ftype):
+    """Instantiate a function type, i.e. create new TypeExpr for each TypeVariable.
+
+    Given a function like TypeVariable(a) -> TypeVariable(a) it will return
+    a function like TypeExpr(a) -> TypeExpr(a).
+
+    It will recurse down to any function arguments.
+
+    A type variable will expand to the same expression if used multiple times.
+
+    Use this when "calling" a function, so that each call can use
+    independent variables. Without doing this then every call
+    to a function with type variables would have to use the same
+    argument types.
+    """
+    _vars = {}
+    def do_instantiate(ftype, vars):
+        def _instantiate(arg):
+            if isinstance(arg, TypeVariable):
+                newvar = vars.setdefault(arg, TypeExpr(arg.name))
+                return newvar
+            elif isinstance(arg, FunctionType):
+                return do_instantiate(arg, vars)
+            return arg
+        new_args = []
+        for arg in ftype.args:
+            new_args.append(_instantiate(arg))
+        new_rtype = _instantiate(ftype.rtype)
+        return FunctionType(ftype.name, new_args, new_rtype)
+    return do_instantiate(ftype, _vars)
 
 
 def _typecheck(t):
@@ -399,54 +437,32 @@ def _typecheck(t):
         for f in child.called_functions:
             if f not in FUNCTIONS:
                 calls.setdefault(name, []).append(f)
-    changed = True
-    while changed:
-        changed = False
-        for a, b in calls.items():
-            for c in b:
-                if c in calls:
-                    for d in calls[c]:
-                        if d not in b:
-                            b.append(d)
-                            changed = True
-    deleted = set()
-    for a, b in calls.items():
-        for c in b:
-            if c in calls and c not in deleted:
-                if c != a:
-                    del calls[c]
-                deleted.add(c)
-    sets = calls.values()
-    for name in t.child_contexts:
-        for s in sets:
-            if name in s:
-                break
-        else:
-            sets.append([name])
-    base_constraints = []
-    new_ftypes = []
+    sets = graph.get_disjoint_sets(calls, t.child_contexts.keys())
+    new_ftypes = {}
+    def replace(var, old, new):
+        if var == old:
+            return instantiate(new)
+        elif isinstance(var, FunctionType):
+            return FunctionType(var.name, [replace(a, old, new) for a in var.args], replace(var.rtype, old, new))
+        return var
     def update_constraints(constraints):
         cs = constraints[:]
         for c in cs:
-            for ftype in new_ftypes:
-                if isinstance(c.a, FunctionType) and c.a.name == ftype.name:
-                    c.a = instantiated(ftype)
-                if isinstance(c.b, FunctionType) and c.b.name == ftype.name:
-                    c.b = instantiated(ftype)
+            for var, ftype in new_ftypes.items():
+                c.a = replace(c.a, var, ftype)
+                c.b = replace(c.b, var, ftype)
         return cs
     for s in sets:
         constraints = []
         for child in s:
             constraints.extend(update_constraints(t.child_contexts[child].constraints))
-        constraints.extend(base_constraints[:])
         child_subs = satisfy_constraints(constraints)
         for child in s:
-            newftype = function_type_from_context(t.child_contexts[child], substitutions=child_subs)
-            new_ftypes.append(newftype)
+            newftype = generalise(function_type_from_collector(t.child_contexts[child], child_subs))
             ftype = t.get_typevar(child)
-            base_constraints.append(Constraint(ftype, SUPERTYPE_OF, newftype, []))
+            new_ftypes[ftype] = newftype
+            t.varmap[child] = newftype
     main_constraints = update_constraints(t.constraints)
-    main_constraints.extend(base_constraints[:])
     return satisfy_constraints(main_constraints)
 
 

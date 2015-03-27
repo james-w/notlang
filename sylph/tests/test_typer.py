@@ -2,7 +2,7 @@ from testtools import TestCase
 from testtools.matchers import Equals, Is
 from rpython.rlib.parsing.lexer import SourcePos
 
-from .. import ast, testing, typer
+from .. import ast, parsing, testing, typer
 
 
 class TypeCollectorTests(TestCase):
@@ -316,3 +316,285 @@ class SatisfyConstraintsTests(TestCase):
             [typer.Constraint(vartype1, typer.SUPERTYPE_OF, typer.INT, [self.spos]),
              typer.Constraint(vartype2, typer.SUPERTYPE_OF, vartype1, [self.spos]),
              typer.Constraint(vartype2, typer.SUPERTYPE_OF, typer.NONE, [self.spos])])
+
+
+def get_type_of(name, source):
+    parsed = parsing.parse(source)
+    checker, substitutions = typer.typecheck(parsed)
+    return substitute(checker.varmap[name], substitutions)
+
+
+def substitute(t, substitutions):
+    t = typer.get_substituted(t, substitutions)
+    if isinstance(t, typer.FunctionType):
+        t = typer.FunctionType(t.name, [substitute(a, substitutions) for a in t.args], substitute(t.rtype, substitutions))
+    return t
+
+
+class IntegrationTests(TestCase):
+
+    def test_int(self):
+        self.assertThat(get_type_of('a', 'a = 1\n'), Is(typer.INT))
+
+    def test_int_by_inference(self):
+        self.assertThat(get_type_of('a', 'b = 1\na = b\n'), Is(typer.INT))
+
+    def test_return_int(self):
+        self.assertThat(
+            get_type_of('a', 'def a():\n    return 1\n\n'),
+            testing.IsFunctionType(Equals('a'), [], Is(typer.INT)))
+
+    def test_return_arg(self):
+        ftype = get_type_of('a', 'def a(b):\n    return b\n\n')
+        self.assertThat(
+            ftype,
+            testing.IsFunctionType(Equals('a'), [Is(ftype.rtype)], testing.IsTypeVariable('b')))
+
+    def test_type_not_bound(self):
+        ftype = get_type_of('a', 'def a(b):\n    return b\n\na(1)\n')
+        self.assertThat(
+            ftype,
+            testing.IsFunctionType(Equals('a'), [Is(ftype.rtype)], testing.IsTypeVariable('b')))
+
+    def test_higher_order(self):
+        ftype = get_type_of('a', 'def a(b, c):\n    return b(c)\n\n')
+        self.assertThat(
+            ftype,
+            testing.IsFunctionType(
+                Equals('a'),
+                [testing.IsFunctionType(
+                    Equals('b'),
+                    [Is(ftype.args[1])],
+                    Is(ftype.rtype)),
+                testing.IsTypeVariable('c')],
+                testing.IsTypeVariable('rb')))
+
+    def test_recursive(self):
+        ftype = get_type_of('a', 'def a(b):\n    if b > 0:\n        return a(b-1)\n    else:\n        return b\n\n')
+        self.assertThat(
+            ftype,
+            testing.IsFunctionType(
+                Equals('a'),
+                [Is(typer.INT)],
+                Is(typer.INT)))
+
+    def test_mutually_recursive(self):
+        ftype = get_type_of('a', """
+def a(b):
+    return c(b)
+
+def c(x):
+    if x > 0:
+        return a(x-1)
+    else:
+        return x
+
+""")
+        self.assertThat(
+            ftype,
+            testing.IsFunctionType(
+                Equals('a'),
+                [Is(typer.INT)],
+                Is(typer.INT)))
+
+    def test_infinite_recursion(self):
+        self.assertRaises(AssertionError, get_type_of, 'a', """
+def a(b):
+    return a(b)
+
+""")
+
+    def test_inferred_from_other(self):
+        ftype = get_type_of('a', """
+def a(b):
+    return c(b)
+
+def c(x):
+    return x + 1
+
+""")
+        self.assertThat(
+            ftype,
+            testing.IsFunctionType(Equals('a'), [Is(typer.INT)], Is(typer.INT)))
+
+    def test_use_of_higher_order(self):
+        ftype = get_type_of('e', """
+def b(x):
+    return x
+
+def a(c, d):
+    return c(d)
+
+e = a(b, 1)
+""")
+        self.assertThat(ftype, Is(typer.INT))
+
+
+class InstantiateTests(TestCase):
+
+    def test_types(self):
+        fname = "foo"
+        self.assertThat(
+            typer.instantiate(typer.FunctionType(fname, [typer.INT], typer.INT)),
+            testing.IsFunctionType(
+                Equals(fname),
+                [Is(typer.INT)],
+                Is(typer.INT))
+            )
+
+    def test_vars(self):
+        fname = "foo"
+        tvar = typer.TypeVariable('a')
+        ret = typer.instantiate(typer.FunctionType(fname, [tvar], tvar))
+        self.assertThat(
+            ret,
+            testing.IsFunctionType(
+                Equals(fname),
+                [Is(ret.rtype)],
+                testing.IsTypeExpr(tvar.name))
+            )
+
+    def test_nested(self):
+        fname = "foo"
+        nested_fname = "bar"
+        tvar1 = typer.TypeVariable('a')
+        tvar2 = typer.TypeVariable('b')
+        ret = typer.instantiate(
+            typer.FunctionType(
+                fname,
+                [typer.FunctionType(
+                    nested_fname,
+                    [tvar1],
+                    tvar2),
+                 tvar1,
+                ],
+                tvar2))
+        argtype = ret.args[1]
+        self.assertThat(
+            ret,
+            testing.IsFunctionType(
+                Equals(fname),
+                [testing.IsFunctionType(
+                    Equals(nested_fname),
+                    [Is(argtype)],
+                    Is(ret.rtype)),
+                 testing.IsTypeExpr(tvar1.name)],
+                testing.IsTypeExpr(tvar2.name))
+            )
+
+
+class FunctionTypeFromContextTests(TestCase):
+
+    def test_no_vars(self):
+        t = typer.TypeCollector({})
+        t.fname = "foo"
+        argname = "a"
+        t.args = [argname]
+        t.varmap[argname] = typer.INT
+        t.rtype = typer.INT
+        ftype = typer.function_type_from_collector(t, {})
+        self.assertThat(
+            ftype,
+            testing.IsFunctionType(
+                Equals(t.fname),
+                [Is(typer.INT)],
+                Is(typer.INT)))
+
+    def test_one_var(self):
+        t = typer.TypeCollector({})
+        t.fname = "foo"
+        argname = "a"
+        t.args = [argname]
+        t.varmap[argname] = typer.TypeExpr(argname)
+        t.rtype = typer.INT
+        ftype = typer.function_type_from_collector(t, {})
+        self.assertThat(
+            ftype,
+            testing.IsFunctionType(
+                Equals(t.fname),
+                [Is(t.varmap[argname])],
+                Is(typer.INT)))
+
+    def test_substituted(self):
+        t = typer.TypeCollector({})
+        t.fname = "foo"
+        argname = "a"
+        t.args = [argname]
+        t.varmap[argname] = typer.TypeExpr("nonsense")
+        argtype = typer.TypeExpr(argname)
+        t.rtype = typer.INT
+        ftype = typer.function_type_from_collector(t, {t.varmap[argname]: (argtype, [])})
+        self.assertThat(
+            ftype,
+            testing.IsFunctionType(
+                Equals(t.fname),
+                [Is(argtype)],
+                Is(typer.INT)))
+
+
+class GeneraliseFunctionTests(TestCase):
+
+    def test_no_vars(self):
+        fname = "foo"
+        input = typer.FunctionType(fname, [typer.INT], typer.INT)
+        ftype = typer.generalise(input)
+        self.assertThat(
+            ftype,
+            testing.IsFunctionType(
+                Equals(fname),
+                [Is(typer.INT)],
+                Is(typer.INT)))
+
+    def test_one_var(self):
+        fname = "foo"
+        argname = "bar"
+        argtype = typer.TypeExpr(argname)
+        input = typer.FunctionType(fname, [argtype], typer.INT)
+        ftype = typer.generalise(input)
+        self.assertThat(
+            ftype,
+            testing.IsFunctionType(
+                Equals(fname),
+                [testing.IsTypeVariable(argname)],
+                Is(typer.INT)))
+
+    def test_one_var_repeated(self):
+        fname = "foo"
+        argname = "bar"
+        argtype = typer.TypeExpr(argname)
+        input = typer.FunctionType(fname, [argtype], argtype)
+        ftype = typer.generalise(input)
+        self.assertThat(
+            ftype,
+            testing.IsFunctionType(
+                Equals(fname),
+                [Is(ftype.rtype)],
+                testing.IsTypeVariable(argname)))
+
+    def test_nested_function(self):
+        fname = "foo"
+        nested_fname = "baz"
+        argname = "bar"
+        argtype = typer.TypeExpr(argname)
+        input = typer.FunctionType(
+            fname,
+            [argtype, typer.FunctionType(
+                nested_fname,
+                [argtype],
+                typer.INT)],
+            typer.INT)
+        ftype = typer.generalise(input)
+        new_argtype = ftype.args[0]
+        self.assertThat(
+            ftype,
+            testing.IsFunctionType(
+                Equals(fname),
+                [testing.IsTypeVariable(argname),
+                testing.IsFunctionType(Equals(nested_fname), [Is(new_argtype)], Is(typer.INT))],
+                Is(typer.INT)))
+
+    def test_unconstrained_rtype(self):
+        fname = "foo"
+        input = typer.FunctionType(fname, [typer.INT], typer.TypeExpr("bar"))
+        e = self.assertRaises(AssertionError, typer.generalise, input)
+        self.assertThat(str(e), Equals("%s has an unconstrained return type." % fname))
