@@ -2,7 +2,7 @@ from rpython.rlib import jit
 from rpython.rlib.debug import make_sure_not_resized
 
 from . import bytecode, compiler
-from .objectspace import W_Code, W_Func
+from .objectspace import W_Code, W_Func, W_Type
 from .parsing import parse
 
 
@@ -17,10 +17,23 @@ driver = jit.JitDriver(greens = ['pc', 'code'],
                        get_printable_location=printable_loc)
 
 
+def make_type(name):
+    return type(name, (W_Type,), {})
+
+
+class Space(object):
+
+    def call_function(self, code, args, globals, trace=False):
+        child_f = Frame(self, code, globals)
+        for i, arg in enumerate(args):
+            child_f.vars[i] = arg
+        return child_f.execute(trace=trace)
+
+
 class Frame(object):
     _virtualizable_ = ['valuestack[*]', 'valuestack_pos', 'vars[*]', 'names[*]']
     
-    def __init__(self, prog, globals):
+    def __init__(self, space, prog, globals):
         self = jit.hint(self, fresh_virtualizable=True, access_directly=True)
         self.valuestack = [None] * prog.max_stacksize
         make_sure_not_resized(self.valuestack)
@@ -31,6 +44,7 @@ class Frame(object):
         self.globals = globals
         self.code = prog.bytecode
         self.constants = prog.constants
+        self.space = space
 
     def push(self, v):
         pos = jit.hint(self.valuestack_pos, promote=True)
@@ -61,7 +75,7 @@ class Frame(object):
             arg = ord(code[pc + 1])
             pc += 2
             if trace:
-                print("%d %s %d" % (pc-2, bytecode.reverse_map[c], arg))
+                print("instr: %d %s %d" % (pc-2, bytecode.reverse_map[c], arg))
             if c == bytecode.LOAD_CONSTANT:
                 w_constant = self.constants[arg]
                 self.push(w_constant)
@@ -111,23 +125,22 @@ class Frame(object):
             elif c == bytecode.CALL_FUNCTION:
                 fargs = self.popmany(arg)
                 fobj = self.pop()
-                if not isinstance(fobj, W_Func):
-                    raise AssertionError("Is not a function object %s" % fobj)
+                if getattr(fobj, 'call') is None:
+                    raise AssertionError("%s is not callable" % fobj)
                 globals = self.globals
                 if globals is None:
                     globals = {}
                     for i, name in enumerate(self.names):
                         globals[name] = self.vars[i]
-                child_f = Frame(fobj.code, globals)
-                for i in range(arg):
-                    child_f.vars[i] = fargs[i]
-                ret = child_f.execute(trace=trace)
-                self.push(ret)
+                self.push(fobj.call(self.space, fargs, globals, trace=trace))
             elif c == bytecode.MAKE_FUNCTION:
                 code_obj = self.pop()
                 if not isinstance(code_obj, W_Code):
                     raise AssertionError("Is not a code object %s" % code_obj)
                 self.push(W_Func(code_obj))
+            elif c == bytecode.MAKE_TYPE:
+                name = self.pop()
+                self.push(make_type(name))
             elif c == bytecode.PRINT:
                 print self.pop().str()
             elif c == bytecode.JUMP_IF_FALSE:
@@ -149,6 +162,5 @@ def get_bytecode(source):
 
 def interpret(source, trace=False):
     prog = get_bytecode(source)
-    frame = Frame(prog, None)
-    frame.execute(trace=trace)
-    return frame
+    space = Space()
+    return space.call_function(prog, [], None, trace=trace)

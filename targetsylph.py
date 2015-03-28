@@ -21,16 +21,8 @@ def main(argv):
     do_raise = show_errors(opts)
     try:
         interpret(data, trace=trace_interp(opts))
-    except ParseError as e:
-        print(e.nice_error_message(filename=fname, source=data))
-        if do_raise:
-            raise
-    except SylphNameError as e:
-        print(e.nice_error_message(filename=fname, source=data))
-        if do_raise:
-            raise
-    except SylphTypeError as e:
-        print(e.nice_error_message(filename=fname, source=data))
+    except (ParseError, SylphNameError, SylphTypeError) as e:
+        print(e.nice_error_message(source=data, filename=opts.file.name))
         if do_raise:
             raise
     return 0

@@ -22,8 +22,9 @@ class Compiler(ast.ASTVisitor):
 
     def visit_Assignment(self, node):
         if isinstance(node.children[0], ast.NewType):
-            return
-        self.general_nonterminal_visit(node)
+            codegen.new_type(self.ctx, node.var.varname)
+        else:
+            self.general_nonterminal_visit(node)
         codegen.assignment(self.ctx, node.var.varname)
 
     def visit_Function(self, node):

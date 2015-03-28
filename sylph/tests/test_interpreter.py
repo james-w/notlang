@@ -4,8 +4,8 @@ from .. import bytecode, codegen, compilercontext, interpreter
 
 
 def interpret(bcode):
-    frame = interpreter.Frame(bcode, None)
-    return frame.execute()
+    space = interpreter.Space()
+    return space.call_function(bcode, [], None)
 
 
 def make_simple_function(ctx, name):
@@ -227,3 +227,17 @@ class FunctionTests(TestCase):
         ctx.emit(bytecode.RETURN)
         ret = interpret(ctx.create_bytecode())
         self.assertEqual(1, ret.intval)
+
+
+class ClassTests(TestCase):
+
+    def test_instantiate(self):
+        cname = "foo"
+        ctx = compilercontext.CompilerContext()
+        ctx.locals = [cname]
+        codegen.new_type(ctx, cname)
+        codegen.assignment(ctx, cname)
+        codegen.function_call(ctx, cname, 0, lambda x: None)
+        codegen.load_none(ctx)
+        codegen.do_return(ctx)
+        ret = interpret(ctx.create_bytecode())

@@ -114,3 +114,19 @@ class W_Func(W_Root):
 
     def __init__(self, code):
         self.code = code
+
+    def call(self, space, args, globals, trace=False):
+        return space.call_function(self.code, args, globals, trace=trace)
+
+
+class W_Type(W_Root):
+
+    __slots__ = ['name']
+    _immutable_fields_ = ['name']
+
+    def __init__(self, name):
+        self.name = name
+
+    @classmethod
+    def call(cls, space, args, globals, trace=False):
+        return cls.__new__(cls, args)

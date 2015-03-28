@@ -1,7 +1,10 @@
 Dog = new Type
 
-def dogger(d: Dog):
-    return d
+def dogger():
+    return Dog()
+
+dogger()
+
 
 def triple(arg: int, count: int) -> int:
     if count > 1:

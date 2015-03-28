@@ -150,9 +150,9 @@ class TypeCollector(ASTVisitor):
         # Not isinstance, as we don't want to match TypeExpr etc.
         if source_type.__class__ == Type and source_type.name == "<anonymous>":
             source_type.name = target.varname
+            self.types[target.varname] = source_type
         self.constraints.append(Constraint(target_type, SUPERTYPE_OF, source_type, [node.sourcepos]))
         # XXX: catch shadowing?
-        self.types[target.varname] = source_type
         return target_type
 
     def visit_Return(self, node):
@@ -186,7 +186,10 @@ class TypeCollector(ASTVisitor):
         # TODO: this needs to carry the sourcepos for the args somehow
         if name not in self.varmap:
             if name not in self.functions:
-                raise SylphNameError("Unknown function %s" % name, [node.sourcepos])
+                if name not in self.types:
+                    raise SylphNameError("Unknown function %s" % name, [node.sourcepos])
+                else:
+                    ftype = self.types[name]
             else:
                 ftype = self.functions[name]
         else:
@@ -194,9 +197,12 @@ class TypeCollector(ASTVisitor):
         if name not in self.called_functions and name not in self.args and name != self.fname:
             self.called_functions.append(name)
         args = [self.dispatch(c) for c in node.children]
-        rtype = TypeExpr("r" + name)
-        self.constraints.append(Constraint(ftype, SUPERTYPE_OF, FunctionType(name, args, rtype), [node.sourcepos]))
-        return rtype
+        if name in self.types:
+            return ftype
+        else:
+            rtype = TypeExpr("r" + name)
+            self.constraints.append(Constraint(ftype, SUPERTYPE_OF, FunctionType(name, args, rtype), [node.sourcepos]))
+            return rtype
 
     def visit_BinOp(self, node):
         return self._handle_function(node, node.op)

@@ -183,6 +183,9 @@ class TestCompiler(TestCase):
         t = ast.NewType(self.spos)
         node = ast.Assignment(var, t, self.spos)
         ctx = compile(node)
-        self.assertEqual(0, len(ctx.constants))
+        self.assertEqual(['a'], ctx.constants)
+        self.assertEqual(['a'], ctx.names)
         self.assertThat(ctx.data,
-            BytecodeMatches([]))
+            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
+                             bytecode.MAKE_TYPE, 0,
+                             bytecode.ASSIGN, 0]))

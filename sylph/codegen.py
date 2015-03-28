@@ -87,3 +87,9 @@ def load_none(ctx):
     cvar = ctx.register_constant(objectspace.TheNone)
     ctx.emit(bytecode.LOAD_CONSTANT, cvar)
     return cvar
+
+
+def new_type(ctx, name):
+    ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(name))
+    ctx.emit(bytecode.MAKE_TYPE)
+    return None
