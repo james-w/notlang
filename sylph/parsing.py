@@ -116,9 +116,18 @@ class Transformer(RPythonVisitor):
         fname = self.dispatch(node.children[0]).varname
         terms = node.children[1]
         args = []
+        arg_children = []
+        type_params = []
         if terms.children:
-            args = [self.dispatch(c) for c in terms.children[0].children]
-        return ast.Function(fname, args, node.getsourcepos())
+            if terms.children[0].symbol == 'type_params':
+                type_params = [a.additional_info for a in terms.children[0].children]
+                if len(terms.children) > 1:
+                    arg_children = terms.children[1].children
+            else:
+                arg_children = terms.children[0].children
+        if arg_children:
+            args = [self.dispatch(c) for c in arg_children]
+        return ast.Function(fname, args, node.getsourcepos(), type_params=type_params)
 
     def visit_return_statement(self, node):
         if len(node.children) > 1:
@@ -170,7 +179,11 @@ class Transformer(RPythonVisitor):
                 argtypes=argtypes, type_params=type_params)
 
     def visit_new_decl(self, node):
-        return ast.NewType(node.getsourcepos())
+        if len(node.children) > 1:
+            type_params = [node.children[1].children[0].additional_info]
+        else:
+            type_params = []
+        return ast.NewType(node.getsourcepos(), type_params)
 
     def visit_IDENTIFIER(self, node):
         return ast.Variable(node.additional_info, node.getsourcepos())

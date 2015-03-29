@@ -283,6 +283,13 @@ class TypeCollectorTests(TestCase):
         self.assertThat(rtype, testing.IsType("<anonymous>"))
         self.assertEqual(0, len(t.constraints))
 
+    def test_parametric_NewType(self):
+        node = ast.NewType(self.spos, ["a"])
+        t = self.get_typecollector()
+        rtype = t.dispatch(node)
+        self.assertThat(rtype, testing.IsParametricType([testing.IsType("<anonymous>"), testing.IsTypeVariable("a")]))
+        self.assertEqual(0, len(t.constraints))
+
     def test_NewType_assigned(self):
         varname = "atype"
         node = ast.Assignment(ast.Variable(varname, self.spos), ast.NewType(self.spos), self.spos)
@@ -293,6 +300,22 @@ class TypeCollectorTests(TestCase):
         self.assertThat(
             t.constraints[0],
             testing.ConstraintMatches(Is(rtype), typer.SUPERTYPE_OF, testing.IsType(varname), [Is(self.spos)]))
+        self.assertEqual(rtype, t.varmap[varname])
+
+    def test_parameterised_NewType_assigned(self):
+        varname = "atype"
+        node = ast.Assignment(ast.Variable(varname, self.spos), ast.NewType(self.spos, ["a"]), self.spos)
+        t = self.get_typecollector()
+        rtype = t.dispatch(node)
+        self.assertThat(rtype, testing.IsTypeExpr(varname))
+        self.assertEqual(1, len(t.constraints))
+        self.assertThat(
+            t.constraints[0],
+            testing.ConstraintMatches(
+                Is(rtype),
+                typer.SUPERTYPE_OF,
+                testing.IsParametricType([testing.IsType(varname), testing.IsTypeVariable("a")]),
+                [Is(self.spos)]))
         self.assertEqual(rtype, t.varmap[varname])
 
     def test_Block(self):
@@ -468,6 +491,33 @@ def foo(d: Dog):
 
 """)
         self.assertThat(ftype, testing.IsFunctionType(Equals('foo'), [Is(ftype.rtype)], testing.IsType("Dog")))
+
+    def test_parameterised_type(self):
+        ftype = get_type_of('foo', """
+List = new Type<a>
+
+foo = List()
+""")
+        self.assertThat(ftype, testing.IsParametricType([testing.IsType('List'), testing.IsTypeVariable('a')]))
+
+    def test_parameterised_type_instantiated(self):
+        # Double define foo to be sure that List<int> == List<int>
+        # when instatiated in different places
+        ftype = get_type_of('foo', """
+List = new Type<a>
+
+foo = List<int>()
+foo = List<int>()
+""")
+        self.assertThat(ftype, testing.IsParametricType([testing.IsType('List'), Is(typer.INT)]))
+
+    def test_different_parameterised_types(self):
+        self.assertRaises(typer.SylphTypeError, get_type_of, 'foo', """
+List = new Type<a>
+
+foo = List<int>()
+foo = List<bool>()
+""")
 
 
 class InstantiateTests(TestCase):

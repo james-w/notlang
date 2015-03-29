@@ -85,10 +85,13 @@ class Assignment(NonTerminal):
 class Function(NonTerminal):
     """Call a function"""
 
-    def __init__(self, fname, args, sourcepos):
+    def __init__(self, fname, args, sourcepos, type_params=None):
         self.fname = fname
         self.children = args
         self.sourcepos = sourcepos
+        if type_params is None:
+            type_params = []
+        self.type_params = type_params
 
     def get_extra_dot_info(self):
         return self.fname
@@ -139,9 +142,12 @@ class Return(NonTerminal):
 
 class NewType(NonTerminal):
 
-    def __init__(self, sourcepos):
+    def __init__(self, sourcepos, type_params=None):
         self.children = []
         self.sourcepos = sourcepos
+        if type_params is None:
+            type_params = []
+        self.type_params = type_params
 
 
 class VisitError(Exception):

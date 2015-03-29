@@ -37,7 +37,26 @@ class IsType(object):
             return getattr(a, '__class__', None)
         self.matcher = MatchesAll(
             AfterPreprocessing(get_class, Is(typer.Type)),
-            AfterPreprocessing(get_name, Equals(name))
+            AfterPreprocessing(get_name, Equals(name)),
+        )
+
+    def __str__(self):
+        return str(self.matcher)
+
+    def match(self, actual):
+        return self.matcher.match(actual)
+
+
+class IsParametricType(object):
+
+    def __init__(self, types):
+        def get_types(a):
+            return getattr(a, 'types', None)
+        def get_class(a):
+            return getattr(a, '__class__', None)
+        self.matcher = MatchesAll(
+            AfterPreprocessing(get_class, Is(typer.ParameterisedType)),
+            AfterPreprocessing(get_types, MatchesListwise(types)),
         )
 
     def __str__(self):

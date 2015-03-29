@@ -219,6 +219,16 @@ class ASTTests(TestCase):
         self.assertEqual("a", arg.varname)
         self.assertEqual(5, arg.sourcepos.i)
 
+    def test_Function_with_type(self):
+        node = parse(" foo<int>()\n")
+        self.assertIsInstance(node, ast.Block)
+        func = node.children[0].children[0]
+        self.assertIsInstance(func, ast.Function)
+        self.assertEqual("foo", func.fname)
+        self.assertEqual(0, len(func.children))
+        self.assertEqual(['int'], func.type_params)
+        self.assertEqual(1, func.sourcepos.i)
+
     def test_Return(self):
         node = parse(" return 1\n")
         self.assertIsInstance(node, ast.Block)
@@ -333,4 +343,15 @@ class ASTTests(TestCase):
         t = ass.children[0]
         self.assertIsInstance(t, ast.NewType)
         self.assertEqual(0, len(t.children))
+        self.assertEqual(5, t.sourcepos.i)
+
+    def test_NewType_with_params(self):
+        node = parse(" a = new Type<b>\n")
+        self.assertIsInstance(node, ast.Block)
+        ass = node.children[0].children[0]
+        self.assertIsInstance(ass, ast.Assignment)
+        t = ass.children[0]
+        self.assertIsInstance(t, ast.NewType)
+        self.assertEqual([], t.children)
+        self.assertEqual(["b"], t.type_params)
         self.assertEqual(5, t.sourcepos.i)

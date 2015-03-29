@@ -44,7 +44,7 @@ arith_trailer: OPERATOR term;
 
 term: atom term_trailer?;
 
-term_trailer: ["("] arglist? [")"];
+term_trailer: type_params? ["("] arglist? [")"];
 
 arglist: argument arglist_trailer*;
 

@@ -15,6 +15,24 @@ class Type(object):
         return "<Type:%s>" % str(self)
 
 
+class ParameterisedType(object):
+
+    def __init__(self, types):
+        self.types = types
+
+    def __str__(self):
+        return "%s<%s>" % (self.types[0], ",".join([str(a) for a in self.types[1:]]))
+
+    def __repr__(self):
+        return "<ParameterisedType:%s>" % str(self)
+
+    def __eq__(self, other):
+        return self.__class__ == other.__class__ and self.types == other.types
+
+    def __ne__(self, other):
+        return not(self.__eq__(other))
+
+
 class TypeExpr(Type):
 
     def __init__(self, name):
@@ -143,8 +161,11 @@ class TypeCollector(ASTVisitor):
         source_type = self.dispatch(source)
         target_type = self.get_typevar(target.varname)
         # Not isinstance, as we don't want to match TypeExpr etc.
-        if source_type.__class__ == Type and source_type.name == "<anonymous>":
-            source_type.name = target.varname
+        source_subtype = source_type
+        if source_type.__class__ == ParameterisedType:
+            source_subtype = source_type.types[0]
+        if source_subtype.__class__ == Type and source_subtype.name == "<anonymous>":
+            source_subtype.name = target.varname
             self.types[target.varname] = source_type
         self.constraints.append(Constraint(target_type, SUPERTYPE_OF, source_type, [node.sourcepos]))
         # XXX: catch shadowing?
@@ -179,22 +200,30 @@ class TypeCollector(ASTVisitor):
 
     def _handle_function(self, node, name):
         # TODO: this needs to carry the sourcepos for the args somehow
-        if name not in self.varmap:
-            if name not in self.functions:
-                if name not in self.types:
+        if name not in self.types:
+            if name not in self.varmap:
+                if name not in self.functions:
                     raise SylphNameError("Unknown function %s" % name, [node.sourcepos])
                 else:
-                    ftype = self.types[name]
+                    ftype = self.functions[name]
             else:
-                ftype = self.functions[name]
+                ftype = self.varmap[name]
         else:
-            ftype = self.varmap[name]
+            ftype = self.types[name]
         if name not in self.called_functions and name not in self.args and name != self.fname:
             self.called_functions.append(name)
         args = [self.dispatch(c) for c in node.children]
         if name in self.types:
+            if node.type_params:
+                assert isinstance(ftype, ParameterisedType) and len(node.type_params) == len(ftype.types) - 1
+                stypes = []
+                vartypes = {}
+                for param in node.type_params:
+                    stypes.append(type_from_decl(param, vartypes, self.types))
+                ftype = ParameterisedType([ftype.types[0]] + stypes)
             return ftype
         else:
+            assert getattr(node, 'type_params', []) == [], "Can't define type params for normal function"
             rtype = TypeExpr("r" + name)
             self.constraints.append(Constraint(ftype, SUPERTYPE_OF, FunctionType(name, args, rtype), [node.sourcepos]))
             return rtype
@@ -231,7 +260,10 @@ class TypeCollector(ASTVisitor):
         return None
 
     def visit_NewType(self, node):
-        return Type("<anonymous>")
+        t = Type("<anonymous>")
+        if node.type_params:
+            t = ParameterisedType([t] + [TypeVariable(a) for a in node.type_params])
+        return t
 
     def general_nonterminal_visit(self, node):
         [self.dispatch(c) for c in node.children]
