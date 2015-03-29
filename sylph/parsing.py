@@ -144,6 +144,21 @@ class Transformer(RPythonVisitor):
         rtype = None
 
         params = node.children[2]
+        if params.symbol == 'type_params':
+            type_params = [params.children[0].additional_info]
+            params = node.children[3]
+            if len(node.children) > 5:
+                rtype = node.children[4].children[0].additional_info
+                block = node.children[5]
+            else:
+                block = node.children[4]
+        else:
+            type_params = []
+            if len(node.children) > 4:
+                rtype = node.children[3].children[0].additional_info
+                block = node.children[4]
+            else:
+                block = node.children[3]
         if params.children:
             for argnode in params.children[0].children:
                 args.append(argnode.children[0].additional_info)
@@ -151,12 +166,8 @@ class Transformer(RPythonVisitor):
                     argtypes.append(argnode.children[1].additional_info)
                 else:
                     argtypes.append(None)
-        if len(node.children) > 4:
-            rtype = node.children[3].children[0].additional_info
-            block = node.children[4]
-        else:
-            block = node.children[3]
-        return ast.FuncDef(name, args, self.dispatch(block), node.getsourcepos(), rtype=rtype, argtypes=argtypes)
+        return ast.FuncDef(name, args, self.dispatch(block), node.getsourcepos(), rtype=rtype,
+                argtypes=argtypes, type_params=type_params)
 
     def visit_new_decl(self, node):
         return ast.NewType(node.getsourcepos())

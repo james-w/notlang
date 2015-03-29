@@ -108,8 +108,14 @@ class BasicParsingTests(TestCase):
     def test_funcdef_with_argtype(self):
         self.assert_parses_ok("def a(b:int):\n    return 1\n\n")
 
+    def test_funcdef_with_type_param(self):
+        self.assert_parses_ok("def a<c>(b:c):\n    return 1\n\n")
+
     def test_new_decl(self):
         self.assert_parses_ok("Foo = new Type\n")
+
+    def test_new_decl_with_type_param(self):
+        self.assert_parses_ok("Foo = new Type<a>\n")
 
 
 class ASTTests(TestCase):
@@ -272,6 +278,48 @@ class ASTTests(TestCase):
         self.assertEqual("foo", func.name)
         self.assertEqual([], func.argtypes)
         self.assertEqual(None, func.rtype)
+        self.assertIsInstance(func.children[0], ast.Block)
+        self.assertEqual(1, func.sourcepos.i)
+
+    def test_FuncDef_with_type_params(self):
+        node = parse(" def foo<a>():\n   2\n\n")
+        self.assertIsInstance(node, ast.Block)
+        func = node.children[0].children[0]
+        self.assertIsInstance(func, ast.FuncDef)
+        self.assertEqual(1, len(func.children))
+        self.assertEqual([], func.args)
+        self.assertEqual("foo", func.name)
+        self.assertEqual([], func.argtypes)
+        self.assertEqual(None, func.rtype)
+        self.assertEqual(["a"], func.type_params)
+        self.assertIsInstance(func.children[0], ast.Block)
+        self.assertEqual(1, func.sourcepos.i)
+
+    def test_FuncDef_with_rtype(self):
+        node = parse(" def foo() -> a:\n   2\n\n")
+        self.assertIsInstance(node, ast.Block)
+        func = node.children[0].children[0]
+        self.assertIsInstance(func, ast.FuncDef)
+        self.assertEqual(1, len(func.children))
+        self.assertEqual([], func.args)
+        self.assertEqual("foo", func.name)
+        self.assertEqual([], func.argtypes)
+        self.assertEqual("a", func.rtype)
+        self.assertEqual([], func.type_params)
+        self.assertIsInstance(func.children[0], ast.Block)
+        self.assertEqual(1, func.sourcepos.i)
+
+    def test_FuncDef_with_type_params_and_rtype(self):
+        node = parse(" def foo<a>() -> a:\n   2\n\n")
+        self.assertIsInstance(node, ast.Block)
+        func = node.children[0].children[0]
+        self.assertIsInstance(func, ast.FuncDef)
+        self.assertEqual(1, len(func.children))
+        self.assertEqual([], func.args)
+        self.assertEqual("foo", func.name)
+        self.assertEqual([], func.argtypes)
+        self.assertEqual("a", func.rtype)
+        self.assertEqual(["a"], func.type_params)
         self.assertIsInstance(func.children[0], ast.Block)
         self.assertEqual(1, func.sourcepos.i)
 

@@ -1,3 +1,4 @@
+
 from . import graph
 from .ast import ASTVisitor, GatherNames
 
@@ -75,12 +76,6 @@ def type_from_decl(type_str, vartypes, types):
     try:
         return types[type_str]
     except KeyError:
-        # FIXME: 1 char -> variable probably not 
-        # the right thing
-        if len(type_str) == 1:
-            vartype = TypeVariable(type_str)
-            vartypes[type_str] = vartype
-            return vartype
         raise AssertionError("Unknown type: %s" % type_str)
 
 
@@ -215,6 +210,8 @@ class TypeCollector(ASTVisitor):
         self.child_contexts[node.name] = child
         child.fname = node.name
         vartypes = {}
+        for type_param in node.type_params:
+            vartypes[type_param] = TypeVariable(type_param)
         if node.rtype:
             child.rtype = type_from_decl(node.rtype, vartypes, self.types)
         argtypes = []

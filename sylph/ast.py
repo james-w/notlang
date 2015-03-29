@@ -110,14 +110,17 @@ class While(NonTerminal):
 
 class FuncDef(NonTerminal):
 
-    def __init__(self, name, args, code, sourcepos, rtype=None, argtypes=None):
+    def __init__(self, name, args, code, sourcepos, rtype=None, argtypes=None, type_params=None):
         self.name = name
         self.args = args
         self.children = [code]
         self.rtype = rtype
         if argtypes is None:
-            argtypes = [None]
+            argtypes = [None] * len(self.args)
         self.argtypes = argtypes
+        if type_params is None:
+            type_params = []
+        self.type_params = type_params
         self.sourcepos = sourcepos
 
     def get_extra_dot_info(self):
