@@ -112,10 +112,10 @@ class BasicParsingTests(TestCase):
         self.assert_parses_ok("def a<c>(b:c):\n    return 1\n\n")
 
     def test_new_decl(self):
-        self.assert_parses_ok("Foo = new Type\n")
+        self.assert_parses_ok("Foo = new Type:\n    pass\n\n")
 
     def test_new_decl_with_type_param(self):
-        self.assert_parses_ok("Foo = new Type<a>\n")
+        self.assert_parses_ok("Foo = new Type<a>:\n    pass\n\n")
 
 
 class ASTTests(TestCase):
@@ -336,7 +336,7 @@ class ASTTests(TestCase):
     # TODO: more complete FuncDef tests
 
     def test_NewType(self):
-        node = parse(" a = new Type\n")
+        node = parse(" a = new Type:\n    pass\n\n")
         self.assertIsInstance(node, ast.Block)
         ass = node.children[0].children[0]
         self.assertIsInstance(ass, ast.Assignment)
@@ -346,7 +346,7 @@ class ASTTests(TestCase):
         self.assertEqual(5, t.sourcepos.i)
 
     def test_NewType_with_params(self):
-        node = parse(" a = new Type<b>\n")
+        node = parse(" a = new Type<b>:\n    pass\n\n")
         self.assertIsInstance(node, ast.Block)
         ass = node.children[0].children[0]
         self.assertIsInstance(ass, ast.Assignment)

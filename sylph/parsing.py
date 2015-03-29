@@ -179,7 +179,7 @@ class Transformer(RPythonVisitor):
                 argtypes=argtypes, type_params=type_params)
 
     def visit_new_decl(self, node):
-        if len(node.children) > 1:
+        if len(node.children) > 2:
             type_params = [node.children[1].children[0].additional_info]
         else:
             type_params = []

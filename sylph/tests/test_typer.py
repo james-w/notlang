@@ -478,13 +478,16 @@ e = a(b, 1)
 
     def test_new_type(self):
         ftype = get_type_of('Dog', """
-Dog = new Type
+Dog = new Type:
+    pass
+
 """)
         self.assertThat(ftype, testing.IsType("Dog"))
 
     def test_new_type_in_signature(self):
         ftype = get_type_of('foo', """
-Dog = new Type
+Dog = new Type:
+    pass
 
 def foo(d: Dog):
     return d
@@ -494,7 +497,8 @@ def foo(d: Dog):
 
     def test_parameterised_type(self):
         ftype = get_type_of('foo', """
-List = new Type<a>
+List = new Type<a>:
+    pass
 
 foo = List()
 """)
@@ -504,7 +508,8 @@ foo = List()
         # Double define foo to be sure that List<int> == List<int>
         # when instatiated in different places
         ftype = get_type_of('foo', """
-List = new Type<a>
+List = new Type<a>:
+    pass
 
 foo = List<int>()
 foo = List<int>()
@@ -513,7 +518,8 @@ foo = List<int>()
 
     def test_different_parameterised_types(self):
         self.assertRaises(typer.SylphTypeError, get_type_of, 'foo', """
-List = new Type<a>
+List = new Type<a>:
+    pass
 
 foo = List<int>()
 foo = List<bool>()

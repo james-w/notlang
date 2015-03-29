@@ -17,9 +17,11 @@ simple_statement: small_statement [NEWLINE];
 
 compound_statement: conditional | while_loop | funcdef;
 
-small_statement: assignment | return_statement;
+small_statement: assignment | return_statement | pass;
 
 return_statement: "return" testlist?;
+
+pass: "pass";
 
 assignment: testlist assignment_trailer?;
 
@@ -27,7 +29,7 @@ assignment_trailer: ["="] <testlist> | ["="] new_decl;
 
 testlist: comparison;
 
-new_decl: "new" ["Type"] type_params?;
+new_decl: "new" ["Type"] type_params? [":" NEWLINE] suite;
 
 type_params: [TYPE_PARAM_START] IDENTIFIER [TYPE_PARAM_END];
 
