@@ -277,14 +277,16 @@ class TypeCollectorTests(TestCase):
         self.assertEqual(typer.INT, context.varmap[argname])
 
     def test_NewType(self):
-        node = ast.NewType(self.spos)
+        block = ast.ConstantInt(1, self.spos)
+        node = ast.NewType(block, self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
         self.assertThat(rtype, testing.IsType("<anonymous>"))
         self.assertEqual(0, len(t.constraints))
 
     def test_parametric_NewType(self):
-        node = ast.NewType(self.spos, ["a"])
+        block = ast.ConstantInt(1, self.spos)
+        node = ast.NewType(block, self.spos, ["a"])
         t = self.get_typecollector()
         rtype = t.dispatch(node)
         self.assertThat(rtype, testing.IsParametricType([testing.IsType("<anonymous>"), testing.IsTypeVariable("a")]))
@@ -292,7 +294,8 @@ class TypeCollectorTests(TestCase):
 
     def test_NewType_assigned(self):
         varname = "atype"
-        node = ast.Assignment(ast.Variable(varname, self.spos), ast.NewType(self.spos), self.spos)
+        block = ast.ConstantInt(1, self.spos)
+        node = ast.Assignment(ast.Variable(varname, self.spos), ast.NewType(block, self.spos), self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
         self.assertThat(rtype, testing.IsTypeExpr(varname))
@@ -304,7 +307,8 @@ class TypeCollectorTests(TestCase):
 
     def test_parameterised_NewType_assigned(self):
         varname = "atype"
-        node = ast.Assignment(ast.Variable(varname, self.spos), ast.NewType(self.spos, ["a"]), self.spos)
+        block = ast.ConstantInt(1, self.spos)
+        node = ast.Assignment(ast.Variable(varname, self.spos), ast.NewType(block, self.spos, ["a"]), self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
         self.assertThat(rtype, testing.IsTypeExpr(varname))

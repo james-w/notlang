@@ -24,7 +24,6 @@ return_statement: "return" testlist?;
 pass: "pass";
 
 assignment: testlist assignment_trailer?;
-
 assignment_trailer: ["="] <testlist> | ["="] new_decl;
 
 testlist: comparison;

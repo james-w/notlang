@@ -36,6 +36,13 @@ class Stmt(NonTerminal):
         self.sourcepos = sourcepos
 
 
+class Pass(Node):
+    """A no-op.
+    """
+    def __init__(self, sourcepos):
+        self.sourcepos = sourcepos
+
+
 class ConstantInt(Node):
     """ Represent a constant
     """
@@ -142,8 +149,8 @@ class Return(NonTerminal):
 
 class NewType(NonTerminal):
 
-    def __init__(self, sourcepos, type_params=None):
-        self.children = []
+    def __init__(self, block, sourcepos, type_params=None):
+        self.children = [block]
         self.sourcepos = sourcepos
         if type_params is None:
             type_params = []

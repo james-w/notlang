@@ -119,3 +119,28 @@ class CodeGenTests(TestCase):
         self.assertEqual(1, len(ctx.constants))
         self.assertIs(objectspace.TheNone, ctx.constants[0])
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_CONSTANT, 0]))
+
+    def test_new_type(self):
+        tname = "foo"
+        ctx = CompilerContext()
+        codegen.new_type(ctx, tname, lambda x: None)
+        self.assertEqual(2, len(ctx.constants))
+        self.assertEqual(tname, ctx.constants[0])
+        self.assertIsInstance(ctx.constants[1], objectspace.W_Code)
+        self.assertThat(ctx.data,
+            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
+                             bytecode.LOAD_CONSTANT, 1,
+                             bytecode.MAKE_FUNCTION, 0,
+                             bytecode.CALL_FUNCTION, 0,
+                             bytecode.MAKE_TYPE, 0]))
+        self.assertThat(ctx.constants[1].bytecode,
+            BytecodeMatches([bytecode.LOAD_LOCALS, 0,
+                             bytecode.RETURN, 0]))
+
+    def test_load_locals(self):
+        ctx = CompilerContext()
+        codegen.load_locals(ctx)
+        self.assertEqual([], ctx.constants)
+        self.assertEqual([], ctx.names)
+        self.assertThat(ctx.data,
+            BytecodeMatches([bytecode.LOAD_LOCALS, 0])) 

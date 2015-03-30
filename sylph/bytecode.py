@@ -9,28 +9,30 @@ def register_code(bytecode, i):
 register_code('LOAD_CONSTANT', 1)
 register_code('LOAD_VAR', 2)
 register_code('LOAD_GLOBAL', 3)
-register_code('ASSIGN', 4)
-register_code('BINARY_ADD', 5)
-register_code('BINARY_SUB', 6)
-register_code('BINARY_MULT', 7)
-register_code('BINARY_EQ', 8)
-register_code('BINARY_LT', 9)
-register_code('BINARY_GT', 10)
-register_code('JUMP_IF_FALSE', 11)
-register_code('JUMP_FORWARD', 12)
-register_code('JUMP_BACK', 13)
-register_code('CALL_FUNCTION', 14)
-register_code('MAKE_FUNCTION', 15)
-register_code('MAKE_TYPE', 16)
-register_code('RETURN', 17)
-register_code('PRINT', 18)
+register_code('LOAD_LOCALS', 4)
+register_code('ASSIGN', 5)
+register_code('BINARY_ADD', 6)
+register_code('BINARY_SUB', 7)
+register_code('BINARY_MULT', 8)
+register_code('BINARY_EQ', 9)
+register_code('BINARY_LT', 10)
+register_code('BINARY_GT', 11)
+register_code('JUMP_IF_FALSE', 12)
+register_code('JUMP_FORWARD', 13)
+register_code('JUMP_BACK', 14)
+register_code('CALL_FUNCTION', 15)
+register_code('MAKE_FUNCTION', 16)
+register_code('MAKE_TYPE', 17)
+register_code('RETURN', 18)
+register_code('PRINT', 19)
 
 BINOP = {'+': BINARY_ADD, '-': BINARY_SUB, '*': BINARY_MULT, '==': BINARY_EQ, '<': BINARY_LT, '>': BINARY_GT}
-unary_ops = [BINARY_ADD, BINARY_SUB, BINARY_MULT, BINARY_EQ, BINARY_LT, BINARY_GT, RETURN, PRINT]
+unary_ops = [BINARY_ADD, BINARY_SUB, BINARY_MULT, BINARY_EQ, BINARY_LT, BINARY_GT, RETURN, PRINT, LOAD_LOCALS, MAKE_TYPE]
 STACK_CHANGE = {
     LOAD_CONSTANT: 1,
     LOAD_VAR: 1,
     LOAD_GLOBAL: 1,
+    LOAD_LOCALS: 1,
     ASSIGN: -1,
     BINARY_ADD: -1,
     BINARY_SUB: -1,

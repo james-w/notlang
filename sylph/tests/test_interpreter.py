@@ -1,6 +1,6 @@
 from testtools import TestCase
 
-from .. import bytecode, codegen, compilercontext, interpreter
+from .. import bytecode, codegen, compilercontext, objectspace, interpreter
 
 
 def interpret(bcode):
@@ -233,11 +233,32 @@ class ClassTests(TestCase):
 
     def test_instantiate(self):
         cname = "foo"
+        attrname = "bar"
         ctx = compilercontext.CompilerContext()
         ctx.locals = [cname]
-        codegen.new_type(ctx, cname)
+        def code_cb(ctx):
+            codegen.load_constant_int(ctx, 1)
+            codegen.assignment(ctx, attrname)
+        codegen.new_type(ctx, cname, code_cb)
         codegen.assignment(ctx, cname)
         codegen.function_call(ctx, cname, 0, lambda x: None)
         codegen.load_none(ctx)
         codegen.do_return(ctx)
         ret = interpret(ctx.create_bytecode())
+
+
+class LocalsTests(TestCase):
+
+    def test_load_locals(self):
+        varname1 = "foo"
+        varname2 = "bar"
+        ctx = compilercontext.CompilerContext()
+        ctx.locals = [varname1, varname2]
+        codegen.load_constant_int(ctx, 1)
+        codegen.assignment(ctx, varname1)
+        codegen.load_locals(ctx)
+        codegen.do_return(ctx)
+        ret = interpret(ctx.create_bytecode())
+        self.assertIsInstance(ret, objectspace.W_Dict)
+        self.assertEqual(1, len(ret.dictval))
+        self.assertEqual(1, ret.dictval[varname1].intval)

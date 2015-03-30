@@ -30,6 +30,9 @@ class BasicParsingTests(TestCase):
         self.skip("Bug in rlib? that means getsourcepos on blocks with no statements fail")
         self.assert_parses_ok("\n")
 
+    def test_pass(self):
+        self.assert_parses_ok("pass\n")
+
     def test_int(self):
         self.assert_parses_ok("1\n")
 
@@ -131,6 +134,13 @@ class ASTTests(TestCase):
         stmt = node.children[0]
         self.assertIsInstance(stmt, ast.Stmt)
         self.assertEqual(1, stmt.sourcepos.i)
+
+    def test_Pass(self):
+        node = parse(" pass\n")
+        self.assertIsInstance(node, ast.Block)
+        pass_node = node.children[0].children[0]
+        self.assertIsInstance(pass_node, ast.Pass)
+        self.assertEqual(1, pass_node.sourcepos.i)
 
     def test_ConstantInt(self):
         node = parse(" 1\n")
@@ -342,7 +352,6 @@ class ASTTests(TestCase):
         self.assertIsInstance(ass, ast.Assignment)
         t = ass.children[0]
         self.assertIsInstance(t, ast.NewType)
-        self.assertEqual(0, len(t.children))
         self.assertEqual(5, t.sourcepos.i)
 
     def test_NewType_with_params(self):
@@ -352,6 +361,18 @@ class ASTTests(TestCase):
         self.assertIsInstance(ass, ast.Assignment)
         t = ass.children[0]
         self.assertIsInstance(t, ast.NewType)
-        self.assertEqual([], t.children)
         self.assertEqual(["b"], t.type_params)
         self.assertEqual(5, t.sourcepos.i)
+
+    def test_NewType_with_block(self):
+        node = parse(" a = new Type<b>:\n    pass\n\n")
+        self.assertIsInstance(node, ast.Block)
+        ass = node.children[0].children[0]
+        self.assertIsInstance(ass, ast.Assignment)
+        t = ass.children[0]
+        self.assertIsInstance(t, ast.NewType)
+        self.assertEqual(1, len(t.children))
+        self.assertEqual(["b"], t.type_params)
+        self.assertEqual(5, t.sourcepos.i)
+        self.assertIsInstance(t.children[0], ast.Block)
+        self.assertIsInstance(t.children[0].children[0].children[0], ast.Pass)

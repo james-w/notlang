@@ -2,7 +2,7 @@ from rpython.rlib import jit
 from rpython.rlib.debug import make_sure_not_resized
 
 from . import bytecode, compiler
-from .objectspace import W_Code, W_Func, W_Type
+from .objectspace import W_Code, W_Dict, W_Func, W_Type
 from .parsing import parse
 
 
@@ -17,8 +17,8 @@ driver = jit.JitDriver(greens = ['pc', 'code'],
                        get_printable_location=printable_loc)
 
 
-def make_type(name):
-    return type(name, (W_Type,), {})
+def make_type(name, attrs):
+    return type(name, (W_Type,), attrs.dictval)
 
 
 class Space(object):
@@ -122,6 +122,12 @@ class Frame(object):
                     raise SyntaxError("Unknown variable: %s" % gname)
                 else:
                     self.push(glob)
+            elif c == bytecode.LOAD_LOCALS:
+                dictval = {}
+                for i, val in enumerate(self.vars):
+                    if val is not None:
+                        dictval[self.names[i]] = val
+                self.push(W_Dict(dictval))
             elif c == bytecode.CALL_FUNCTION:
                 fargs = self.popmany(arg)
                 fobj = self.pop()
@@ -139,8 +145,9 @@ class Frame(object):
                     raise AssertionError("Is not a code object %s" % code_obj)
                 self.push(W_Func(code_obj))
             elif c == bytecode.MAKE_TYPE:
+                attrs = self.pop()
                 name = self.pop()
-                self.push(make_type(name))
+                self.push(make_type(name, attrs))
             elif c == bytecode.PRINT:
                 print self.pop().str()
             elif c == bytecode.JUMP_IF_FALSE:

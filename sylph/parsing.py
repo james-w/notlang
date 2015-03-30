@@ -181,9 +181,15 @@ class Transformer(RPythonVisitor):
     def visit_new_decl(self, node):
         if len(node.children) > 2:
             type_params = [node.children[1].children[0].additional_info]
+            block_node = node.children[2]
         else:
             type_params = []
-        return ast.NewType(node.getsourcepos(), type_params)
+            block_node = node.children[1]
+        block = self.dispatch(block_node)
+        return ast.NewType(block, node.getsourcepos(), type_params)
+
+    def visit_pass(self, node):
+        return ast.Pass(node.getsourcepos())
 
     def visit_IDENTIFIER(self, node):
         return ast.Variable(node.additional_info, node.getsourcepos())

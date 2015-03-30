@@ -180,12 +180,29 @@ class TestCompiler(TestCase):
 
     def test_new_type(self):
         var = ast.Variable("a", self.spos)
-        t = ast.NewType(self.spos)
+        attrname = 'b'
+        attrval = 2
+        attr = ast.Variable(attrname, self.spos)
+        right = ast.ConstantInt(attrval, self.spos)
+        block = ast.Assignment(attr, right, self.spos)
+        t = ast.NewType(block, self.spos)
         node = ast.Assignment(var, t, self.spos)
         ctx = compile(node)
-        self.assertEqual(['a'], ctx.constants)
+        self.assertEqual(2, len(ctx.constants))
+        self.assertEqual('a', ctx.constants[0])
+        self.assertIsInstance(ctx.constants[1], objectspace.W_Code)
         self.assertEqual(['a'], ctx.names)
         self.assertThat(ctx.data,
             BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
+                             bytecode.LOAD_CONSTANT, 1,
+                             bytecode.MAKE_FUNCTION, 0,
+                             bytecode.CALL_FUNCTION, 0,
                              bytecode.MAKE_TYPE, 0,
                              bytecode.ASSIGN, 0]))
+
+    def test_Pass(self):
+        node = ast.Pass(self.spos)
+        ctx = compile(node)
+        self.assertEqual([], ctx.constants)
+        self.assertEqual([], ctx.names)
+        self.assertEqual([], ctx.data)

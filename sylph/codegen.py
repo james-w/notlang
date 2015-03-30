@@ -89,7 +89,19 @@ def load_none(ctx):
     return cvar
 
 
-def new_type(ctx, name):
+def new_type(ctx, name, code_cb):
     ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(name))
+    cctx = compilercontext.CompilerContext()
+    code_cb(cctx)
+    load_locals(cctx)
+    do_return(cctx)
+    code = cctx.create_bytecode()
+    code_const = ctx.register_constant(code)
+    ctx.emit(bytecode.LOAD_CONSTANT, code_const)
+    ctx.emit(bytecode.MAKE_FUNCTION)
+    ctx.emit(bytecode.CALL_FUNCTION, 0)
     ctx.emit(bytecode.MAKE_TYPE)
-    return None
+
+
+def load_locals(ctx):
+    ctx.emit(bytecode.LOAD_LOCALS)

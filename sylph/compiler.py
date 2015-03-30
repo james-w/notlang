@@ -1,5 +1,4 @@
-from . import ast, bytecode, codegen, compilercontext, typer
-from .objectspace import TheNone
+from . import ast, bytecode, codegen, compilercontext, objectspace, typer
 
 
 class Compiler(ast.ASTVisitor):
@@ -22,7 +21,7 @@ class Compiler(ast.ASTVisitor):
 
     def visit_Assignment(self, node):
         if isinstance(node.children[0], ast.NewType):
-            codegen.new_type(self.ctx, node.var.varname)
+            codegen.new_type(self.ctx, node.var.varname, CallbackHelper(node).type_code_cb)
         else:
             self.general_nonterminal_visit(node)
         codegen.assignment(self.ctx, node.var.varname)
@@ -53,6 +52,10 @@ class Compiler(ast.ASTVisitor):
             codegen.load_none(self.ctx)
         codegen.do_return(self.ctx)
 
+    def visit_Pass(self, node):
+        # How appropriate
+        pass
+
 
 class CallbackHelper(object):
 
@@ -81,6 +84,9 @@ class CallbackHelper(object):
 
     def while_block_cb(self, ctx):
         Compiler(ctx).dispatch(self.node.children[1])
+
+    def type_code_cb(self, ctx):
+        Compiler(ctx).dispatch(self.node.children[0])
 
 
 def dump(code, context=None):
@@ -125,7 +131,7 @@ def get_compiler(astnode):
     c = compilercontext.CompilerContext()
     c.locals = ast.GatherAssignedNames().dispatch(astnode)
     Compiler(c).dispatch(astnode)
-    c.emit(bytecode.LOAD_CONSTANT, c.register_constant(TheNone))
+    c.emit(bytecode.LOAD_CONSTANT, c.register_constant(objectspace.TheNone))
     c.emit(bytecode.RETURN)
     return c
 

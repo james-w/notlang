@@ -130,3 +130,12 @@ class W_Type(W_Root):
     @classmethod
     def call(cls, space, args, globals, trace=False):
         return cls.__new__(cls, args)
+
+
+class W_Dict(W_Root):
+
+    __slots__ = ['dictval']
+    _immutable_fields_ = ['dictval']
+
+    def __init__(self, dictval):
+        self.dictval = dictval
