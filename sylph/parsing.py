@@ -191,6 +191,12 @@ class Transformer(RPythonVisitor):
     def visit_pass(self, node):
         return ast.Pass(node.getsourcepos())
 
+    def visit_variable(self, node):
+        name = ()
+        for child in node.children:
+            name += (child.additional_info,)
+        return ast.Variable(name, node.getsourcepos())
+
     def visit_IDENTIFIER(self, node):
         return ast.Variable(node.additional_info, node.getsourcepos())
 

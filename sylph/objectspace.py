@@ -139,3 +139,15 @@ class W_Dict(W_Root):
 
     def __init__(self, dictval):
         self.dictval = dictval
+
+
+class W_String(W_Root):
+
+    __slots__ = ['strval']
+    _immutable_fields_ = ['strval']
+
+    def __init__(self, strval):
+        self.strval = strval
+
+    def repr(self):
+        return repr(self.strval)

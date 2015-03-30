@@ -1,9 +1,11 @@
-Dog = new Type
+Dog = new Type:
+   a = 1
 
 def dogger():
     return Dog()
 
-dogger()
+dog = dogger()
+print(dog.a)
 
 
 def triple(arg: int, count: int) -> int:

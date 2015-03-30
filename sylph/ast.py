@@ -238,7 +238,8 @@ class GatherAssignedNames(ASTVisitor):
         return []
 
     def visit_Assignment(self, node):
-        return [node.var.varname]
+        assert len(node.var.varname) == 1
+        return [node.var.varname[0]]
 
     def visit_FuncDef(self, node):
         return [node.name]

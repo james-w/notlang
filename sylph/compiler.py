@@ -21,13 +21,15 @@ class Compiler(ast.ASTVisitor):
 
     def visit_Assignment(self, node):
         if isinstance(node.children[0], ast.NewType):
-            codegen.new_type(self.ctx, node.var.varname, CallbackHelper(node).type_code_cb)
+            assert len(node.var.varname) == 1
+            codegen.new_type(self.ctx, node.var.varname[0], CallbackHelper(node).type_code_cb)
         else:
             self.general_nonterminal_visit(node)
-        codegen.assignment(self.ctx, node.var.varname)
+        assert len(node.var.varname) == 1
+        codegen.assignment(self.ctx, node.var.varname[0])
 
     def visit_Function(self, node):
-        if node.fname == 'print':
+        if len(node.fname) == 1 and node.fname[0] == 'print':
             self.dispatch(node.children[0])
             codegen.do_print(self.ctx)
         else:
@@ -89,6 +91,19 @@ class CallbackHelper(object):
         Compiler(ctx).dispatch(self.node.children[0])
 
 
+def dump_instr(index, inst, arg, context=None):
+    line = "%d " % index
+    line += bytecode.reverse_map[inst]
+    if inst not in bytecode.unary_ops:
+        line += " " + str(arg)
+    if context is not None:
+        if inst in (bytecode.LOAD_VAR, bytecode.ASSIGN, bytecode.LOAD_GLOBAL, bytecode.LOAD_ATTR):
+            line += " (" + str(context.names[arg]) + ")"
+        if inst in (bytecode.LOAD_CONSTANT,):
+            line += " (" + context.constants[arg].repr() + ")"
+    return line
+
+
 def dump(code, context=None):
     lines = []
     i = 0
@@ -97,17 +112,7 @@ def dump(code, context=None):
         c = ord(code.bytecode[i])
         c2 = ord(code.bytecode[i + 1])
         stacksize += compilercontext.get_stack_change(c, c2)
-        line = "%d " % i
-        line += bytecode.reverse_map[c]
-        if c not in bytecode.unary_ops:
-            line += " " + str(c2)
-        if context is not None:
-            if c in (bytecode.LOAD_VAR, bytecode.ASSIGN, bytecode.LOAD_GLOBAL):
-                line += " (" + str(context.names[c2]) + ")"
-            if c in (bytecode.LOAD_CONSTANT,):
-                line += " (" + context.constants[c2].repr() + ")"
-        line += " (stacksize: %d)" % stacksize
-        lines.append(line)
+        lines.append(dump_instr(i, c, c2, context=context) + " (stacksize: %d)" % stacksize)
     return '\n'.join(lines)
 
 

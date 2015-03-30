@@ -23,7 +23,7 @@ class TypeCollectorTests(TestCase):
     def test_Assignment(self):
         varname = "a"
         rhs = ast.ConstantInt(2, self.spos)
-        lhs = ast.Variable(varname, self.spos)
+        lhs = ast.Variable((varname,), self.spos)
         node = ast.Assignment(lhs, rhs, self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
@@ -55,7 +55,7 @@ class TypeCollectorTests(TestCase):
 
     def test_Variable_existing(self):
         varname = "a"
-        node = ast.Variable(varname, self.spos)
+        node = ast.Variable((varname,), self.spos)
         t = self.get_typecollector()
         vartype = typer.TypeVariable(varname)
         t.varmap[varname] = vartype
@@ -64,7 +64,7 @@ class TypeCollectorTests(TestCase):
 
     def test_Variable_nonexisting(self):
         varname = "a"
-        node = ast.Variable(varname, self.spos)
+        node = ast.Variable((varname,), self.spos)
         t = self.get_typecollector()
         self.assertRaises(typer.SylphNameError, t.dispatch, node)
 
@@ -123,7 +123,7 @@ class TypeCollectorTests(TestCase):
     def test_Conditional(self):
         varname = "a"
         condition = ast.ConstantInt(1, self.spos)
-        block = ast.Assignment(ast.Variable(varname, self.spos), ast.ConstantInt(2, self.spos), self.spos)
+        block = ast.Assignment(ast.Variable((varname,), self.spos), ast.ConstantInt(2, self.spos), self.spos)
         node = ast.Conditional(condition, block, None, self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
@@ -147,7 +147,7 @@ class TypeCollectorTests(TestCase):
     def test_Conditional_with_else(self):
         varname = "a"
         condition = ast.ConstantInt(1, self.spos)
-        block = ast.Assignment(ast.Variable(varname, self.spos), ast.ConstantInt(2, self.spos), self.spos)
+        block = ast.Assignment(ast.Variable((varname,), self.spos), ast.ConstantInt(2, self.spos), self.spos)
         node = ast.Conditional(condition, block, block, self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
@@ -178,7 +178,7 @@ class TypeCollectorTests(TestCase):
     def test_While(self):
         varname = "a"
         condition = ast.ConstantInt(1, self.spos)
-        block = ast.Assignment(ast.Variable(varname, self.spos), ast.ConstantInt(2, self.spos), self.spos)
+        block = ast.Assignment(ast.Variable((varname,), self.spos), ast.ConstantInt(2, self.spos), self.spos)
         node = ast.While(condition, block, self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
@@ -195,7 +195,7 @@ class TypeCollectorTests(TestCase):
 
     def test_Function_noargs(self):
         fname = "foo"
-        node = ast.Function(fname, [], self.spos)
+        node = ast.Function((fname,), [], self.spos)
         t = self.get_typecollector()
         t.functions[fname] = typer.TypeExpr(fname)
         rtype = t.dispatch(node)
@@ -214,7 +214,7 @@ class TypeCollectorTests(TestCase):
     def test_Function_args(self):
         fname = "foo"
         arg = ast.ConstantInt(1, self.spos)
-        node = ast.Function(fname, [arg], self.spos)
+        node = ast.Function((fname,), [arg], self.spos)
         t = self.get_typecollector()
         t.functions[fname] = typer.TypeExpr(fname)
         rtype = t.dispatch(node)
@@ -231,7 +231,7 @@ class TypeCollectorTests(TestCase):
     def test_FuncDef(self):
         fname = "foo"
         argname = "bar"
-        code = ast.Return(ast.Variable(argname, self.spos), self.spos)
+        code = ast.Return(ast.Variable((argname,), self.spos), self.spos)
         node = ast.FuncDef(fname, [argname], code, self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
@@ -257,7 +257,7 @@ class TypeCollectorTests(TestCase):
         argname = "bar"
         rtype = "int"
         argtype = "int"
-        code = ast.Return(ast.Variable(argname, self.spos), self.spos)
+        code = ast.Return(ast.Variable((argname,), self.spos), self.spos)
         node = ast.FuncDef(fname, [argname], code, self.spos, rtype=rtype, argtypes=[argtype])
         t = self.get_typecollector()
         self.assertIs(None, t.dispatch(node))
@@ -295,7 +295,7 @@ class TypeCollectorTests(TestCase):
     def test_NewType_assigned(self):
         varname = "atype"
         block = ast.ConstantInt(1, self.spos)
-        node = ast.Assignment(ast.Variable(varname, self.spos), ast.NewType(block, self.spos), self.spos)
+        node = ast.Assignment(ast.Variable((varname,), self.spos), ast.NewType(block, self.spos), self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
         self.assertThat(rtype, testing.IsTypeExpr(varname))
@@ -308,7 +308,7 @@ class TypeCollectorTests(TestCase):
     def test_parameterised_NewType_assigned(self):
         varname = "atype"
         block = ast.ConstantInt(1, self.spos)
-        node = ast.Assignment(ast.Variable(varname, self.spos), ast.NewType(block, self.spos, ["a"]), self.spos)
+        node = ast.Assignment(ast.Variable((varname,), self.spos), ast.NewType(block, self.spos, ["a"]), self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
         self.assertThat(rtype, testing.IsTypeExpr(varname))
@@ -326,7 +326,7 @@ class TypeCollectorTests(TestCase):
         # Test that children are dispatched to by default
         varname = "a"
         rhs = ast.ConstantInt(2, self.spos)
-        lhs = ast.Variable(varname, self.spos)
+        lhs = ast.Variable((varname,), self.spos)
         node = ast.Assignment(lhs, rhs, self.spos)
         t = self.get_typecollector()
         t.dispatch(ast.Block([node], self.spos))

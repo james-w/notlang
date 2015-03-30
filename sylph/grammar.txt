@@ -74,4 +74,7 @@ argtypespec: [":"] <IDENTIFIER>;
 
 suite: [INDENT] statement* [DEDENT];
 
-atom: DECIMAL | IDENTIFIER;
+atom: DECIMAL | variable;
+
+variable: IDENTIFIER variable_trailer*;
+variable_trailer: ["."] <IDENTIFIER>;

@@ -1,3 +1,5 @@
+import sys
+
 from rpython.rlib import jit
 from rpython.rlib.debug import make_sure_not_resized
 
@@ -75,7 +77,10 @@ class Frame(object):
             arg = ord(code[pc + 1])
             pc += 2
             if trace:
-                print("instr: %d %s %d" % (pc-2, bytecode.reverse_map[c], arg))
+                sys.stderr.write("instr: ")
+                sys.stderr.write(compiler.dump_instr(pc-2, c, arg, context=self))
+                sys.stderr.write(" " + repr([a for a in reversed(self.valuestack[:self.valuestack_pos])]))
+                sys.stderr.write("\n")
             if c == bytecode.LOAD_CONSTANT:
                 w_constant = self.constants[arg]
                 self.push(w_constant)
@@ -122,6 +127,13 @@ class Frame(object):
                     raise SyntaxError("Unknown variable: %s" % gname)
                 else:
                     self.push(glob)
+            elif c == bytecode.LOAD_ATTR:
+                attrname = self.names[arg]
+                obj = self.pop()
+                attr = getattr(obj, attrname, None)
+                if attr is None:
+                    raise AssertionError("%s has no attribute %s" % (obj, attrname))
+                self.push(attr)
             elif c == bytecode.LOAD_LOCALS:
                 dictval = {}
                 for i, val in enumerate(self.vars):
@@ -131,7 +143,7 @@ class Frame(object):
             elif c == bytecode.CALL_FUNCTION:
                 fargs = self.popmany(arg)
                 fobj = self.pop()
-                if getattr(fobj, 'call') is None:
+                if getattr(fobj, 'call', None) is None:
                     raise AssertionError("%s is not callable" % fobj)
                 globals = self.globals
                 if globals is None:
@@ -146,7 +158,7 @@ class Frame(object):
                 self.push(W_Func(code_obj))
             elif c == bytecode.MAKE_TYPE:
                 attrs = self.pop()
-                name = self.pop()
+                name = self.pop().strval
                 self.push(make_type(name, attrs))
             elif c == bytecode.PRINT:
                 print self.pop().str()

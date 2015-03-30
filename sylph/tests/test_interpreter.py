@@ -23,7 +23,7 @@ class VariableTests(TestCase):
         ctx.locals = [varname]
         codegen.load_constant_int(ctx, 99)
         codegen.assignment(ctx, varname)
-        codegen.load_var(ctx, varname)
+        codegen.load_var(ctx, (varname,))
         codegen.do_return(ctx)
         ret = interpret(ctx.create_bytecode())
         self.assertEqual(99, ret.intval)
@@ -32,7 +32,7 @@ class VariableTests(TestCase):
         varname = 'a'
         ctx = compilercontext.CompilerContext()
         ctx.locals = [varname]
-        codegen.load_var(ctx, varname)
+        codegen.load_var(ctx, (varname,))
         codegen.do_return(ctx)
         self.assertRaises(AssertionError, interpret, ctx.create_bytecode())
 
@@ -138,7 +138,7 @@ class JumpTests(TestCase):
         def else_cb(cctx):
             pass
         codegen.conditional(ctx, block_cb, else_cb)
-        codegen.load_var(ctx, varname)
+        codegen.load_var(ctx, (varname,))
         codegen.do_return(ctx)
         ret = interpret(ctx.create_bytecode())
         self.assertEqual(99, ret.intval)
@@ -158,7 +158,7 @@ class JumpTests(TestCase):
         def else_cb(cctx):
             pass
         codegen.conditional(ctx, block_cb, else_cb)
-        codegen.load_var(ctx, varname)
+        codegen.load_var(ctx, (varname,))
         codegen.do_return(ctx)
         ret = interpret(ctx.create_bytecode())
         self.assertEqual(2, ret.intval)
@@ -170,16 +170,16 @@ class JumpTests(TestCase):
         codegen.load_constant_int(ctx, 1)
         codegen.assignment(ctx, varname)
         def condition_cb(cctx):
-            codegen.load_var(ctx, varname)
+            codegen.load_var(ctx, (varname,))
             codegen.load_constant_int(ctx, 0)
             codegen.binary_operation(ctx, '>')
         def block_cb(cctx):
-            codegen.load_var(cctx, varname)
+            codegen.load_var(cctx, (varname,))
             codegen.load_constant_int(cctx, 1)
             codegen.binary_operation(cctx, '-')
             codegen.assignment(cctx, varname)
         codegen.while_loop(ctx, condition_cb, block_cb)
-        codegen.load_var(ctx, varname)
+        codegen.load_var(ctx, (varname,))
         codegen.do_return(ctx)
         ret = interpret(ctx.create_bytecode())
         self.assertEqual(0, ret.intval)
@@ -201,7 +201,7 @@ class FunctionTests(TestCase):
         fname = "foo"
         ctx = compilercontext.CompilerContext()
         def code_cb(cctx):
-            codegen.load_var(cctx, 'a')
+            codegen.load_var(cctx, ('a',))
             codegen.do_return(cctx)
         fvar = codegen.make_function(ctx, fname, code_cb, ['a'])
         ctx.emit(bytecode.LOAD_VAR, fvar)
@@ -215,8 +215,8 @@ class FunctionTests(TestCase):
         fname = "foo"
         ctx = compilercontext.CompilerContext()
         def code_cb(cctx):
-            codegen.load_var(cctx, 'a')
-            codegen.load_var(cctx, 'b')
+            codegen.load_var(cctx, ('a',))
+            codegen.load_var(cctx, ('b',))
             codegen.binary_operation(cctx, '-')
             codegen.do_return(cctx)
         fvar = codegen.make_function(ctx, fname, code_cb, ['a', 'b'])
@@ -229,22 +229,26 @@ class FunctionTests(TestCase):
         self.assertEqual(1, ret.intval)
 
 
-class ClassTests(TestCase):
+class TypeTests(TestCase):
 
     def test_instantiate(self):
         cname = "foo"
         attrname = "bar"
+        varname = "a"
         ctx = compilercontext.CompilerContext()
-        ctx.locals = [cname]
+        ctx.locals = [cname, varname]
         def code_cb(ctx):
             codegen.load_constant_int(ctx, 1)
             codegen.assignment(ctx, attrname)
         codegen.new_type(ctx, cname, code_cb)
         codegen.assignment(ctx, cname)
-        codegen.function_call(ctx, cname, 0, lambda x: None)
-        codegen.load_none(ctx)
+        codegen.function_call(ctx, (cname,), 0, lambda x: None)
+        codegen.assignment(ctx, varname)
+        codegen.load_var(ctx, (varname, attrname))
         codegen.do_return(ctx)
         ret = interpret(ctx.create_bytecode())
+        self.assertEqual(1, ret.intval)
+
 
 
 class LocalsTests(TestCase):

@@ -158,15 +158,16 @@ class TypeCollector(ASTVisitor):
     def visit_Assignment(self, node):
         source = node.children[0]
         target = node.var
+        assert len(target.varname) == 1
         source_type = self.dispatch(source)
-        target_type = self.get_typevar(target.varname)
+        target_type = self.get_typevar(target.varname[0])
         # Not isinstance, as we don't want to match TypeExpr etc.
         source_subtype = source_type
         if source_type.__class__ == ParameterisedType:
             source_subtype = source_type.types[0]
         if source_subtype.__class__ == Type and source_subtype.name == "<anonymous>":
-            source_subtype.name = target.varname
-            self.types[target.varname] = source_type
+            source_subtype.name = target.varname[0]
+            self.types[target.varname[0]] = source_type
         self.constraints.append(Constraint(target_type, SUPERTYPE_OF, source_type, [node.sourcepos]))
         # XXX: catch shadowing?
         return target_type
@@ -180,9 +181,10 @@ class TypeCollector(ASTVisitor):
         return None
 
     def visit_Variable(self, node):
-        if node.varname not in self.varmap:
-            raise SylphNameError("%s referenced before assignment" % node.varname, [node.sourcepos])
-        return self.get_typevar(node.varname)
+        varname = node.varname[0]
+        if varname not in self.varmap:
+            raise SylphNameError("%s referenced before assignment" % varname, [node.sourcepos])
+        return self.get_typevar(varname)
 
     def visit_Conditional(self, node):
         condition, true_block, false_block = node.children
@@ -210,6 +212,7 @@ class TypeCollector(ASTVisitor):
                 ftype = self.varmap[name]
         else:
             ftype = self.types[name]
+        # XXX: should this refer to the fully qualified name, or just the top level?
         if name not in self.called_functions and name not in self.args and name != self.fname:
             self.called_functions.append(name)
         args = [self.dispatch(c) for c in node.children]
@@ -232,7 +235,8 @@ class TypeCollector(ASTVisitor):
         return self._handle_function(node, node.op)
 
     def visit_Function(self, node):
-        return self._handle_function(node, node.fname)
+        assert len(node.fname) == 1
+        return self._handle_function(node, node.fname[0])
 
     def visit_FuncDef(self, node):
         child = TypeCollector(self.functions, self.types)

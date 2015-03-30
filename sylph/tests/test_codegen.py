@@ -12,18 +12,25 @@ class CodeGenTests(TestCase):
         varname = "foo"
         ctx = CompilerContext()
         ctx.locals = [varname]
-        vnum = codegen.load_var(ctx, varname)
+        codegen.load_var(ctx, (varname,))
         self.assertEqual([varname], ctx.names)
-        self.assertEqual(0, vnum)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_VAR, 0]))
 
     def test_load_global(self):
         varname = "foo"
         ctx = CompilerContext()
-        vnum = codegen.load_var(ctx, varname)
+        codegen.load_var(ctx, (varname,))
         self.assertEqual([varname], ctx.names)
-        self.assertEqual(0, vnum)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_GLOBAL, 0]))
+
+    def test_load_var_with_attr(self):
+        varname = "foo"
+        attrname = "bar"
+        ctx = CompilerContext()
+        ctx.locals = [varname]
+        codegen.load_var(ctx, (varname, attrname))
+        self.assertEqual([varname, attrname], ctx.names)
+        self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_VAR, 0, bytecode.LOAD_ATTR, 1]))
 
     def test_load_constant_int(self):
         ctx = CompilerContext()
@@ -73,8 +80,7 @@ class CodeGenTests(TestCase):
         ctx = CompilerContext()
         def args_cb(cctx):
             cctx.emit(bytecode.LOAD_CONSTANT, 99)
-        fnum = codegen.function_call(ctx, fname, numargs, args_cb)
-        self.assertEqual(0, fnum)
+        codegen.function_call(ctx, (fname,), numargs, args_cb)
         self.assertEqual([fname], ctx.names)
         self.assertThat(ctx.data,
             BytecodeMatches([bytecode.LOAD_GLOBAL, 0,
@@ -125,7 +131,8 @@ class CodeGenTests(TestCase):
         ctx = CompilerContext()
         codegen.new_type(ctx, tname, lambda x: None)
         self.assertEqual(2, len(ctx.constants))
-        self.assertEqual(tname, ctx.constants[0])
+        self.assertIsInstance(ctx.constants[0], objectspace.W_String)
+        self.assertEqual(tname, ctx.constants[0].strval)
         self.assertIsInstance(ctx.constants[1], objectspace.W_Code)
         self.assertThat(ctx.data,
             BytecodeMatches([bytecode.LOAD_CONSTANT, 0,

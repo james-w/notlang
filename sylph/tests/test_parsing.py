@@ -39,6 +39,12 @@ class BasicParsingTests(TestCase):
     def test_var(self):
         self.assert_parses_ok("a\n")
 
+    def test_attr(self):
+        self.assert_parses_ok("a.b\n")
+
+    def test_attr_of_attr(self):
+        self.assert_parses_ok("a.b.c\n")
+
     def test_expr(self):
         self.assert_parses_ok("1 + 1\n")
 
@@ -57,6 +63,9 @@ class BasicParsingTests(TestCase):
     def test_function_call_with_args(self):
         self.assert_parses_ok("b(1)\n")
 
+    def test_function_call_with_attr_access(self):
+        self.assert_parses_ok("b(c.d)\n")
+
     def test_function_call_with_variable_in_args(self):
         self.assert_parses_ok("b(a)\n")
 
@@ -65,6 +74,9 @@ class BasicParsingTests(TestCase):
 
     def test_function_call_with_two_args(self):
         self.assert_parses_ok("b(1, 2)\n")
+
+    def test_function_call_on_object(self):
+        self.assert_parses_ok("a.b()\n")
 
     def test_assignment(self):
         self.assert_parses_ok("a = 1\n")
@@ -155,7 +167,7 @@ class ASTTests(TestCase):
         self.assertIsInstance(node, ast.Block)
         var = node.children[0].children[0]
         self.assertIsInstance(var, ast.Variable)
-        self.assertEqual("a", var.varname)
+        self.assertEqual(("a",), var.varname)
         self.assertEqual(1, var.sourcepos.i)
 
     def test_Assignment(self):
@@ -212,7 +224,7 @@ class ASTTests(TestCase):
         self.assertIsInstance(node, ast.Block)
         func = node.children[0].children[0]
         self.assertIsInstance(func, ast.Function)
-        self.assertEqual("foo", func.fname)
+        self.assertEqual(("foo",), func.fname)
         self.assertEqual([], func.children)
         self.assertEqual(1, func.sourcepos.i)
 
@@ -221,12 +233,12 @@ class ASTTests(TestCase):
         self.assertIsInstance(node, ast.Block)
         func = node.children[0].children[0]
         self.assertIsInstance(func, ast.Function)
-        self.assertEqual("foo", func.fname)
+        self.assertEqual(("foo",), func.fname)
         self.assertEqual(1, len(func.children))
         self.assertEqual(1, func.sourcepos.i)
         arg = func.children[0]
         self.assertIsInstance(arg, ast.Variable)
-        self.assertEqual("a", arg.varname)
+        self.assertEqual(("a",), arg.varname)
         self.assertEqual(5, arg.sourcepos.i)
 
     def test_Function_with_type(self):
@@ -234,7 +246,7 @@ class ASTTests(TestCase):
         self.assertIsInstance(node, ast.Block)
         func = node.children[0].children[0]
         self.assertIsInstance(func, ast.Function)
-        self.assertEqual("foo", func.fname)
+        self.assertEqual(("foo",), func.fname)
         self.assertEqual(0, len(func.children))
         self.assertEqual(['int'], func.type_params)
         self.assertEqual(1, func.sourcepos.i)
@@ -376,3 +388,17 @@ class ASTTests(TestCase):
         self.assertEqual(5, t.sourcepos.i)
         self.assertIsInstance(t.children[0], ast.Block)
         self.assertIsInstance(t.children[0].children[0].children[0], ast.Pass)
+
+    def test_Attribute(self):
+        node = parse(" a.b\n")
+        self.assertIsInstance(node, ast.Block)
+        attr = node.children[0].children[0]
+        self.assertIsInstance(attr, ast.Variable)
+        self.assertEqual(('a', 'b'), attr.varname)
+
+    def test_Attribute_of_Attribute(self):
+        node = parse(" a.b.c\n")
+        self.assertIsInstance(node, ast.Block)
+        attr = node.children[0].children[0]
+        self.assertIsInstance(attr, ast.Variable)
+        self.assertEqual(('a', 'b', 'c'), attr.varname)

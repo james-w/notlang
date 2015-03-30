@@ -1,14 +1,17 @@
 from . import bytecode, compilercontext, objectspace
 
 
-def load_var(ctx, name):
-    if ctx.is_local(name):
+def load_var(ctx, names):
+    assert len(names) > 0
+    if ctx.is_local(names[0]):
         op = bytecode.LOAD_VAR
     else:
         op = bytecode.LOAD_GLOBAL
-    vnum = ctx.register_var(name)
+    vnum = ctx.register_var(names[0])
     ctx.emit(op, vnum)
-    return vnum
+    for attr in names[1:]:
+        # FIXME: should probably use a different list for names vs locals
+        ctx.emit(bytecode.LOAD_ATTR, ctx.register_var(attr))
 
 
 def load_constant_int(ctx, val):
@@ -51,10 +54,9 @@ def do_print(ctx):
 
 
 def function_call(ctx, name, numargs, args_cb):
-    fnum = load_var(ctx, name)
+    load_var(ctx, name)
     args_cb(ctx)
     ctx.emit(bytecode.CALL_FUNCTION, numargs)
-    return fnum
 
 
 def conditional(ctx, true_block_cb, false_block_cb):
@@ -90,7 +92,7 @@ def load_none(ctx):
 
 
 def new_type(ctx, name, code_cb):
-    ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(name))
+    ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(objectspace.W_String(name)))
     cctx = compilercontext.CompilerContext()
     code_cb(cctx)
     load_locals(cctx)
