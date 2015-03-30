@@ -1,6 +1,6 @@
 
 from . import graph
-from .ast import ASTVisitor, GatherNames
+from .ast import ASTVisitor
 
 
 class Type(object):
@@ -161,10 +161,10 @@ class TypeCollector(ASTVisitor):
         assert len(target.varname) == 1
         source_type = self.dispatch(source)
         target_type = self.get_typevar(target.varname[0])
-        # Not isinstance, as we don't want to match TypeExpr etc.
         source_subtype = source_type
         if source_type.__class__ == ParameterisedType:
             source_subtype = source_type.types[0]
+        # Not isinstance, as we don't want to match TypeExpr etc.
         if source_subtype.__class__ == Type and source_subtype.name == "<anonymous>":
             source_subtype.name = target.varname[0]
             self.types[target.varname[0]] = source_type
@@ -279,8 +279,8 @@ FUNCTIONS = {
     '*': FunctionType("*", [INT, INT], INT),
     '>': FunctionType(">", [INT, INT], BOOL),
     '==': FunctionType("==", [INT, INT], BOOL),
-    'true': FunctionType("true", [], BOOL), 
-    'print': FunctionType("print", [ANY], NONE), 
+    'true': FunctionType("true", [], BOOL),
+    'print': FunctionType("print", [ANY], NONE),
 }
 
 
@@ -324,7 +324,78 @@ class SylphTypeError(Exception):
         return "\n".join(lines)
 
 
+def satisfy_constraint(constraint, substitution):
+    """Attempt to satisfy a single constraint based on a substitution.
+
+    This will raise an error if it can't do it, or update the substitution
+    if there is new information.
+
+    The function will return a list of additional constraints that
+    should be checked.
+    """
+    #print "%r %s %r" % (constraint.a, constraint.constraint, constraint.b)
+    new_constraints = []
+    if isinstance(constraint.a, TypeExpr):
+        if constraint.a in substitution:
+            # XXX: use get_substituted (after making it possible to get the
+            # positions from it)? - It seems like it should work, but apparently
+            # we generate circular references within the substitutions (probably
+            # during recursive functions).
+            newlhs, newpos = substitution[constraint.a]
+            new_constraints.insert(0, Constraint(newlhs, constraint.constraint, constraint.b, constraint.positions + newpos))
+            return new_constraints
+        else:
+            if constraint.a != get_substituted(constraint.b, substitution):
+                update_substitution(substitution, constraint.a, get_substituted(constraint.b, substitution), constraint.positions)
+    elif isinstance(constraint.a, FunctionType):
+        if not isinstance(constraint.b, FunctionType):
+            raise SylphTypeError("Types mismatch: %s != %s" % (constraint.a, constraint.b), constraint.positions)
+        if len(constraint.a.args) != len(constraint.b.args):
+            raise SylphTypeError("Types mismatch: %s != %s, argument lengths differ" % (constraint.a, constraint.b), constraint.positions)
+        for i, arg in enumerate(constraint.a.args):
+            new_constraints.insert(0, Constraint(arg, constraint.constraint, constraint.b.args[i], constraint.positions))
+        new_constraints.insert(0, Constraint(constraint.a.rtype, constraint.constraint, constraint.b.rtype, constraint.positions))
+    else:
+        if isinstance(constraint.b, TypeExpr):
+            if constraint.b in substitution:
+                newrhs, newpos = substitution[constraint.b]
+                new_constraints.insert(0, Constraint(constraint.a, constraint.constraint, newrhs, constraint.positions + newpos))
+                return new_constraints
+            else:
+                update_substitution(substitution, constraint.b, constraint.a, constraint.positions)
+                return new_constraints
+        newtype = unify_types(constraint.a, constraint.b, constraint.constraint)
+        if newtype is None:
+            raise SylphTypeError("Type mismatch: %s is not a %s of %s" % (constraint.a, constraint.constraint, constraint.b), constraint.positions)
+    return new_constraints
+
+
+def satisfy_constraints(constraints):
+    """Given a set of constraints, this will attempt to satisfy them all.
+
+    If it fails it will raise a SylphTypeError or SylphNameError.
+
+    If it succeeds it will return a substitution map that provides the
+    most information possible about the types of the various expressions.
+    """
+    substitution = dict()
+    while constraints:
+        constraint = constraints.pop(0)
+        # We put the new constraints at the front, but it probably
+        # doesn't matter
+        constraints = satisfy_constraint(constraint, substitution) + constraints
+    return substitution
+
+
 def unify_types(a, b, constraint):
+    """Return the most general type that contains both types.
+
+    Given two types and a constraint (SUPERTYPE_OF/SUBTYPE_OF)
+    this will return the most general type that contains both
+    types and satisfies the constraint.
+
+    If no such type exists, then it will return None instead.
+    """
     if constraint == SUPERTYPE_OF and a is ANY:
         return ANY
     if constraint == SUBTYPE_OF and b is ANY:
@@ -334,68 +405,60 @@ def unify_types(a, b, constraint):
 
 
 def occurs(lhs, rhs):
+    """Checks if `lhs` occurs in `rhs`.
+
+    This is true if they are the same type, or if `rhs` is a
+    compound type (FunctionType, ParameterisedType), and
+    `lhs` is one of the subtypes.
+    """
     if lhs == rhs:
         return True
     if isinstance(rhs, FunctionType):
-        if lhs == rhs:
-            return True
         for arg in rhs.args:
             if occurs(lhs, arg):
                 return True
         if occurs(lhs, rhs.rtype):
             return True
+    if isinstance(rhs, ParameterisedType):
+        for subtype in rhs.types:
+            if occurs(lhs, subtype):
+                return True
+    return False
 
 
 def update_substitution(substitution, lhs, rhs, positions):
+    """Update the substitution to set lhs == rhs.
+
+    First performs an occurs check on the pair, to avoid
+    looping on recursive definitions. If the check fails
+    then this function will raise a SylphTypeError.
+
+    If the check passes then the substitution will be updated
+    with the new information.
+    """
     if occurs(lhs, rhs):
         raise SylphTypeError("Recursive type definition: %s = %s" % (lhs, rhs), positions)
+    # It looks like published algorithms loop over the substitution
+    # and propogate lhs == rhs as far as possible. That presumably
+    # speeds up future steps, but it causes a problem on
+    # recursive definitions. By not doing this we may
+    # well have an incorrect algorithm though.
     substitution[lhs] = (rhs, positions)
 
 
-def satisfy_constraints(constraints):
-    substitution = dict()
-    while constraints:
-        equality = constraints.pop(0)
-        lhs, constraint, rhs, positions = equality.a, equality.constraint, equality.b, equality.positions
-        #print "%r %s %r" % (lhs, constraint, rhs)
-        if isinstance(lhs, TypeExpr):
-            if lhs in substitution:
-                # TODO: store positions in the substitution and update
-                # the list as things are replaced to get full list of
-                # involved lines?
-                newlhs, newpos = substitution[lhs]
-                constraints.insert(0, Constraint(newlhs, constraint, rhs, positions + newpos))
-                continue
-            else:
-                if lhs != get_substituted(rhs, substitution):
-                    update_substitution(substitution, lhs, get_substituted(rhs, substitution), positions)
-        elif isinstance(lhs, FunctionType):
-            if not isinstance(rhs, FunctionType):
-                raise SylphTypeError("Types mismatch: %s != %s" % (lhs, rhs), positions)
-            if len(lhs.args) != len(rhs.args):
-                raise SylphTypeError("Types mismatch: %s != %s, argument lengths differ" % (lhs, rhs), positions)
-            for i, arg in enumerate(lhs.args):
-                constraints.insert(0, Constraint(arg, constraint, rhs.args[i], positions))
-            constraints.insert(0, Constraint(lhs.rtype, constraint, rhs.rtype, positions))
-        else:
-            if isinstance(rhs, TypeExpr):
-                if rhs in substitution:
-                    newrhs, newpos = substitution[rhs]
-                    constraints.insert(0, Constraint(lhs, constraint, newrhs, positions + newpos))
-                    continue
-                else:
-                    if lhs != rhs:
-                        update_substitution(substitution, rhs, lhs, positions)
-                    continue
-            newtype = unify_types(lhs, rhs, constraint)
-            if newtype is None:
-                raise SylphTypeError("Type mismatch: %s is not a %s of %s" % (lhs, constraint, rhs), positions)
-    return substitution
-
-
 def get_substituted(var, substitutions):
+    """Get the substituted form of var.
+
+    This applies any substituations for var, recursing if var is a function
+    type after substitutions.
+
+    Given a type, this will get the best information that the substitution
+    has about what type it is.
+    """
     while var in substitutions:
         var = substitutions[var][0]
+    if isinstance(var, FunctionType):
+        var = FunctionType(var.name, [get_substituted(a, substitutions) for a in var.args], get_substituted(var.rtype, substitutions))
     return var
 
 

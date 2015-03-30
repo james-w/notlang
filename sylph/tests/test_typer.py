@@ -69,7 +69,6 @@ class TypeCollectorTests(TestCase):
         self.assertRaises(typer.SylphNameError, t.dispatch, node)
 
     def test_BinOp(self):
-        varname = "a"
         op = "+"
         lhs = ast.ConstantInt(1, self.spos)
         node = ast.BinOp(op, lhs, lhs, self.spos)
@@ -87,14 +86,13 @@ class TypeCollectorTests(TestCase):
                 [Is(self.spos)]))
 
     def test_nested_BinOp(self):
-        varname = "a"
         op = "+"
         lhs = ast.ConstantInt(1, self.spos)
         node = ast.BinOp(op, lhs, lhs, self.spos)
         node = ast.BinOp(op, lhs, node, self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
-        new_tvar = typer.TypeVariable("(rtype of + int -> a)")
+        typer.TypeVariable("(rtype of + int -> a)")
         self.assertIsInstance(rtype, typer.TypeExpr)
         self.assertEqual("r+", rtype.name)
         self.assertEqual(2, len(t.constraints))
@@ -364,6 +362,140 @@ class SatisfyConstraintsTests(TestCase):
              typer.Constraint(vartype2, typer.SUPERTYPE_OF, vartype1, [self.spos]),
              typer.Constraint(vartype2, typer.SUPERTYPE_OF, typer.NONE, [self.spos])])
 
+    def test_basic_type_vs_incompatible(self):
+        self.assertRaises(
+            typer.SylphTypeError,
+            typer.satisfy_constraint,
+            typer.Constraint(typer.INT, typer.SUPERTYPE_OF, typer.BOOL, []),
+            {})
+
+    def test_basic_type_vs_compatible(self):
+        substitution = {}
+        ret = typer.satisfy_constraint(
+                typer.Constraint(typer.INT, typer.SUPERTYPE_OF, typer.INT, []),
+                substitution)
+        self.assertEqual([], ret)
+        self.assertEqual({}, substitution)
+
+    def test_basic_type_vs_type_expr_substitute(self):
+        a = typer.TypeExpr('a')
+        b = typer.TypeExpr('b')
+        subs_pos = [SourcePos(1, 1, 1)]
+        constraint_pos = [SourcePos(2, 2, 2)]
+        substitution = {a: (b, subs_pos)}
+        ret = typer.satisfy_constraint(
+                typer.Constraint(typer.INT, typer.SUPERTYPE_OF, a, constraint_pos),
+                substitution)
+        self.assertEqual(1, len(ret))
+        self.assertThat(
+            ret[0],
+            testing.ConstraintMatches(
+                Is(typer.INT),
+                typer.SUPERTYPE_OF,
+                Is(b),
+                [Is(constraint_pos[0]), Is(subs_pos[0])]))
+        self.assertEqual(1, len(substitution))
+
+    def test_basic_type_vs_type_expr_no_substitute(self):
+        a = typer.TypeExpr('a')
+        constraint_pos = [SourcePos(2, 2, 2)]
+        substitution = {}
+        ret = typer.satisfy_constraint(
+                typer.Constraint(typer.INT, typer.SUPERTYPE_OF, a, constraint_pos),
+                substitution)
+        self.assertEqual([], ret)
+        self.assertEqual({a: (typer.INT, constraint_pos)}, substitution)
+
+    def test_function_type_vs_non_function(self):
+        a = typer.FunctionType('a', [], typer.INT)
+        constraint_pos = [SourcePos(2, 2, 2)]
+        substitution = {}
+        self.assertRaises(
+            typer.SylphTypeError,
+            typer.satisfy_constraint,
+            typer.Constraint(a, typer.SUPERTYPE_OF, typer.INT, constraint_pos),
+            substitution)
+
+    def test_function_type_vs_function_type(self):
+        a = typer.FunctionType('a', [typer.NONE], typer.INT)
+        b = typer.FunctionType('a', [typer.ANY], typer.BOOL)
+        constraint_pos = [SourcePos(2, 2, 2)]
+        substitution = {}
+        ret = typer.satisfy_constraint(
+            typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+            substitution)
+        self.assertEqual(2, len(ret))
+        self.assertThat(
+            ret[0],
+            testing.ConstraintMatches(
+                Is(typer.INT),
+                typer.SUPERTYPE_OF,
+                Is(typer.BOOL),
+                [Is(constraint_pos[0])]))
+        self.assertThat(
+            ret[1],
+            testing.ConstraintMatches(
+                Is(typer.NONE),
+                typer.SUPERTYPE_OF,
+                Is(typer.ANY),
+                [Is(constraint_pos[0])]))
+        self.assertEqual({}, substitution)
+
+    def test_function_type_different_arg_count(self):
+        a = typer.FunctionType('a', [], typer.INT)
+        b = typer.FunctionType('b', [typer.INT], typer.BOOL)
+        constraint_pos = [SourcePos(2, 2, 2)]
+        substitution = {}
+        self.assertRaises(
+            typer.SylphTypeError,
+            typer.satisfy_constraint,
+            typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+            substitution)
+
+    def test_type_expr_subsitute(self):
+        a = typer.TypeExpr('a')
+        b = typer.TypeExpr('b')
+        subs_pos = [SourcePos(1, 1, 1)]
+        constraint_pos = [SourcePos(2, 2, 2)]
+        substitution = {a: (b, subs_pos)}
+        ret = typer.satisfy_constraint(
+                typer.Constraint(a, typer.SUPERTYPE_OF, typer.INT, constraint_pos),
+                substitution)
+        self.assertEqual(1, len(ret))
+        self.assertThat(
+            ret[0],
+            testing.ConstraintMatches(
+                Is(b),
+                typer.SUPERTYPE_OF,
+                Is(typer.INT),
+                [Is(constraint_pos[0]), Is(subs_pos[0])]))
+        self.assertEqual(1, len(substitution))
+
+    def test_type_expr_substituted_already_equal(self):
+        # If when substituted the type exprs are already equal,
+        # then don't do anything
+        a = typer.TypeExpr('a')
+        b = typer.TypeExpr('b')
+        subs_pos = [SourcePos(1, 1, 1)]
+        constraint_pos = [SourcePos(2, 2, 2)]
+        substitution = {a: (b, subs_pos)}
+        ret = typer.satisfy_constraint(
+                typer.Constraint(b, typer.SUPERTYPE_OF, a, constraint_pos),
+                substitution)
+        self.assertEqual([], ret)
+        self.assertEqual(1, len(substitution))
+
+    def test_type_expr_updates_substitution(self):
+        a = typer.TypeExpr('a')
+        b = typer.TypeExpr('b')
+        constraint_pos = [SourcePos(2, 2, 2)]
+        substitution = {}
+        ret = typer.satisfy_constraint(
+                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+                substitution)
+        self.assertEqual([], ret)
+        self.assertEqual({a: (b, constraint_pos)}, substitution)
+
 
 def get_type_of(name, source):
     try:
@@ -372,14 +504,7 @@ def get_type_of(name, source):
         print e.nice_error_message(source=source)
         raise
     checker, substitutions = typer.typecheck(parsed)
-    return substitute(checker.varmap[name], substitutions)
-
-
-def substitute(t, substitutions):
-    t = typer.get_substituted(t, substitutions)
-    if isinstance(t, typer.FunctionType):
-        t = typer.FunctionType(t.name, [substitute(a, substitutions) for a in t.args], substitute(t.rtype, substitutions))
-    return t
+    return typer.get_substituted(checker.varmap[name], substitutions)
 
 
 class IntegrationTests(TestCase):
@@ -698,3 +823,71 @@ class GeneraliseFunctionTests(TestCase):
         input = typer.FunctionType(fname, [typer.INT], typer.TypeExpr("bar"))
         e = self.assertRaises(AssertionError, typer.generalise, input)
         self.assertThat(str(e), Equals("%s has an unconstrained return type." % fname))
+
+
+class SubstitutionTests(TestCase):
+
+    def test_adds(self):
+        substitution = {}
+        positions = []
+        typer.update_substitution(substitution, typer.INT, typer.BOOL, positions)
+        self.assertEqual({typer.INT: (typer.BOOL, positions)}, substitution)
+
+    def test_replaces(self):
+        substitution = {typer.INT: (typer.NONE, [])}
+        positions = []
+        typer.update_substitution(substitution, typer.INT, typer.BOOL, positions)
+        self.assertEqual({typer.INT: (typer.BOOL, positions)}, substitution)
+
+    def test_occurs_check(self):
+        substitution = {}
+        positions = []
+        self.assertRaises(typer.SylphTypeError, typer.update_substitution,
+                substitution, typer.INT, typer.INT, positions)
+
+    def test_get_substituded(self):
+        substitution = {typer.INT: (typer.NONE, [])}
+        ret = typer.get_substituted(typer.INT, substitution)
+        self.assertIs(typer.NONE, ret)
+
+    def test_get_substituded_transitive(self):
+        substitution = {typer.INT: (typer.NONE, []), typer.NONE: (typer.BOOL, [])}
+        ret = typer.get_substituted(typer.INT, substitution)
+        self.assertIs(typer.BOOL, ret)
+
+    def test_get_substituded_function_type(self):
+        substitution = {typer.INT: (typer.FunctionType('func', [typer.NONE], typer.NONE), []), typer.NONE: (typer.BOOL, [])}
+        ret = typer.get_substituted(typer.INT, substitution)
+        self.assertThat(ret, testing.IsFunctionType(Equals('func'), [Is(typer.BOOL)], Is(typer.BOOL)))
+
+    def test_occurs_same_type(self):
+        self.assertEqual(True, typer.occurs(typer.INT, typer.INT))
+
+    def test_occurs_different_types(self):
+        self.assertEqual(False, typer.occurs(typer.INT, typer.NONE))
+
+    def test_occurs_function_arg(self):
+        self.assertEqual(True, typer.occurs(typer.INT, typer.FunctionType('foo', [typer.INT], typer.BOOL)))
+
+    def test_occurs_function_rtype(self):
+        self.assertEqual(True, typer.occurs(typer.INT, typer.FunctionType('foo', [typer.BOOL], typer.INT)))
+
+    def test_occurs_parameterised_type(self):
+        self.assertEqual(True, typer.occurs(typer.INT, typer.ParameterisedType([typer.BOOL, typer.INT])))
+
+
+class UnifyTypeTests(TestCase):
+
+    def test_same(self):
+        self.assertIs(typer.INT, typer.unify_types(typer.INT, typer.INT, typer.SUPERTYPE_OF))
+        self.assertIs(typer.INT, typer.unify_types(typer.INT, typer.INT, typer.SUBTYPE_OF))
+
+    def test_different(self):
+        self.assertIs(None, typer.unify_types(typer.INT, typer.BOOL, typer.SUPERTYPE_OF))
+        self.assertIs(None, typer.unify_types(typer.INT, typer.BOOL, typer.SUBTYPE_OF))
+
+    def test_vs_any(self):
+        self.assertIs(typer.ANY, typer.unify_types(typer.ANY, typer.BOOL, typer.SUPERTYPE_OF))
+        self.assertIs(None, typer.unify_types(typer.BOOL, typer.ANY, typer.SUPERTYPE_OF))
+        self.assertIs(typer.ANY, typer.unify_types(typer.INT, typer.ANY, typer.SUBTYPE_OF))
+        self.assertIs(None, typer.unify_types(typer.ANY, typer.BOOL, typer.SUBTYPE_OF))
