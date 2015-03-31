@@ -1,4 +1,4 @@
-"""Execute ./sylph-c [-Derror] <filename>
+"""Execute ./targetnotlang-c [-Derror] <filename>
 """
 
 from argparse import ArgumentParser, FileType
@@ -6,13 +6,13 @@ import sys
 
 from rpython.rlib.parsing.parsing import ParseError
 from rpython.jit.codewriter.policy import JitPolicy
-from sylph.debug import add_debug_args, show_errors, trace_interp
-from sylph.interpreter import interpret
-from sylph.typer import SylphNameError, SylphTypeError
+from notlang.debug import add_debug_args, show_errors, trace_interp
+from notlang.interpreter import interpret
+from notlang.typer import SylphNameError, SylphTypeError
 
 
 def main(argv):
-    parser = ArgumentParser(description=__doc__, epilog="Thanks for trying sylph. Sorry for the bugs.")
+    parser = ArgumentParser(description=__doc__, epilog="Thanks for trying notlang. Sorry for the bugs.")
     parser.add_argument('file', type=FileType('r'), help="The file to execute.")
     add_debug_args(parser)
     opts = parser.parse_args()
@@ -34,7 +34,7 @@ def target(driver, args):
 
 def jitpolicy(driver):
     return JitPolicy()
-    
+
 
 if __name__ == '__main__':
     main(sys.argv)

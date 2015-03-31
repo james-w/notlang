@@ -213,7 +213,7 @@ class TypeCollector(ASTVisitor):
     def visit_Variable(self, node):
         varname = node.varname[0]
         if varname not in self.varmap:
-            raise SylphNameError("%s referenced before assignment" % varname, [node.sourcepos])
+            raise NotNameError("%s referenced before assignment" % varname, [node.sourcepos])
         main =  self.get_typevar(varname)
         for name in node.varname[1:]:
             new = TypeExpr(main.name + "." + name)
@@ -240,7 +240,7 @@ class TypeCollector(ASTVisitor):
         if name not in self.types:
             if name not in self.varmap:
                 if name not in self.functions:
-                    raise SylphNameError("%s referenced before assignment." % name, [node.sourcepos])
+                    raise NotNameError("%s referenced before assignment." % name, [node.sourcepos])
                 else:
                     ftype = self.functions[name]
             else:
@@ -316,7 +316,7 @@ FUNCTIONS = {
 }
 
 
-class SylphNameError(Exception):
+class NotNameError(Exception):
 
     def __init__(self, message, positions):
         self.message = message
@@ -336,7 +336,7 @@ class SylphNameError(Exception):
         return "\n".join(lines)
 
 
-class SylphTypeError(Exception):
+class NotTypeError(Exception):
 
     def __init__(self, message, positions):
         self.message = message
@@ -383,13 +383,13 @@ def satisfy_constraint(constraint, substitution):
         t = constraint.a.type
         t = get_substituted(t, substitution)
         if constraint.a.name not in t.attrs:
-            raise SylphTypeError("%s has no attribute %s" % (t, constraint.a.name), constraint.positions)
+            raise NotTypeError("%s has no attribute %s" % (t, constraint.a.name), constraint.positions)
         new_constraints.append(Constraint(t.attrs[constraint.a.name], constraint.constraint, constraint.b, constraint.positions))
     elif isinstance(constraint.a, FunctionType):
         if not isinstance(constraint.b, FunctionType):
-            raise SylphTypeError("Types mismatch: %s != %s" % (constraint.a, constraint.b), constraint.positions)
+            raise NotTypeError("Types mismatch: %s != %s" % (constraint.a, constraint.b), constraint.positions)
         if len(constraint.a.args) != len(constraint.b.args):
-            raise SylphTypeError("Types mismatch: %s != %s, argument lengths differ" % (constraint.a, constraint.b), constraint.positions)
+            raise NotTypeError("Types mismatch: %s != %s, argument lengths differ" % (constraint.a, constraint.b), constraint.positions)
         for i, arg in enumerate(constraint.a.args):
             new_constraints.insert(0, Constraint(arg, constraint.constraint, constraint.b.args[i], constraint.positions))
         new_constraints.insert(0, Constraint(constraint.a.rtype, constraint.constraint, constraint.b.rtype, constraint.positions))
@@ -404,14 +404,14 @@ def satisfy_constraint(constraint, substitution):
                 return new_constraints
         newtype = unify_types(constraint.a, constraint.b, constraint.constraint)
         if newtype is None:
-            raise SylphTypeError("Type mismatch: %s is not a %s of %s" % (constraint.a, constraint.constraint, constraint.b), constraint.positions)
+            raise NotTypeError("Type mismatch: %s is not a %s of %s" % (constraint.a, constraint.constraint, constraint.b), constraint.positions)
     return new_constraints
 
 
 def satisfy_constraints(constraints):
     """Given a set of constraints, this will attempt to satisfy them all.
 
-    If it fails it will raise a SylphTypeError or SylphNameError.
+    If it fails it will raise a NotTypeError or NotNameError.
 
     If it succeeds it will return a substitution map that provides the
     most information possible about the types of the various expressions.
@@ -469,13 +469,13 @@ def update_substitution(substitution, lhs, rhs, positions):
 
     First performs an occurs check on the pair, to avoid
     looping on recursive definitions. If the check fails
-    then this function will raise a SylphTypeError.
+    then this function will raise a NotTypeError.
 
     If the check passes then the substitution will be updated
     with the new information.
     """
     if occurs(lhs, rhs):
-        raise SylphTypeError("Recursive type definition: %s = %s" % (lhs, rhs), positions)
+        raise NotTypeError("Recursive type definition: %s = %s" % (lhs, rhs), positions)
     # It looks like published algorithms loop over the substitution
     # and propogate lhs == rhs as far as possible. That presumably
     # speeds up future steps, but it causes a problem on

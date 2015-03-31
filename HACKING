@@ -6,7 +6,7 @@ Getting started
 
 You can try running the test file with
 
-  PYTHONPATH=pypy virtualenv/bin/python targetsylph.py test.syl
+  PYTHONPATH=pypy virtualenv/bin/python targetnotlang.py test.syl
 
 Translating
 -----------
@@ -22,6 +22,29 @@ Parsing
 
 To help debug parsing you can run
 
-  PYTHONPATH=.:pypy virtualenv/bin/python sylph/bin/view_raw_parse_tree.py <FILE>
+  PYTHONPATH=.:pypy virtualenv/bin/python notlang/bin/view_raw_parse_tree.py <FILE>
 
 to see the raw parse tree from the rpython lexer/parser.
+
+  PYTHONPATH=.:pypy virtualenv/bin/python notlang/bin/view_parse_tree.py <FILE>
+
+to see the AST produced from the raw parse tree.
+
+Compiling
+---------
+
+To see the bytecode produced for the top level as a file try
+
+  PYTHONPATH=.:pypy virtualenv/bin/python notlang/bin/dump_bytecode.py <FILE>
+
+Debugging
+---------
+
+You can use -D to specify components to debug when running the main target.
+
+To find out what you can pass to this see the list in --help.
+
+Some of note are
+
+  - -Derror to show all tracebacks
+  - -Dinterp to get tracing from the interpreter as it works.

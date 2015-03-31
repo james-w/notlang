@@ -4,6 +4,6 @@ dist
 example-interpreter
 mypy
 pypy
-sylph.egg-info
-targetsylph-c
+notlang.egg-info
+targetnotlang-c
 virtualenv

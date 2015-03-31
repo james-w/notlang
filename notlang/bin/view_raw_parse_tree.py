@@ -2,7 +2,7 @@
 
 import sys
 
-from sylph.parsing import view_raw_parse_tree
+from notlang.parsing import view_raw_parse_tree
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:

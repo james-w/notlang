@@ -4,7 +4,7 @@ from rpython.rlib.parsing.ebnfparse import parse_ebnf
 from rpython.rlib.parsing.parsing import PackratParser, ParseError, ErrorInformation
 from rpython.rlib.parsing.tree import RPythonVisitor
 
-from . import ast, lexer as mod_lexer, sylphdir
+from . import ast, lexer as mod_lexer, notdir
 
 
 def check_for_missing_names(names, regexs, rules):
@@ -45,7 +45,7 @@ def make_parse_function(regexs, rules, eof=False):
     return parse
 
 
-grammar_filename = py.path.local(sylphdir).join('grammar.txt')
+grammar_filename = py.path.local(notdir).join('grammar.txt')
 grammar = grammar_filename.read("rt")
 try:
     regexs, rules, ToAST = parse_ebnf(grammar)

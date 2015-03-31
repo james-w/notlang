@@ -2,8 +2,8 @@
 
 import sys
 
-from sylph.compiler import dump, get_compiler, max_stacksize
-from sylph.parsing import parse
+from notlang.compiler import dump, get_compiler, max_stacksize
+from notlang.parsing import parse
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
