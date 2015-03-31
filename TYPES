@@ -136,3 +136,20 @@ constructor?
 
 Maybe = new Union(None, Just)
 
+Type checking attribute access
+------------------------------
+
+When an attribute is accessed on something, we want to:
+
+  1 generate a type variable for the type of the attribute
+  2 check that the object has that attribute
+  3 check that the type of the attribute matches the way that it is used
+
+To do this:
+
+  1 is quite easy.
+  2 we can do with a constraint. (type(attr), SUBTYPE_OF, hasattr(type(obj), name))
+    - Then when satisfying constraints we need to consider this new hasattr case.
+  3 we can do this by replacing the hasattr constraint with one on the types.
+
+There may be some post-processing needed if there are any hasattr() in the substitution?

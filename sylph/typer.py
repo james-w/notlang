@@ -1,12 +1,15 @@
 
 from . import graph
-from .ast import ASTVisitor
+from .ast import ASTVisitor, NewType
 
 
 class Type(object):
 
-    def __init__(self, name):
+    def __init__(self, name, attrs=None):
         self.name = name
+        if attrs is None:
+            attrs = {}
+        self.attrs = attrs
 
     def __str__(self):
         return self.name
@@ -73,6 +76,19 @@ class FunctionType(Type):
 
     def __repr__(self):
         return "<FunctionType:%s>" % str(self)
+
+
+class AttributeAccess(Type):
+
+    def __init__(self, type, name):
+        self.type = type
+        self.name = name
+
+    def __str__(self):
+        return "%s.%s" % (str(self.type), str(self.name))
+
+    def __repr__(self):
+        return "<AttributeAccess:%s>" % str(self)
 
 
 ANY = Type("ANY")
@@ -159,18 +175,32 @@ class TypeCollector(ASTVisitor):
         source = node.children[0]
         target = node.var
         assert len(target.varname) == 1
-        source_type = self.dispatch(source)
         target_type = self.get_typevar(target.varname[0])
-        source_subtype = source_type
-        if source_type.__class__ == ParameterisedType:
-            source_subtype = source_type.types[0]
-        # Not isinstance, as we don't want to match TypeExpr etc.
-        if source_subtype.__class__ == Type and source_subtype.name == "<anonymous>":
-            source_subtype.name = target.varname[0]
-            self.types[target.varname[0]] = source_type
-        self.constraints.append(Constraint(target_type, SUPERTYPE_OF, source_type, [node.sourcepos]))
-        # XXX: catch shadowing?
+        if isinstance(source, NewType):
+            newt = self._handle_new_type(source, target.varname[0])
+            self.constraints.append(Constraint(target_type, SUPERTYPE_OF, newt, [node.sourcepos]))
+        else:
+            source_type = self.dispatch(source)
+            self.constraints.append(Constraint(target_type, SUPERTYPE_OF, source_type, [node.sourcepos]))
         return target_type
+
+    def _handle_new_type(self, node, tname):
+        baset = Type(tname)
+        t = baset
+        if node.type_params:
+            t = ParameterisedType([t] + [TypeVariable(a) for a in node.type_params])
+        child = TypeCollector(self.functions, self.types)
+        self.child_contexts[tname] = child
+        vartypes = {}
+        for type_param in node.type_params:
+            vartypes[type_param] = TypeVariable(type_param)
+        child.dispatch(node.children[0])
+        # XXX: varmap probably contains the wrong things, really want top
+        # level names
+        for name in child.varmap:
+            baset.attrs[name] = child.varmap[name]
+        self.types[tname] = t
+        return t
 
     def visit_Return(self, node):
         if node.children:
@@ -184,7 +214,12 @@ class TypeCollector(ASTVisitor):
         varname = node.varname[0]
         if varname not in self.varmap:
             raise SylphNameError("%s referenced before assignment" % varname, [node.sourcepos])
-        return self.get_typevar(varname)
+        main =  self.get_typevar(varname)
+        for name in node.varname[1:]:
+            new = TypeExpr(main.name + "." + name)
+            self.constraints.append(Constraint(AttributeAccess(main, name), SUPERTYPE_OF, new, [node.sourcepos]))
+            main = new
+        return main
 
     def visit_Conditional(self, node):
         condition, true_block, false_block = node.children
@@ -205,7 +240,7 @@ class TypeCollector(ASTVisitor):
         if name not in self.types:
             if name not in self.varmap:
                 if name not in self.functions:
-                    raise SylphNameError("Unknown function %s" % name, [node.sourcepos])
+                    raise SylphNameError("%s referenced before assignment." % name, [node.sourcepos])
                 else:
                     ftype = self.functions[name]
             else:
@@ -240,6 +275,7 @@ class TypeCollector(ASTVisitor):
 
     def visit_FuncDef(self, node):
         child = TypeCollector(self.functions, self.types)
+        # XXX: catch function redefinition/shadowing?
         self.child_contexts[node.name] = child
         child.fname = node.name
         vartypes = {}
@@ -258,16 +294,12 @@ class TypeCollector(ASTVisitor):
         child.varmap[node.name] = ftype
         child.args = node.args
         child.dispatch(node.children[0])
-        # XXX: catch function redefinition/shadowing?
         newftype = FunctionType(node.name, argtypes, child.rtype)
         child.constraints.append(Constraint(ftype, SUPERTYPE_OF, newftype, [node.sourcepos]))
         return None
 
-    def visit_NewType(self, node):
-        t = Type("<anonymous>")
-        if node.type_params:
-            t = ParameterisedType([t] + [TypeVariable(a) for a in node.type_params])
-        return t
+    def visit_Pass(self, node):
+        pass
 
     def general_nonterminal_visit(self, node):
         [self.dispatch(c) for c in node.children]
@@ -333,7 +365,7 @@ def satisfy_constraint(constraint, substitution):
     The function will return a list of additional constraints that
     should be checked.
     """
-    #print "%r %s %r" % (constraint.a, constraint.constraint, constraint.b)
+    print "%r %s %r" % (constraint.a, constraint.constraint, constraint.b)
     new_constraints = []
     if isinstance(constraint.a, TypeExpr):
         if constraint.a in substitution:
@@ -347,6 +379,12 @@ def satisfy_constraint(constraint, substitution):
         else:
             if constraint.a != get_substituted(constraint.b, substitution):
                 update_substitution(substitution, constraint.a, get_substituted(constraint.b, substitution), constraint.positions)
+    elif isinstance(constraint.a, AttributeAccess):
+        t = constraint.a.type
+        t = get_substituted(t, substitution)
+        if constraint.a.name not in t.attrs:
+            raise SylphTypeError("%s has no attribute %s" % (t, constraint.a.name), constraint.positions)
+        new_constraints.append(Constraint(t.attrs[constraint.a.name], constraint.constraint, constraint.b, constraint.positions))
     elif isinstance(constraint.a, FunctionType):
         if not isinstance(constraint.b, FunctionType):
             raise SylphTypeError("Types mismatch: %s != %s" % (constraint.a, constraint.b), constraint.positions)
@@ -474,8 +512,22 @@ def function_type_from_collector(t, substitutions):
     return FunctionType(t.fname, args, rtype)
 
 
+def type_from_collector(collector, t, substitutions):
+    """Create a Type from a TypeCollector.
+
+    Looks at the attributes of TypeCollector related to types
+    and builds a Type, taking in to account substitutions.
+    """
+    baset = t
+    if isinstance(t, ParameterisedType):
+        t = t.types[0]
+    for attr in t.attrs:
+        t.attrs[attr] = get_substituted(t.attrs[attr], substitutions)
+    return baset
+
+
 def generalise(ftype):
-    """Take a FunctionType and generalise it.
+    """Take a Type and generalise it.
 
     This transforms any unconstrained variables in the type
     signature and turns them in to TypeVariables.
@@ -505,11 +557,13 @@ def generalise(ftype):
                 [_generalise(a, generalise=generalise) for a in var.args],
                 _generalise(var.rtype, generalise=generalise))
         return var
-    args = [_generalise(arg, generalise=True) for arg in ftype.args]
-    rtype = _generalise(ftype.rtype, generalise=False)
-    if isinstance(rtype, TypeExpr):
-        raise AssertionError("%s has an unconstrained return type." % ftype.name)
-    return FunctionType(ftype.name, args, rtype)
+    if isinstance(ftype, FunctionType):
+        args = [_generalise(arg, generalise=True) for arg in ftype.args]
+        rtype = _generalise(ftype.rtype, generalise=False)
+        if isinstance(rtype, TypeExpr):
+            raise AssertionError("%s has an unconstrained return type." % ftype.name)
+        return FunctionType(ftype.name, args, rtype)
+    return ftype
 
 
 def instantiate(ftype):
@@ -536,11 +590,13 @@ def instantiate(ftype):
             elif isinstance(arg, FunctionType):
                 return do_instantiate(arg, vars)
             return arg
-        new_args = []
-        for arg in ftype.args:
-            new_args.append(_instantiate(arg))
-        new_rtype = _instantiate(ftype.rtype)
-        return FunctionType(ftype.name, new_args, new_rtype)
+        if isinstance(ftype, FunctionType):
+            new_args = []
+            for arg in ftype.args:
+                new_args.append(_instantiate(arg))
+            new_rtype = _instantiate(ftype.rtype)
+            return FunctionType(ftype.name, new_args, new_rtype)
+        return ftype
     return do_instantiate(ftype, _vars)
 
 
@@ -571,7 +627,10 @@ def _typecheck(t):
             constraints.extend(update_constraints(t.child_contexts[child].constraints))
         child_subs = satisfy_constraints(constraints)
         for child in s:
-            newftype = generalise(function_type_from_collector(t.child_contexts[child], child_subs))
+            if t.child_contexts[child].fname is not None:
+                newftype = generalise(function_type_from_collector(t.child_contexts[child], child_subs))
+            else:
+                newftype = generalise(type_from_collector(t.child_contexts[child], t.types[child], child_subs))
             ftype = t.get_typevar(child)
             new_ftypes[ftype] = newftype
             t.varmap[child] = newftype

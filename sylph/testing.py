@@ -123,14 +123,17 @@ class IsFunctionType(object):
         return self.matcher.match(actual)
 
 
-class IsInstantiate(object):
+class IsAttributeAccess(object):
 
-    def __init__(self, ftype):
-        def get_ftype(a):
-            return getattr(a, 'ftype', None)
+    def __init__(self, type, name):
+        def get_name(a):
+            return getattr(a, 'name', None)
+        def get_type(a):
+            return getattr(a, 'type', None)
         self.matcher = MatchesAll(
-            IsInstance(typer.Instantiate),
-            AfterPreprocessing(get_ftype, ftype),
+            IsInstance(typer.AttributeAccess),
+            AfterPreprocessing(get_type, type),
+            AfterPreprocessing(get_name, Equals(name)),
         )
 
     def __str__(self):

@@ -68,6 +68,35 @@ class TypeCollectorTests(TestCase):
         t = self.get_typecollector()
         self.assertRaises(typer.SylphNameError, t.dispatch, node)
 
+    def test_Variable_attr(self):
+        varname = "a"
+        attrname = "b"
+        node = ast.Variable((varname, attrname), self.spos)
+        t = self.get_typecollector()
+        vartype = typer.TypeVariable(varname)
+        t.varmap[varname] = vartype
+        ret = t.dispatch(node)
+        self.assertThat(ret, testing.IsTypeExpr("a.b"))
+        self.assertEqual(1, len(t.constraints))
+        self.assertThat(t.constraints[0], testing.ConstraintMatches(
+            testing.IsAttributeAccess(Is(vartype), 'b'), typer.SUPERTYPE_OF, Is(ret), [Is(self.spos)]))
+
+    def test_Variable_attr_nested(self):
+        varname = "a"
+        attrname = "b"
+        attrname2 = "c"
+        node = ast.Variable((varname, attrname, attrname2), self.spos)
+        t = self.get_typecollector()
+        vartype = typer.TypeVariable(varname)
+        t.varmap[varname] = vartype
+        ret = t.dispatch(node)
+        self.assertThat(ret, testing.IsTypeExpr("a.b.c"))
+        self.assertEqual(2, len(t.constraints))
+        self.assertThat(t.constraints[0], testing.ConstraintMatches(
+            testing.IsAttributeAccess(Is(vartype), 'b'), typer.SUPERTYPE_OF, testing.IsTypeExpr("a.b"), [Is(self.spos)]))
+        self.assertThat(t.constraints[1], testing.ConstraintMatches(
+            testing.IsAttributeAccess(testing.IsTypeExpr("a.b"), 'c'), typer.SUPERTYPE_OF, Is(ret), [Is(self.spos)]))
+
     def test_BinOp(self):
         op = "+"
         lhs = ast.ConstantInt(1, self.spos)
@@ -273,22 +302,6 @@ class TypeCollectorTests(TestCase):
                 [Is(self.spos)]))
         self.assertEqual(typer.INT, context.rtype)
         self.assertEqual(typer.INT, context.varmap[argname])
-
-    def test_NewType(self):
-        block = ast.ConstantInt(1, self.spos)
-        node = ast.NewType(block, self.spos)
-        t = self.get_typecollector()
-        rtype = t.dispatch(node)
-        self.assertThat(rtype, testing.IsType("<anonymous>"))
-        self.assertEqual(0, len(t.constraints))
-
-    def test_parametric_NewType(self):
-        block = ast.ConstantInt(1, self.spos)
-        node = ast.NewType(block, self.spos, ["a"])
-        t = self.get_typecollector()
-        rtype = t.dispatch(node)
-        self.assertThat(rtype, testing.IsParametricType([testing.IsType("<anonymous>"), testing.IsTypeVariable("a")]))
-        self.assertEqual(0, len(t.constraints))
 
     def test_NewType_assigned(self):
         varname = "atype"
@@ -496,6 +509,50 @@ class SatisfyConstraintsTests(TestCase):
         self.assertEqual([], ret)
         self.assertEqual({a: (b, constraint_pos)}, substitution)
 
+    def test_getattr_no_attr(self):
+        a = typer.AttributeAccess(typer.INT, 'a')
+        b = typer.BOOL
+        constraint_pos = [SourcePos(2, 2, 2)]
+        substitution = {}
+        self.assertRaises(
+            typer.SylphTypeError,
+            typer.satisfy_constraint,
+                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+                substitution)
+
+    def test_getattr_has_attr(self):
+        c = typer.Type('c', {'a': typer.BOOL})
+        a = typer.AttributeAccess(c, 'a')
+        b = typer.BOOL
+        constraint_pos = [SourcePos(2, 2, 2)]
+        substitution = {}
+        ret = typer.satisfy_constraint(
+                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+                substitution)
+        self.assertEqual(1, len(ret))
+        self.assertThat(
+            ret[0],
+            testing.ConstraintMatches(
+                Is(typer.BOOL), typer.SUPERTYPE_OF, Is(b), [Is(constraint_pos[0])]))
+        self.assertEqual({}, substitution)
+
+    def test_getattr_has_attr_via_substitution(self):
+        c = typer.Type('c', {'a': typer.BOOL})
+        d = typer.TypeExpr('d')
+        a = typer.AttributeAccess(d, 'a')
+        b = typer.BOOL
+        constraint_pos = [SourcePos(2, 2, 2)]
+        substitution = {d: (c, [])}
+        ret = typer.satisfy_constraint(
+                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+                substitution)
+        self.assertEqual(1, len(ret))
+        self.assertThat(
+            ret[0],
+            testing.ConstraintMatches(
+                Is(typer.BOOL), typer.SUPERTYPE_OF, Is(b), [Is(constraint_pos[0])]))
+        self.assertEqual({d: (c, [])}, substitution)
+
 
 def get_type_of(name, source):
     try:
@@ -653,6 +710,16 @@ List = new Type<a>:
 foo = List<int>()
 foo = List<bool>()
 """)
+
+    def test_attribute_access(self):
+        ftype = get_type_of('foo', """
+Thing = new Type:
+    a = 1
+
+bar = Thing()
+foo = bar.a
+""")
+        self.assertThat(ftype, Is(typer.INT))
 
 
 class InstantiateTests(TestCase):
