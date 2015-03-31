@@ -1,0 +1,98 @@
+Some ideas to play with in the future, taking the best ideas
+from each language.
+
+Haskell
+-------
+
+ - Compound types with pattern matching. In particular Maybe/Either
+   for unexceptional error reporting, with a way to unpack them.
+   - Some sort of case statement seems straightforward to unpack,
+     but Python doesn't really have a pattern matching analogue. Maybe
+     treat it like a tuple unpacking function?
+
+     switch foo:
+         case a = Just:
+             print(a)
+         case Nothing:
+             print("Oh no error!")
+
+   - I'm not sure if the type checker forcing coverage of the
+     patterns is desirable. For something like the above it
+     would be fine, but there may be other cases where it
+     would be onerous. Would a "else:   pass" be so bad?
+
+   - Defining such a type seems tricky, because they
+     are basically:
+
+     Maybe = new Type<A>:
+          def Just(a: A):
+              self.a = a
+
+          def Nothing():
+              pass
+
+     We could have some sort of @constructor decorator to
+     promote the fuctions to the top-level to avoid
+
+         return Maybe.Just(foo)
+
+     everywhere.
+
+     It's not clear how the pattern matching works against this.
+
+     It might be better to offer some sort of metaclass/function
+     that can implement simple union types in a nice way, at
+     the expense of some flexibility.
+
+  - Typeclasses. They are great. Something like Rust traits would
+    seem to map well to our syntax.
+
+    new Type:
+       new Trait(File):
+          def readline():
+              ...
+
+    The type checker has to check that you implement all of the trait in your
+    block.
+
+    You can then call the method from a particular trait with
+
+       f.File:readline()
+
+    and
+
+       f.readline()
+
+    might work fine as long as there were no conflicts (run time error?).
+    The full name could be inferred from surrounding type declarations, so
+
+      def foo(a: File):
+          a.readline()
+
+    could be rewritten to a.File:readline() internally.
+
+Python
+------
+
+  - We've taken a lot from Python, but dropped plenty of things too. Some we may
+    want to bring back.
+
+  - Dynamism. We've dropped pretty much all of that so far. I'm not sure
+    how much can be restored while keeping e.g. static typing. Finding
+    a balance would be interesting.
+
+  - Twisted. Async in core, and used by default for sure. Deferreds are cool,
+    but see the Go section.
+
+
+Go
+--
+
+  - The best bit seems to be the approach to concurrency. Copying channels/goroutines
+    would be interesting. How this integrates with/replaces deferreds I'm not sure.
+
+Rust
+----
+
+  - I'm not sure what would be taken, because it seems to have picked a lot of the
+    same ideas from other languages, but aims at being a system language.

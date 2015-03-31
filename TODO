@@ -1,4 +1,5 @@
 - Checking that a type var in a declaration is valid. (foo(a: a) when a is used as an int.)
+- Maybe move the List = new Type: coalescing in to the parser, rather than doing it in the type-checker and compiler.
 - Typing enhancements
 - Exceptions
 - Displaying source code on problems (tracebacks with source)
