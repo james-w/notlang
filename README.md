@@ -26,55 +26,55 @@ have integers?
 
 Some integers
 
-  1
-  2
-  100
-  -1
+    1
+    2
+    100
+    -1
 
 Variables
 ---------
 
 You can assign values to variables, using the syntax you would expect.
 
-  a = 1
-  b = a
+    a = 1
+    b = a
 
 Operators
 ---------
 
 There are a few operators you can use.
 
-  1 + 1
-  2 - 1
-  1 < 2
-  1 > 2
-  1 == 2
+    1 + 1
+    2 - 1
+    1 < 2
+    1 > 2
+    1 == 2
 
 Conditionals
 ------------
 
 You can write an if statement, with then and else blocks:
 
-  if a == b:
-     c = 1
-  else:
-     c = 2
+    if a == b:
+       c = 1
+    else:
+       c = 2
 
 Loops
 -----
 
 There's only while loops currently
 
-  if a > 0:
-     a = a -1
+    if a > 0:
+       a = a -1
 
 Functions
 ---------
 
 You can create a function, it can take arguments and return things.
 
-  def foo(a):
-      return a + 1
+    def foo(a):
+        return a + 1
 
 Note that currently there are no closures, you can't reference locals
 from the parent scope, only their functions.
@@ -86,11 +86,11 @@ You can create your own types and instantiate them. You can't do
 very much with them at all currently.
 
 
-  Dog = new Type:
-      age = 7
+    Dog = new Type:
+        age = 7
 
-  d = Dog()
-  d.age
+    d = Dog()
+    d.age
 
 Builtins
 --------
@@ -112,8 +112,8 @@ Annotations
 
 You can annotate a function with the types that it uses:
 
-   def plusone(a: int) -> int:
-       return a + 1
+     def plusone(a: int) -> int:
+         return a + 1
 
 Hopefully the inference system will confirm that the annotations match
 the use, that they are as general as possible etc., but it probably
@@ -124,8 +124,8 @@ Type variables
 
 You can specify a type variable for a function if you want.
 
-   def apply<A>(f, a: A):
-       return f(a)
+     def apply<A>(f, a: A):
+         return f(a)
 
 The parser is pretty limited as it stands though, so you can't annotate
 this function correctly (multiple variables, function types). It would
@@ -136,8 +136,8 @@ User-defined types
 
 User defined types can be parameterised too.
 
-   List = new Type<A>:
-       pass
+     List = new Type<A>:
+         pass
 
 It doesn't currently do anything though.
 
