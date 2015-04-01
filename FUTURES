@@ -1,6 +1,10 @@
 Some ideas to play with in the future, taking the best ideas
 from each language.
 
+(Note that these aren't the inventors of these ideas, just
+what my limited understanding leads me to think are the
+most interesting parts of these languages.)
+
 Haskell
 -------
 
@@ -96,3 +100,16 @@ Rust
 
   - I'm not sure what would be taken, because it seems to have picked a lot of the
     same ideas from other languages, but aims at being a system language.
+
+  - I think traits are an interesting approach to type classes.
+
+Clojure
+-------
+
+  - Being data-focused is good. I'm not sure how to replicate this. Maybe pattern
+    matching could work on values as well as types? Having a good type system, and
+    some useful generic types with aliasing might work.
+
+  - Persistent data structures are a good idea. Having the base types be persistent
+    is probably good. Not sure how to make it easy to built other persistent types
+    on top.
