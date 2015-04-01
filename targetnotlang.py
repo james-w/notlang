@@ -8,7 +8,7 @@ from rpython.rlib.parsing.parsing import ParseError
 from rpython.jit.codewriter.policy import JitPolicy
 from notlang.debug import add_debug_args, show_errors, trace_interp
 from notlang.interpreter import interpret
-from notlang.typer import SylphNameError, SylphTypeError
+from notlang.typer import NotNameError, NotTypeError
 
 
 def main(argv):
@@ -21,7 +21,7 @@ def main(argv):
     do_raise = show_errors(opts)
     try:
         interpret(data, trace=trace_interp(opts))
-    except (ParseError, SylphNameError, SylphTypeError) as e:
+    except (ParseError, NotNameError, NotTypeError) as e:
         print(e.nice_error_message(source=data, filename=opts.file.name))
         if do_raise:
             raise
