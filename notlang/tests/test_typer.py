@@ -429,6 +429,20 @@ class SatisfyConstraintsTests(TestCase):
             typer.Constraint(a, typer.SUPERTYPE_OF, typer.INT, constraint_pos),
             substitution)
 
+    def test_function_type_vs_expr(self):
+        a = typer.FunctionType('a', [], typer.INT)
+        b = typer.TypeExpr('b')
+        constraint_pos = [SourcePos(2, 2, 2)]
+        subs_pos = [SourcePos(1, 1, 1)]
+        substitution = {b: (typer.INT, subs_pos)}
+        ret = typer.satisfy_constraint(
+                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+                substitution)
+        self.assertEqual(1, len(ret))
+        self.assertThat(ret[0], testing.ConstraintMatches(
+            Is(a), typer.SUPERTYPE_OF, Is(typer.INT), [Is(constraint_pos[0]), Is(subs_pos[0])]))
+        self.assertEqual({b: (typer.INT, subs_pos)}, substitution)
+
     def test_function_type_vs_function_type(self):
         a = typer.FunctionType('a', [typer.NONE], typer.INT)
         b = typer.FunctionType('a', [typer.ANY], typer.BOOL)
@@ -905,6 +919,23 @@ class SubstitutionTests(TestCase):
         positions = []
         typer.update_substitution(substitution, typer.INT, typer.BOOL, positions)
         self.assertEqual({typer.INT: (typer.BOOL, positions)}, substitution)
+
+    def test_updates_other_references(self):
+        a = typer.TypeExpr('a')
+        substitution = {typer.INT: (a, [])}
+        positions = []
+        typer.update_substitution(substitution, a, typer.BOOL, positions)
+        self.assertEqual({typer.INT: (typer.BOOL, []), a: (typer.BOOL, positions)}, substitution)
+
+    def test_updates_other_references_in_ftype(self):
+        a = typer.TypeExpr('a')
+        f = typer.FunctionType('f', [], a)
+        substitution = {typer.INT: (f, [])}
+        positions = []
+        typer.update_substitution(substitution, a, typer.BOOL, positions)
+        self.assertEqual(2, len(substitution))
+        self.assertThat(substitution[a], Equals((typer.BOOL, [])))
+        self.assertThat(substitution[typer.INT][0], testing.IsFunctionType(Equals('f'), [], Is(typer.BOOL)))
 
     def test_occurs_check(self):
         substitution = {}

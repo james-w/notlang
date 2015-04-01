@@ -365,14 +365,10 @@ def satisfy_constraint(constraint, substitution):
     The function will return a list of additional constraints that
     should be checked.
     """
-    print "%r %s %r" % (constraint.a, constraint.constraint, constraint.b)
+    #print "%r %s %r" % (constraint.a, constraint.constraint, constraint.b)
     new_constraints = []
     if isinstance(constraint.a, TypeExpr):
         if constraint.a in substitution:
-            # XXX: use get_substituted (after making it possible to get the
-            # positions from it)? - It seems like it should work, but apparently
-            # we generate circular references within the substitutions (probably
-            # during recursive functions).
             newlhs, newpos = substitution[constraint.a]
             new_constraints.insert(0, Constraint(newlhs, constraint.constraint, constraint.b, constraint.positions + newpos))
             return new_constraints
@@ -386,6 +382,11 @@ def satisfy_constraint(constraint, substitution):
             raise NotTypeError("%s has no attribute %s" % (t, constraint.a.name), constraint.positions)
         new_constraints.append(Constraint(t.attrs[constraint.a.name], constraint.constraint, constraint.b, constraint.positions))
     elif isinstance(constraint.a, FunctionType):
+        if isinstance(constraint.b, TypeExpr):
+            if constraint.b in substitution:
+                newrhs, newpos = substitution[constraint.b]
+                new_constraints.insert(0, Constraint(constraint.a, constraint.constraint, newrhs, constraint.positions + newpos))
+                return new_constraints
         if not isinstance(constraint.b, FunctionType):
             raise NotTypeError("Types mismatch: %s != %s" % (constraint.a, constraint.b), constraint.positions)
         if len(constraint.a.args) != len(constraint.b.args):
@@ -408,7 +409,7 @@ def satisfy_constraint(constraint, substitution):
     return new_constraints
 
 
-def satisfy_constraints(constraints):
+def satisfy_constraints(constraints, initial_subtitution=None):
     """Given a set of constraints, this will attempt to satisfy them all.
 
     If it fails it will raise a NotTypeError or NotNameError.
@@ -416,7 +417,10 @@ def satisfy_constraints(constraints):
     If it succeeds it will return a substitution map that provides the
     most information possible about the types of the various expressions.
     """
-    substitution = dict()
+    if initial_subtitution is None:
+        substitution = dict()
+    else:
+        substitution = initial_subtitution
     while constraints:
         constraint = constraints.pop(0)
         # We put the new constraints at the front, but it probably
@@ -476,12 +480,27 @@ def update_substitution(substitution, lhs, rhs, positions):
     """
     if occurs(lhs, rhs):
         raise NotTypeError("Recursive type definition: %s = %s" % (lhs, rhs), positions)
-    # It looks like published algorithms loop over the substitution
-    # and propogate lhs == rhs as far as possible. That presumably
-    # speeds up future steps, but it causes a problem on
-    # recursive definitions. By not doing this we may
-    # well have an incorrect algorithm though.
     substitution[lhs] = (rhs, positions)
+    def replace_in(a, old, new):
+        if a == old:
+            return new
+        if isinstance(a, FunctionType):
+            a.rtype = replace_in(a.rtype, old, new)
+            args = []
+            for arg in a.args:
+                args.append(replace_in(arg, old, new))
+            a.args = args
+        elif isinstance(a, ParameterisedType):
+            types = []
+            for t in a.types:
+                types.append(replace_in(t, old, new))
+            a.types = types
+        return a
+    for other_lhs, (other_rhs, other_positions) in substitution.items():
+        if other_lhs == rhs:
+            raise NotTypeError("Circular inference %s %s" % (lhs, rhs), positions)
+        if lhs != other_lhs:
+            substitution[other_lhs] = (replace_in(other_rhs, lhs, rhs), other_positions)
 
 
 def get_substituted(var, substitutions):
@@ -600,6 +619,13 @@ def instantiate(ftype):
     return do_instantiate(ftype, _vars)
 
 
+def satisfy_set(contexts, initial_subtitution=None):
+    constraints = []
+    for context in contexts:
+        constraints.extend(context.constraints)
+    return satisfy_constraints(constraints, initial_subtitution=initial_subtitution)
+
+
 def _typecheck(t):
     calls = {}
     for name, child in t.child_contexts.items():
@@ -607,35 +633,24 @@ def _typecheck(t):
             if f not in FUNCTIONS:
                 calls.setdefault(name, []).append(f)
     sets = graph.get_disjoint_sets(calls, t.child_contexts.keys())
-    new_ftypes = {}
-    def replace(var, old, new):
-        if var == old:
-            return instantiate(new)
-        elif isinstance(var, FunctionType):
-            return FunctionType(var.name, [replace(a, old, new) for a in var.args], replace(var.rtype, old, new))
-        return var
-    def update_constraints(constraints):
-        cs = constraints[:]
-        for c in cs:
-            for var, ftype in new_ftypes.items():
-                c.a = replace(c.a, var, ftype)
-                c.b = replace(c.b, var, ftype)
-        return cs
+    context_sets = []
     for s in sets:
-        constraints = []
+        context_set = []
+        context_sets.append(context_set)
         for child in s:
-            constraints.extend(update_constraints(t.child_contexts[child].constraints))
-        child_subs = satisfy_constraints(constraints)
-        for child in s:
-            if t.child_contexts[child].fname is not None:
-                newftype = generalise(function_type_from_collector(t.child_contexts[child], child_subs))
+            context_set.append((child, t.child_contexts[child]))
+    substitution = {}
+    for s in context_sets:
+        satisfy_set([a[1] for a in s], initial_subtitution=substitution)
+        for name, child in s:
+            if child.fname is not None:
+                newftype = generalise(function_type_from_collector(child, substitution))
             else:
-                newftype = generalise(type_from_collector(t.child_contexts[child], t.types[child], child_subs))
-            ftype = t.get_typevar(child)
-            new_ftypes[ftype] = newftype
-            t.varmap[child] = newftype
-    main_constraints = update_constraints(t.constraints)
-    return satisfy_constraints(main_constraints)
+                newftype = generalise(type_from_collector(child, t.types[name], substitution))
+            ftype = t.get_typevar(name)
+            update_substitution(substitution, ftype, instantiate(newftype), [])
+            t.varmap[name] = newftype
+    return satisfy_constraints(t.constraints, initial_subtitution=substitution)
 
 
 def typecheck(node):
