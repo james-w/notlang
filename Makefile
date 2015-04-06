@@ -3,6 +3,8 @@ BASEDIR = $(NAME)
 MAIN = target$(NAME).py
 TARGET = $(patsubst %.py,%-c,$(MAIN))
 
+TEST_FILTER ?= ""
+
 build: deps $(TARGET)
 
 $(TARGET): $(MAIN) $(BASEDIR)/*.py $(BASEDIR)/grammar.txt
@@ -25,7 +27,7 @@ clean:
 	find $(BASEDIR) -name \*.pyc -delete
 
 test:
-	PYTHONPATH=pypy ./virtualenv/bin/py.test $(NAME)
+	PYTHONPATH=pypy ./virtualenv/bin/py.test $(NAME) -k $(TEST_FILTER)
 
 check: test
 
