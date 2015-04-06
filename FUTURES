@@ -48,6 +48,10 @@ Haskell
      that can implement simple union types in a nice way, at
      the expense of some flexibility.
 
+     Also not clear is how this would be used like the Maybe Monad,
+     where you can do a series of steps, where the next only
+     proceeds if the previous didn't find Nothing.
+
   - Typeclasses. They are great. Something like Rust traits would
     seem to map well to our syntax.
 
