@@ -603,6 +603,12 @@ class IntegrationTests(TestCase):
             ftype,
             testing.IsFunctionType(Equals('a'), [Is(ftype.rtype)], testing.IsTypeVariable('b')))
 
+    def test_instantiate(self):
+        ftype = get_type_of('a', 'def a(b):\n    return b\n\na(1)\na(true())\n')
+        self.assertThat(
+            ftype,
+            testing.IsFunctionType(Equals('a'), [Is(ftype.rtype)], testing.IsTypeVariable('b')))
+
     def test_higher_order(self):
         ftype = get_type_of('a', 'def a(b, c):\n    return b(c)\n\n')
         self.assertThat(

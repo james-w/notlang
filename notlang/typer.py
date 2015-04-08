@@ -365,7 +365,7 @@ def satisfy_constraint(constraint, substitution):
     The function will return a list of additional constraints that
     should be checked.
     """
-    #print "%r %s %r" % (constraint.a, constraint.constraint, constraint.b)
+    #print constraint
     new_constraints = []
     if isinstance(constraint.a, TypeExpr):
         if constraint.a in substitution:
@@ -391,9 +391,11 @@ def satisfy_constraint(constraint, substitution):
             raise NotTypeError("Types mismatch: %s != %s" % (constraint.a, constraint.b), constraint.positions)
         if len(constraint.a.args) != len(constraint.b.args):
             raise NotTypeError("Types mismatch: %s != %s, argument lengths differ" % (constraint.a, constraint.b), constraint.positions)
-        for i, arg in enumerate(constraint.a.args):
-            new_constraints.insert(0, Constraint(arg, constraint.constraint, constraint.b.args[i], constraint.positions))
-        new_constraints.insert(0, Constraint(constraint.a.rtype, constraint.constraint, constraint.b.rtype, constraint.positions))
+        a = instantiate(constraint.a)
+        b = instantiate(constraint.b)
+        for i, arg in enumerate(a.args):
+            new_constraints.insert(0, Constraint(arg, constraint.constraint, b.args[i], constraint.positions))
+        new_constraints.insert(0, Constraint(a.rtype, constraint.constraint, b.rtype, constraint.positions))
     else:
         if isinstance(constraint.b, TypeExpr):
             if constraint.b in substitution:
@@ -648,7 +650,7 @@ def _typecheck(t):
             else:
                 newftype = generalise(type_from_collector(child, t.types[name], substitution))
             ftype = t.get_typevar(name)
-            update_substitution(substitution, ftype, instantiate(newftype), [])
+            update_substitution(substitution, ftype, newftype, [])
             t.varmap[name] = newftype
     return satisfy_constraints(t.constraints, initial_subtitution=substitution)
 
