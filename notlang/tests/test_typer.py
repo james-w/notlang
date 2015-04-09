@@ -23,7 +23,7 @@ class TypeCollectorTests(TestCase):
     def test_Assignment(self):
         varname = "a"
         rhs = ast.ConstantInt(2, self.spos)
-        lhs = ast.Variable((varname,), self.spos)
+        lhs = ast.Variable(varname, self.spos)
         node = ast.Assignment(lhs, rhs, self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
@@ -55,7 +55,7 @@ class TypeCollectorTests(TestCase):
 
     def test_Variable_existing(self):
         varname = "a"
-        node = ast.Variable((varname,), self.spos)
+        node = ast.Variable(varname, self.spos)
         t = self.get_typecollector()
         vartype = typer.TypeVariable(varname)
         t.varmap[varname] = vartype
@@ -64,16 +64,16 @@ class TypeCollectorTests(TestCase):
 
     def test_Variable_nonexisting(self):
         varname = "a"
-        node = ast.Variable((varname,), self.spos)
+        node = ast.Variable(varname, self.spos)
         t = self.get_typecollector()
         self.assertRaises(typer.NotNameError, t.dispatch, node)
 
     def test_Variable_attr(self):
         varname = "a"
         attrname = "b"
-        node = ast.Variable((varname, attrname), self.spos)
+        node = ast.Attribute(ast.Variable(varname, self.spos), attrname, self.spos)
         t = self.get_typecollector()
-        vartype = typer.TypeVariable(varname)
+        vartype = typer.Type(varname)
         t.varmap[varname] = vartype
         ret = t.dispatch(node)
         self.assertThat(ret, testing.IsTypeExpr("a.b"))
@@ -85,7 +85,7 @@ class TypeCollectorTests(TestCase):
         varname = "a"
         attrname = "b"
         attrname2 = "c"
-        node = ast.Variable((varname, attrname, attrname2), self.spos)
+        node = ast.Attribute(ast.Attribute(ast.Variable(varname, self.spos), attrname, self.spos), attrname2, self.spos)
         t = self.get_typecollector()
         vartype = typer.TypeVariable(varname)
         t.varmap[varname] = vartype
@@ -109,9 +109,9 @@ class TypeCollectorTests(TestCase):
         self.assertThat(
             t.constraints[0],
             testing.ConstraintMatches(
-                testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], Is(typer.INT)),
+                testing.IsFunctionType("+", [Is(typer.INT), Is(typer.INT)], Is(typer.INT)),
                 typer.SUPERTYPE_OF,
-                testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], testing.IsTypeExpr("r+")),
+                testing.IsFunctionType("+", [Is(typer.INT), Is(typer.INT)], testing.IsTypeExpr("r+")),
                 [Is(self.spos)]))
 
     def test_nested_BinOp(self):
@@ -128,18 +128,18 @@ class TypeCollectorTests(TestCase):
         self.assertThat(
             t.constraints[0],
             testing.ConstraintMatches(
-                testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], Is(typer.INT)),
+                testing.IsFunctionType("+", [Is(typer.INT), Is(typer.INT)], Is(typer.INT)),
                 typer.SUPERTYPE_OF,
-                testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], testing.IsTypeExpr("r+")),
+                testing.IsFunctionType("+", [Is(typer.INT), Is(typer.INT)], testing.IsTypeExpr("r+")),
                 [Is(self.spos)],
                 )
             )
         self.assertThat(
             t.constraints[1],
             testing.ConstraintMatches(
-                testing.IsFunctionType(Equals("+"), [Is(typer.INT), Is(typer.INT)], Is(typer.INT)),
+                testing.IsFunctionType("+", [Is(typer.INT), Is(typer.INT)], Is(typer.INT)),
                 typer.SUPERTYPE_OF,
-                testing.IsFunctionType(Equals("+"), [Is(typer.INT), testing.IsTypeExpr("r+")], testing.IsTypeExpr("r+")),
+                testing.IsFunctionType("+", [Is(typer.INT), testing.IsTypeExpr("r+")], testing.IsTypeExpr("r+")),
                 [Is(self.spos)],
                 )
             )
@@ -150,7 +150,7 @@ class TypeCollectorTests(TestCase):
     def test_Conditional(self):
         varname = "a"
         condition = ast.ConstantInt(1, self.spos)
-        block = ast.Assignment(ast.Variable((varname,), self.spos), ast.ConstantInt(2, self.spos), self.spos)
+        block = ast.Assignment(ast.Variable(varname, self.spos), ast.ConstantInt(2, self.spos), self.spos)
         node = ast.Conditional(condition, block, None, self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
@@ -174,7 +174,7 @@ class TypeCollectorTests(TestCase):
     def test_Conditional_with_else(self):
         varname = "a"
         condition = ast.ConstantInt(1, self.spos)
-        block = ast.Assignment(ast.Variable((varname,), self.spos), ast.ConstantInt(2, self.spos), self.spos)
+        block = ast.Assignment(ast.Variable(varname, self.spos), ast.ConstantInt(2, self.spos), self.spos)
         node = ast.Conditional(condition, block, block, self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
@@ -205,7 +205,7 @@ class TypeCollectorTests(TestCase):
     def test_While(self):
         varname = "a"
         condition = ast.ConstantInt(1, self.spos)
-        block = ast.Assignment(ast.Variable((varname,), self.spos), ast.ConstantInt(2, self.spos), self.spos)
+        block = ast.Assignment(ast.Variable(varname, self.spos), ast.ConstantInt(2, self.spos), self.spos)
         node = ast.While(condition, block, self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
@@ -222,7 +222,7 @@ class TypeCollectorTests(TestCase):
 
     def test_Function_noargs(self):
         fname = "foo"
-        node = ast.Function((fname,), [], self.spos)
+        node = ast.Function(ast.Variable(fname, self.spos), [], self.spos)
         t = self.get_typecollector()
         t.functions[fname] = typer.TypeExpr(fname)
         rtype = t.dispatch(node)
@@ -233,7 +233,7 @@ class TypeCollectorTests(TestCase):
             testing.ConstraintMatches(
                 testing.IsTypeExpr(fname),
                 typer.SUPERTYPE_OF,
-                testing.IsFunctionType(Equals(fname), [], Is(rtype)),
+                testing.IsFunctionType(fname, [], Is(rtype)),
                 [Is(self.spos)]))
 
     # TODO: test recursion
@@ -241,7 +241,7 @@ class TypeCollectorTests(TestCase):
     def test_Function_args(self):
         fname = "foo"
         arg = ast.ConstantInt(1, self.spos)
-        node = ast.Function((fname,), [arg], self.spos)
+        node = ast.Function(ast.Variable(fname, self.spos), [arg], self.spos)
         t = self.get_typecollector()
         t.functions[fname] = typer.TypeExpr(fname)
         rtype = t.dispatch(node)
@@ -252,13 +252,31 @@ class TypeCollectorTests(TestCase):
             testing.ConstraintMatches(
                 testing.IsTypeExpr(fname),
                 typer.SUPERTYPE_OF,
-                testing.IsFunctionType(Equals(fname), [Is(typer.INT)], Is(rtype)),
+                testing.IsFunctionType(fname, [Is(typer.INT)], Is(rtype)),
+                [Is(self.spos)]))
+
+    def test_Function_on_attribute(self):
+        self.skip("Not implemented yet.")
+        objname = "bar"
+        fname = "foo"
+        node = ast.Function(ast.Attribute(ast.Variable(objname, self.spos), fname, self.spos), [], self.spos)
+        t = self.get_typecollector()
+        t.functions[fname] = typer.TypeExpr(fname)
+        rtype = t.dispatch(node)
+        self.assertThat(rtype, testing.IsTypeExpr("rfoo"))
+        self.assertEqual(1, len(t.constraints))
+        self.assertThat(
+            t.constraints[0],
+            testing.ConstraintMatches(
+                testing.IsTypeExpr(fname),
+                typer.SUPERTYPE_OF,
+                testing.IsFunctionType(fname, [Is(typer.INT)], Is(rtype)),
                 [Is(self.spos)]))
 
     def test_FuncDef(self):
         fname = "foo"
         argname = "bar"
-        code = ast.Return(ast.Variable((argname,), self.spos), self.spos)
+        code = ast.Return(ast.Variable(argname, self.spos), self.spos)
         node = ast.FuncDef(fname, [argname], code, self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
@@ -284,7 +302,7 @@ class TypeCollectorTests(TestCase):
         argname = "bar"
         rtype = "int"
         argtype = "int"
-        code = ast.Return(ast.Variable((argname,), self.spos), self.spos)
+        code = ast.Return(ast.Variable(argname, self.spos), self.spos)
         node = ast.FuncDef(fname, [argname], code, self.spos, rtype=rtype, argtypes=[argtype])
         t = self.get_typecollector()
         self.assertIs(None, t.dispatch(node))
@@ -306,7 +324,7 @@ class TypeCollectorTests(TestCase):
     def test_NewType_assigned(self):
         varname = "atype"
         block = ast.ConstantInt(1, self.spos)
-        node = ast.Assignment(ast.Variable((varname,), self.spos), ast.NewType(block, self.spos), self.spos)
+        node = ast.Assignment(ast.Variable(varname, self.spos), ast.NewType(block, self.spos), self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
         self.assertThat(rtype, testing.IsTypeExpr(varname))
@@ -319,7 +337,7 @@ class TypeCollectorTests(TestCase):
     def test_parameterised_NewType_assigned(self):
         varname = "atype"
         block = ast.ConstantInt(1, self.spos)
-        node = ast.Assignment(ast.Variable((varname,), self.spos), ast.NewType(block, self.spos, ["a"]), self.spos)
+        node = ast.Assignment(ast.Variable(varname, self.spos), ast.NewType(block, self.spos, ["a"]), self.spos)
         t = self.get_typecollector()
         rtype = t.dispatch(node)
         self.assertThat(rtype, testing.IsTypeExpr(varname))
@@ -337,7 +355,7 @@ class TypeCollectorTests(TestCase):
         # Test that children are dispatched to by default
         varname = "a"
         rhs = ast.ConstantInt(2, self.spos)
-        lhs = ast.Variable((varname,), self.spos)
+        lhs = ast.Variable(varname, self.spos)
         node = ast.Assignment(lhs, rhs, self.spos)
         t = self.get_typecollector()
         t.dispatch(ast.Block([node], self.spos))
@@ -498,20 +516,6 @@ class SatisfyConstraintsTests(TestCase):
                 [Is(constraint_pos[0]), Is(subs_pos[0])]))
         self.assertEqual(1, len(substitution))
 
-    def test_type_expr_substituted_already_equal(self):
-        # If when substituted the type exprs are already equal,
-        # then don't do anything
-        a = typer.TypeExpr('a')
-        b = typer.TypeExpr('b')
-        subs_pos = [SourcePos(1, 1, 1)]
-        constraint_pos = [SourcePos(2, 2, 2)]
-        substitution = {a: (b, subs_pos)}
-        ret = typer.satisfy_constraint(
-                typer.Constraint(b, typer.SUPERTYPE_OF, a, constraint_pos),
-                substitution)
-        self.assertEqual([], ret)
-        self.assertEqual(1, len(substitution))
-
     def test_type_expr_updates_substitution(self):
         a = typer.TypeExpr('a')
         b = typer.TypeExpr('b')
@@ -589,34 +593,34 @@ class IntegrationTests(TestCase):
     def test_return_int(self):
         self.assertThat(
             get_type_of('a', 'def a():\n    return 1\n\n'),
-            testing.IsFunctionType(Equals('a'), [], Is(typer.INT)))
+            testing.IsFunctionType('a', [], Is(typer.INT)))
 
     def test_return_arg(self):
         ftype = get_type_of('a', 'def a(b):\n    return b\n\n')
         self.assertThat(
             ftype,
-            testing.IsFunctionType(Equals('a'), [Is(ftype.rtype)], testing.IsTypeVariable('b')))
+            testing.IsFunctionType('a', [Is(ftype.rtype)], testing.IsTypeVariable('b')))
 
     def test_type_not_bound(self):
         ftype = get_type_of('a', 'def a(b):\n    return b\n\na(1)\n')
         self.assertThat(
             ftype,
-            testing.IsFunctionType(Equals('a'), [Is(ftype.rtype)], testing.IsTypeVariable('b')))
+            testing.IsFunctionType('a', [Is(ftype.rtype)], testing.IsTypeVariable('b')))
 
     def test_instantiate(self):
         ftype = get_type_of('a', 'def a(b):\n    return b\n\na(1)\na(true())\n')
         self.assertThat(
             ftype,
-            testing.IsFunctionType(Equals('a'), [Is(ftype.rtype)], testing.IsTypeVariable('b')))
+            testing.IsFunctionType('a', [Is(ftype.rtype)], testing.IsTypeVariable('b')))
 
     def test_higher_order(self):
         ftype = get_type_of('a', 'def a(b, c):\n    return b(c)\n\n')
         self.assertThat(
             ftype,
             testing.IsFunctionType(
-                Equals('a'),
+                'a',
                 [testing.IsFunctionType(
-                    Equals('b'),
+                    'b',
                     [Is(ftype.args[1])],
                     Is(ftype.rtype)),
                 testing.IsTypeVariable('c')],
@@ -627,7 +631,7 @@ class IntegrationTests(TestCase):
         self.assertThat(
             ftype,
             testing.IsFunctionType(
-                Equals('a'),
+                'a',
                 [Is(typer.INT)],
                 Is(typer.INT)))
 
@@ -646,7 +650,7 @@ def c(x):
         self.assertThat(
             ftype,
             testing.IsFunctionType(
-                Equals('a'),
+                'a',
                 [Is(typer.INT)],
                 Is(typer.INT)))
 
@@ -668,7 +672,7 @@ def c(x):
 """)
         self.assertThat(
             ftype,
-            testing.IsFunctionType(Equals('a'), [Is(typer.INT)], Is(typer.INT)))
+            testing.IsFunctionType('a', [Is(typer.INT)], Is(typer.INT)))
 
     def test_use_of_higher_order(self):
         ftype = get_type_of('e', """
@@ -688,7 +692,7 @@ Dog = new Type:
     pass
 
 """)
-        self.assertThat(ftype, testing.IsType("Dog"))
+        self.assertThat(ftype, testing.IsType('Dog'))
 
     def test_new_type_in_signature(self):
         ftype = get_type_of('foo', """
@@ -699,7 +703,7 @@ def foo(d: Dog):
     return d
 
 """)
-        self.assertThat(ftype, testing.IsFunctionType(Equals('foo'), [Is(ftype.rtype)], testing.IsType("Dog")))
+        self.assertThat(ftype, testing.IsFunctionType('foo', [Is(ftype.rtype)], testing.IsType("Dog")))
 
     def test_parameterised_type(self):
         ftype = get_type_of('foo', """
@@ -741,6 +745,18 @@ foo = bar.a
 """)
         self.assertThat(ftype, Is(typer.INT))
 
+    def test_attribute_access_on_returned_value(self):
+        ftype = get_type_of('foo', """
+Thing = new Type:
+    a = 1
+
+def thing():
+    return Thing()
+
+foo = thing().a
+""")
+        self.assertThat(ftype, Is(typer.INT))
+
 
 class InstantiateTests(TestCase):
 
@@ -749,7 +765,7 @@ class InstantiateTests(TestCase):
         self.assertThat(
             typer.instantiate(typer.FunctionType(fname, [typer.INT], typer.INT)),
             testing.IsFunctionType(
-                Equals(fname),
+                fname,
                 [Is(typer.INT)],
                 Is(typer.INT))
             )
@@ -761,7 +777,7 @@ class InstantiateTests(TestCase):
         self.assertThat(
             ret,
             testing.IsFunctionType(
-                Equals(fname),
+                fname,
                 [Is(ret.rtype)],
                 testing.IsTypeExpr(tvar.name))
             )
@@ -785,9 +801,9 @@ class InstantiateTests(TestCase):
         self.assertThat(
             ret,
             testing.IsFunctionType(
-                Equals(fname),
+                fname,
                 [testing.IsFunctionType(
-                    Equals(nested_fname),
+                    nested_fname,
                     [Is(argtype)],
                     Is(ret.rtype)),
                  testing.IsTypeExpr(tvar1.name)],
@@ -808,7 +824,7 @@ class FunctionTypeFromContextTests(TestCase):
         self.assertThat(
             ftype,
             testing.IsFunctionType(
-                Equals(t.fname),
+                t.fname,
                 [Is(typer.INT)],
                 Is(typer.INT)))
 
@@ -823,7 +839,7 @@ class FunctionTypeFromContextTests(TestCase):
         self.assertThat(
             ftype,
             testing.IsFunctionType(
-                Equals(t.fname),
+                t.fname,
                 [Is(t.varmap[argname])],
                 Is(typer.INT)))
 
@@ -839,7 +855,7 @@ class FunctionTypeFromContextTests(TestCase):
         self.assertThat(
             ftype,
             testing.IsFunctionType(
-                Equals(t.fname),
+                t.fname,
                 [Is(argtype)],
                 Is(typer.INT)))
 
@@ -853,7 +869,7 @@ class GeneraliseFunctionTests(TestCase):
         self.assertThat(
             ftype,
             testing.IsFunctionType(
-                Equals(fname),
+                fname,
                 [Is(typer.INT)],
                 Is(typer.INT)))
 
@@ -866,7 +882,7 @@ class GeneraliseFunctionTests(TestCase):
         self.assertThat(
             ftype,
             testing.IsFunctionType(
-                Equals(fname),
+                fname,
                 [testing.IsTypeVariable(argname)],
                 Is(typer.INT)))
 
@@ -879,7 +895,7 @@ class GeneraliseFunctionTests(TestCase):
         self.assertThat(
             ftype,
             testing.IsFunctionType(
-                Equals(fname),
+                fname,
                 [Is(ftype.rtype)],
                 testing.IsTypeVariable(argname)))
 
@@ -900,9 +916,9 @@ class GeneraliseFunctionTests(TestCase):
         self.assertThat(
             ftype,
             testing.IsFunctionType(
-                Equals(fname),
+                fname,
                 [testing.IsTypeVariable(argname),
-                testing.IsFunctionType(Equals(nested_fname), [Is(new_argtype)], Is(typer.INT))],
+                testing.IsFunctionType(nested_fname, [Is(new_argtype)], Is(typer.INT))],
                 Is(typer.INT)))
 
     def test_unconstrained_rtype(self):
@@ -941,7 +957,7 @@ class SubstitutionTests(TestCase):
         typer.update_substitution(substitution, a, typer.BOOL, positions)
         self.assertEqual(2, len(substitution))
         self.assertThat(substitution[a], Equals((typer.BOOL, [])))
-        self.assertThat(substitution[typer.INT][0], testing.IsFunctionType(Equals('f'), [], Is(typer.BOOL)))
+        self.assertThat(substitution[typer.INT][0], testing.IsFunctionType('f', [], Is(typer.BOOL)))
 
     def test_occurs_check(self):
         substitution = {}
@@ -962,7 +978,7 @@ class SubstitutionTests(TestCase):
     def test_get_substituded_function_type(self):
         substitution = {typer.INT: (typer.FunctionType('func', [typer.NONE], typer.NONE), []), typer.NONE: (typer.BOOL, [])}
         ret = typer.get_substituted(typer.INT, substitution)
-        self.assertThat(ret, testing.IsFunctionType(Equals('func'), [Is(typer.BOOL)], Is(typer.BOOL)))
+        self.assertThat(ret, testing.IsFunctionType('func', [Is(typer.BOOL)], Is(typer.BOOL)))
 
     def test_occurs_same_type(self):
         self.assertEqual(True, typer.occurs(typer.INT, typer.INT))

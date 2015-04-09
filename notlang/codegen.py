@@ -1,17 +1,20 @@
 from . import bytecode, compilercontext, objectspace
 
 
-def load_var(ctx, names):
-    assert len(names) > 0
-    if ctx.is_local(names[0]):
+def load_var(ctx, name):
+    if ctx.is_local(name):
         op = bytecode.LOAD_VAR
     else:
         op = bytecode.LOAD_GLOBAL
-    vnum = ctx.register_var(names[0])
+    vnum = ctx.register_var(name)
     ctx.emit(op, vnum)
-    for attr in names[1:]:
-        # FIXME: should probably use a different list for names vs locals
-        ctx.emit(bytecode.LOAD_ATTR, ctx.register_var(attr))
+
+
+def load_attr(ctx, name):
+    # FIXME: Should probably use a different list than the vars,
+    # so as not to allocate storage space for these names
+    ctx.emit(bytecode.LOAD_ATTR, ctx.register_var(name))
+
 
 
 def load_constant_int(ctx, val):
@@ -53,8 +56,7 @@ def do_print(ctx):
     ctx.emit(bytecode.PRINT)
 
 
-def function_call(ctx, name, numargs, args_cb):
-    load_var(ctx, name)
+def function_call(ctx, numargs, args_cb):
     args_cb(ctx)
     ctx.emit(bytecode.CALL_FUNCTION, numargs)
 

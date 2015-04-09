@@ -12,25 +12,16 @@ class CodeGenTests(TestCase):
         varname = "foo"
         ctx = CompilerContext()
         ctx.locals = [varname]
-        codegen.load_var(ctx, (varname,))
+        codegen.load_var(ctx, varname)
         self.assertEqual([varname], ctx.names)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_VAR, 0]))
 
     def test_load_global(self):
         varname = "foo"
         ctx = CompilerContext()
-        codegen.load_var(ctx, (varname,))
+        codegen.load_var(ctx, varname)
         self.assertEqual([varname], ctx.names)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_GLOBAL, 0]))
-
-    def test_load_var_with_attr(self):
-        varname = "foo"
-        attrname = "bar"
-        ctx = CompilerContext()
-        ctx.locals = [varname]
-        codegen.load_var(ctx, (varname, attrname))
-        self.assertEqual([varname, attrname], ctx.names)
-        self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_VAR, 0, bytecode.LOAD_ATTR, 1]))
 
     def test_load_constant_int(self):
         ctx = CompilerContext()
@@ -75,16 +66,14 @@ class CodeGenTests(TestCase):
         self.assertThat(ctx.data, BytecodeMatches([bytecode.PRINT, 0]))
 
     def test_function_call(self):
-        fname = "foo"
         numargs = 2
         ctx = CompilerContext()
         def args_cb(cctx):
             cctx.emit(bytecode.LOAD_CONSTANT, 99)
-        codegen.function_call(ctx, (fname,), numargs, args_cb)
-        self.assertEqual([fname], ctx.names)
+        codegen.function_call(ctx, numargs, args_cb)
+        self.assertEqual([], ctx.names)
         self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_GLOBAL, 0,
-                             bytecode.LOAD_CONSTANT, 99,
+            BytecodeMatches([bytecode.LOAD_CONSTANT, 99,
                              bytecode.CALL_FUNCTION, numargs]))
 
     def test_conditional(self):

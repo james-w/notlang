@@ -111,7 +111,7 @@ class IsFunctionType(object):
             return getattr(a, 'rtype', None)
         self.matcher = MatchesAll(
             IsInstance(typer.FunctionType),
-            AfterPreprocessing(get_name, name),
+            AfterPreprocessing(get_name, Equals(name)),
             AfterPreprocessing(get_args, MatchesListwise(args)),
             AfterPreprocessing(get_rtype, rtype),
         )

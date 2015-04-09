@@ -111,23 +111,27 @@ class Transformer(RPythonVisitor):
         return target
 
     def visit_term(self, node):
-        if len(node.children) == 1:
-            return self.dispatch(node.children[0])
-        fname = self.dispatch(node.children[0]).varname
-        terms = node.children[1]
-        args = []
-        arg_children = []
-        type_params = []
-        if terms.children:
-            if terms.children[0].symbol == 'type_params':
-                type_params = [a.additional_info for a in terms.children[0].children]
-                if len(terms.children) > 1:
-                    arg_children = terms.children[1].children
+        term = self.dispatch(node.children[0])
+        for child in node.children[1:]:
+            if child.symbol == 'function_call_trailer':
+                args = []
+                arg_children = []
+                type_params = []
+                if len(child.children) > 1:
+                    if child.children[0].symbol == 'type_params':
+                        type_params = [a.additional_info for a in child.children[0].children]
+                        if len(child.children) > 2:
+                            arg_children = child.children[2].children
+                    else:
+                        arg_children = child.children[1].children
+                if arg_children:
+                    args = [self.dispatch(c) for c in arg_children]
+                term = ast.Function(term, args, term.sourcepos, type_params=type_params)
+            elif child.symbol == 'attribute_trailer':
+                term = ast.Attribute(term, child.children[0].additional_info, child.getsourcepos())
             else:
-                arg_children = terms.children[0].children
-        if arg_children:
-            args = [self.dispatch(c) for c in arg_children]
-        return ast.Function(fname, args, node.getsourcepos(), type_params=type_params)
+                raise AssertionError("Unknown term trailer: %s" % child.symbol)
+        return term
 
     def visit_return_statement(self, node):
         if len(node.children) > 1:

@@ -54,18 +54,6 @@ class ConstantInt(Node):
         return str(self.intval)
 
 
-class BinOp(NonTerminal):
-    """ A binary operation
-    """
-    def __init__(self, op, left, right, sourcepos):
-        self.op = op
-        self.children = [left, right]
-        self.sourcepos = sourcepos
-
-    def get_extra_dot_info(self):
-        return str(self.op)
-
-
 class Variable(Node):
     """ Variable reference
     """
@@ -93,8 +81,7 @@ class Function(NonTerminal):
     """Call a function"""
 
     def __init__(self, fname, args, sourcepos, type_params=None):
-        self.fname = fname
-        self.children = args
+        self.children = [fname] + args
         self.sourcepos = sourcepos
         if type_params is None:
             type_params = []
@@ -102,6 +89,34 @@ class Function(NonTerminal):
 
     def get_extra_dot_info(self):
         return self.fname
+
+    @property
+    def fname(self):
+        return self.children[0]
+
+    @property
+    def args(self):
+        return self.children[1:]
+
+
+class BinOp(Function):
+    """ A binary operation
+    """
+    def __init__(self, op, left, right, sourcepos):
+        self.op = op
+        self.children = [left, right]
+        self.sourcepos = sourcepos
+
+    def get_extra_dot_info(self):
+        return str(self.op)
+
+    @property
+    def fname(self):
+        return self.op
+
+    @property
+    def args(self):
+        return self.children
 
 
 class Conditional(NonTerminal):
@@ -155,6 +170,17 @@ class NewType(NonTerminal):
         if type_params is None:
             type_params = []
         self.type_params = type_params
+
+
+class Attribute(NonTerminal):
+
+    def __init__(self, target, name, sourcepos):
+        self.children = [target]
+        self.name = name
+        self.sourcepos = sourcepos
+
+    def get_extra_dot_info(self):
+        return self.name
 
 
 class VisitError(Exception):

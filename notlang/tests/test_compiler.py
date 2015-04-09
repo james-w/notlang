@@ -22,14 +22,14 @@ class TestCompiler(TestCase):
 
     def test_variable(self):
         vname = "foo"
-        node = ast.Variable((vname,), self.spos)
+        node = ast.Variable(vname, self.spos)
         ctx = compile(node, locals=[vname])
         self.assertEqual([vname], ctx.names)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_VAR, 0]))
 
     def test_global_variable(self):
         vname = "foo"
-        node = ast.Variable((vname,), self.spos)
+        node = ast.Variable(vname, self.spos)
         ctx = compile(node)
         self.assertEqual([vname], ctx.names)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_GLOBAL, 0]))
@@ -57,7 +57,7 @@ class TestCompiler(TestCase):
 
     def test_assignment(self):
         vname = "foo"
-        var = ast.Variable((vname,), self.spos)
+        var = ast.Variable(vname, self.spos)
         right = ast.ConstantInt(2, self.spos)
         node = ast.Assignment(var, right, self.spos)
         ctx = compile(node)
@@ -70,7 +70,7 @@ class TestCompiler(TestCase):
 
     def test_print(self):
         arg = ast.ConstantInt(2, self.spos)
-        node = ast.Function(("print",), [arg], self.spos)
+        node = ast.Function(ast.Variable("print", self.spos), [arg], self.spos)
         ctx = compile(node)
         self.assertEqual(1, len(ctx.constants))
         self.assertEqual(2, ctx.constants[0].intval)
@@ -82,7 +82,7 @@ class TestCompiler(TestCase):
         fname = "foo"
         arg1 = ast.ConstantInt(2, self.spos)
         arg2 = ast.ConstantInt(99, self.spos)
-        node = ast.Function((fname,), [arg1, arg2], self.spos)
+        node = ast.Function(ast.Variable(fname, self.spos), [arg1, arg2], self.spos)
         ctx = compile(node)
         self.assertEqual(2, len(ctx.constants))
         self.assertEqual(99, ctx.constants[0].intval)
@@ -179,10 +179,10 @@ class TestCompiler(TestCase):
                              bytecode.RETURN, 0]))
 
     def test_new_type(self):
-        var = ast.Variable(("a",), self.spos)
+        var = ast.Variable("a", self.spos)
         attrname = 'b'
         attrval = 2
-        attr = ast.Variable((attrname,), self.spos)
+        attr = ast.Variable(attrname, self.spos)
         right = ast.ConstantInt(attrval, self.spos)
         block = ast.Assignment(attr, right, self.spos)
         t = ast.NewType(block, self.spos)
@@ -207,3 +207,5 @@ class TestCompiler(TestCase):
         self.assertEqual([], ctx.constants)
         self.assertEqual([], ctx.names)
         self.assertEqual([], ctx.data)
+
+    # TODO: tests for Attribute

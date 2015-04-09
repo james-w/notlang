@@ -174,10 +174,9 @@ class TypeCollector(ASTVisitor):
     def visit_Assignment(self, node):
         source = node.children[0]
         target = node.var
-        assert len(target.varname) == 1
-        target_type = self.get_typevar(target.varname[0])
+        target_type = self.get_typevar(target.varname)
         if isinstance(source, NewType):
-            newt = self._handle_new_type(source, target.varname[0])
+            newt = self._handle_new_type(source, target.varname)
             self.constraints.append(Constraint(target_type, SUPERTYPE_OF, newt, [node.sourcepos]))
         else:
             source_type = self.dispatch(source)
@@ -211,15 +210,17 @@ class TypeCollector(ASTVisitor):
         return None
 
     def visit_Variable(self, node):
-        varname = node.varname[0]
+        varname = node.varname
         if varname not in self.varmap:
             raise NotNameError("%s referenced before assignment" % varname, [node.sourcepos])
         main =  self.get_typevar(varname)
-        for name in node.varname[1:]:
-            new = TypeExpr(main.name + "." + name)
-            self.constraints.append(Constraint(AttributeAccess(main, name), SUPERTYPE_OF, new, [node.sourcepos]))
-            main = new
         return main
+
+    def visit_Attribute(self, node):
+        target = self.dispatch(node.children[0])
+        new = TypeExpr(str(target) + "." + node.name)
+        self.constraints.append(Constraint(AttributeAccess(target, node.name), SUPERTYPE_OF, new, [node.sourcepos]))
+        return new
 
     def visit_Conditional(self, node):
         condition, true_block, false_block = node.children
@@ -250,7 +251,7 @@ class TypeCollector(ASTVisitor):
         # XXX: should this refer to the fully qualified name, or just the top level?
         if name not in self.called_functions and name not in self.args and name != self.fname:
             self.called_functions.append(name)
-        args = [self.dispatch(c) for c in node.children]
+        args = [self.dispatch(c) for c in node.args]
         if name in self.types:
             if node.type_params:
                 assert isinstance(ftype, ParameterisedType) and len(node.type_params) == len(ftype.types) - 1
@@ -270,8 +271,7 @@ class TypeCollector(ASTVisitor):
         return self._handle_function(node, node.op)
 
     def visit_Function(self, node):
-        assert len(node.fname) == 1
-        return self._handle_function(node, node.fname[0])
+        return self._handle_function(node, node.fname.varname)
 
     def visit_FuncDef(self, node):
         child = TypeCollector(self.functions, self.types)
@@ -373,6 +373,11 @@ def satisfy_constraint(constraint, substitution):
             new_constraints.insert(0, Constraint(newlhs, constraint.constraint, constraint.b, constraint.positions + newpos))
             return new_constraints
         else:
+            if isinstance(constraint.b, TypeExpr):
+                if constraint.b in substitution:
+                    newrhs, newpos = substitution[constraint.b]
+                    new_constraints.insert(0, Constraint(constraint.a, constraint.constraint, newrhs, constraint.positions + newpos))
+                    return new_constraints
             if constraint.a != get_substituted(constraint.b, substitution):
                 update_substitution(substitution, constraint.a, get_substituted(constraint.b, substitution), constraint.positions)
     elif isinstance(constraint.a, AttributeAccess):
@@ -587,7 +592,7 @@ def generalise(ftype):
     return ftype
 
 
-def instantiate(ftype):
+def instantiate(ftype, vars=None):
     """Instantiate a function type, i.e. create new TypeExpr for each TypeVariable.
 
     Given a function like TypeVariable(a) -> TypeVariable(a) it will return
@@ -602,7 +607,8 @@ def instantiate(ftype):
     to a function with type variables would have to use the same
     argument types.
     """
-    _vars = {}
+    if vars is None:
+        vars = {}
     def do_instantiate(ftype, vars):
         def _instantiate(arg):
             if isinstance(arg, TypeVariable):
@@ -618,7 +624,7 @@ def instantiate(ftype):
             new_rtype = _instantiate(ftype.rtype)
             return FunctionType(ftype.name, new_args, new_rtype)
         return ftype
-    return do_instantiate(ftype, _vars)
+    return do_instantiate(ftype, vars)
 
 
 def satisfy_set(contexts, initial_subtitution=None):

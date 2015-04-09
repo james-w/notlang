@@ -21,19 +21,19 @@ class Compiler(ast.ASTVisitor):
 
     def visit_Assignment(self, node):
         if isinstance(node.children[0], ast.NewType):
-            assert len(node.var.varname) == 1
-            codegen.new_type(self.ctx, node.var.varname[0], CallbackHelper(node).type_code_cb)
+            codegen.new_type(self.ctx, node.var.varname, CallbackHelper(node).type_code_cb)
         else:
             self.general_nonterminal_visit(node)
-        assert len(node.var.varname) == 1
-        codegen.assignment(self.ctx, node.var.varname[0])
+        codegen.assignment(self.ctx, node.var.varname)
 
     def visit_Function(self, node):
-        if len(node.fname) == 1 and node.fname[0] == 'print':
-            self.dispatch(node.children[0])
+        # FIXME: doesn't handle aliasing the print function
+        if isinstance(node.fname, ast.Variable) and node.fname.varname == 'print':
+            self.dispatch(node.args[0])
             codegen.do_print(self.ctx)
         else:
-            codegen.function_call(self.ctx, node.fname, len(node.children), CallbackHelper(node).function_args_cb)
+            self.dispatch(node.fname)
+            codegen.function_call(self.ctx, len(node.args), CallbackHelper(node).function_args_cb)
 
     def visit_Conditional(self, node):
         self.dispatch(node.children[0])
@@ -71,7 +71,7 @@ class CallbackHelper(object):
         Compiler(ctx).dispatch(self.node.children[0])
 
     def function_args_cb(self, ctx):
-        [Compiler(ctx).dispatch(c) for c in reversed(self.node.children)]
+        [Compiler(ctx).dispatch(c) for c in reversed(self.node.args)]
 
     def conditional_true_block_cb(self, ctx):
         Compiler(ctx).dispatch(self.node.children[1])

@@ -13,7 +13,7 @@ newline_or_statement: [NEWLINE] | statement;
 
 statement: simple_statement | compound_statement;
 
-simple_statement: small_statement [NEWLINE]; 
+simple_statement: small_statement [NEWLINE];
 
 compound_statement: conditional | while_loop | funcdef;
 
@@ -43,9 +43,11 @@ arith_expr: term arith_trailer*;
 
 arith_trailer: OPERATOR term;
 
-term: atom term_trailer?;
+term: atom term_trailer*;
 
-term_trailer: type_params? ["("] arglist? [")"];
+term_trailer: <function_call_trailer> | <attribute_trailer>;
+function_call_trailer: type_params? "(" arglist? [")"];
+attribute_trailer: ["."] IDENTIFIER;
 
 arglist: argument arglist_trailer*;
 
@@ -74,7 +76,4 @@ argtypespec: [":"] <IDENTIFIER>;
 
 suite: [INDENT] statement* [DEDENT];
 
-atom: DECIMAL | variable;
-
-variable: IDENTIFIER variable_trailer*;
-variable_trailer: ["."] <IDENTIFIER>;
+atom: DECIMAL | IDENTIFIER;

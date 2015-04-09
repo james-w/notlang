@@ -78,6 +78,12 @@ class BasicParsingTests(TestCase):
     def test_function_call_on_object(self):
         self.assert_parses_ok("a.b()\n")
 
+    def test_attr_of_func_result(self):
+        self.assert_parses_ok("b().a\n")
+
+    def test_func_on_attr_of_func_result(self):
+        self.assert_parses_ok("b().a.c()\n")
+
     def test_assignment(self):
         self.assert_parses_ok("a = 1\n")
 
@@ -167,7 +173,7 @@ class ASTTests(TestCase):
         self.assertIsInstance(node, ast.Block)
         var = node.children[0].children[0]
         self.assertIsInstance(var, ast.Variable)
-        self.assertEqual(("a",), var.varname)
+        self.assertEqual("a", var.varname)
         self.assertEqual(1, var.sourcepos.i)
 
     def test_Assignment(self):
@@ -224,8 +230,9 @@ class ASTTests(TestCase):
         self.assertIsInstance(node, ast.Block)
         func = node.children[0].children[0]
         self.assertIsInstance(func, ast.Function)
-        self.assertEqual(("foo",), func.fname)
-        self.assertEqual([], func.children)
+        self.assertIsInstance(func.fname, ast.Variable)
+        self.assertEqual("foo", func.fname.varname)
+        self.assertEqual([], func.args)
         self.assertEqual(1, func.sourcepos.i)
 
     def test_Function_with_args(self):
@@ -233,12 +240,12 @@ class ASTTests(TestCase):
         self.assertIsInstance(node, ast.Block)
         func = node.children[0].children[0]
         self.assertIsInstance(func, ast.Function)
-        self.assertEqual(("foo",), func.fname)
-        self.assertEqual(1, len(func.children))
+        self.assertEqual("foo", func.fname.varname)
+        self.assertEqual(1, len(func.args))
         self.assertEqual(1, func.sourcepos.i)
-        arg = func.children[0]
+        arg = func.args[0]
         self.assertIsInstance(arg, ast.Variable)
-        self.assertEqual(("a",), arg.varname)
+        self.assertEqual("a", arg.varname)
         self.assertEqual(5, arg.sourcepos.i)
 
     def test_Function_with_type(self):
@@ -246,8 +253,8 @@ class ASTTests(TestCase):
         self.assertIsInstance(node, ast.Block)
         func = node.children[0].children[0]
         self.assertIsInstance(func, ast.Function)
-        self.assertEqual(("foo",), func.fname)
-        self.assertEqual(0, len(func.children))
+        self.assertEqual("foo", func.fname.varname)
+        self.assertEqual(0, len(func.args))
         self.assertEqual(['int'], func.type_params)
         self.assertEqual(1, func.sourcepos.i)
 
@@ -393,12 +400,37 @@ class ASTTests(TestCase):
         node = parse(" a.b\n")
         self.assertIsInstance(node, ast.Block)
         attr = node.children[0].children[0]
-        self.assertIsInstance(attr, ast.Variable)
-        self.assertEqual(('a', 'b'), attr.varname)
+        self.assertIsInstance(attr, ast.Attribute)
+        self.assertEqual('b', attr.name)
+        self.assertIsInstance(attr.children[0], ast.Variable)
+        self.assertEqual('a', attr.children[0].varname)
 
     def test_Attribute_of_Attribute(self):
         node = parse(" a.b.c\n")
         self.assertIsInstance(node, ast.Block)
         attr = node.children[0].children[0]
-        self.assertIsInstance(attr, ast.Variable)
-        self.assertEqual(('a', 'b', 'c'), attr.varname)
+        self.assertIsInstance(attr, ast.Attribute)
+        self.assertEqual('c', attr.name)
+        self.assertIsInstance(attr.children[0], ast.Attribute)
+        self.assertEqual('b', attr.children[0].name)
+        self.assertIsInstance(attr.children[0].children[0], ast.Variable)
+        self.assertEqual('a', attr.children[0].children[0].varname)
+
+    def test_Function_on_Attribute(self):
+        node = parse(" a.b()\n")
+        self.assertIsInstance(node, ast.Block)
+        func = node.children[0].children[0]
+        self.assertIsInstance(func, ast.Function)
+        self.assertIsInstance(func.fname, ast.Attribute)
+        self.assertEqual('b', func.fname.name)
+        self.assertEqual('a', func.fname.children[0].varname)
+
+    def test_Attribute_on_Function(self):
+        node = parse(" a().b\n")
+        self.assertIsInstance(node, ast.Block)
+        attr = node.children[0].children[0]
+        self.assertIsInstance(attr, ast.Attribute)
+        self.assertEqual('b', attr.name)
+        self.assertIsInstance(attr.children[0], ast.Function)
+        self.assertIsInstance(attr.children[0].fname, ast.Variable)
+        self.assertEqual('a', attr.children[0].fname.varname)
