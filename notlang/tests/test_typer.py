@@ -1011,3 +1011,91 @@ class UnifyTypeTests(TestCase):
         self.assertIs(None, typer.unify_types(typer.BOOL, typer.ANY, typer.SUPERTYPE_OF))
         self.assertIs(typer.ANY, typer.unify_types(typer.INT, typer.ANY, typer.SUBTYPE_OF))
         self.assertIs(None, typer.unify_types(typer.ANY, typer.BOOL, typer.SUBTYPE_OF))
+
+
+class FirstPassTests(TestCase):
+
+    def setUp(self):
+        super(FirstPassTests, self).setUp()
+        self.factory = testing.ASTFactory(self)
+
+    def test_ConstantInt(self):
+        node = self.factory.int()
+        pass1 = typer.FirstPass()
+        pass1.dispatch(node)
+        self.assertEqual(set(), pass1.functions)
+        self.assertEqual(set(), pass1.types)
+        self.assertEqual({}, pass1.children)
+
+    def test_NewType(self):
+        varname = 'a'
+        node = self.factory.assignment(target=self.factory.variable(name=varname), source=self.factory.newtype())
+        pass1 = typer.FirstPass()
+        pass1.dispatch(node)
+        self.assertEqual(set([varname]), pass1.functions)
+        self.assertEqual(set([varname]), pass1.types)
+        self.assertEqual(1, len(pass1.children))
+        self.assertIsInstance(pass1.children[varname], typer.FirstPass)
+
+    def test_FuncDef(self):
+        fname = 'a'
+        node = self.factory.funcdef(name=fname)
+        pass1 = typer.FirstPass()
+        pass1.dispatch(node)
+        self.assertEqual(set([fname]), pass1.functions)
+        self.assertEqual(set(), pass1.types)
+        self.assertEqual(1, len(pass1.children))
+        self.assertIsInstance(pass1.children[fname], typer.FirstPass)
+
+
+class SecondPassTests(TestCase):
+
+    def setUp(self):
+        super(SecondPassTests, self).setUp()
+        self.factory = testing.ASTFactory(self)
+
+    def test_ignores_non_function(self):
+        pass2 = typer.SecondPass(None, {}, None)
+        node = self.factory.variable(name='a')
+        pass2.dispatch(node)
+        self.assertEqual(set(), pass2.calls)
+
+    def test_notes_function_call(self):
+        varname = 'a'
+        pass2 = typer.SecondPass(None, {varname: varname}, None)
+        node = self.factory.variable(name=varname)
+        pass2.dispatch(node)
+        self.assertEqual(set([varname]), pass2.calls)
+
+    def test_FuncDef(self):
+        fname = "foo"
+        pass1 = typer.FirstPass()
+        pass1.children[fname] = typer.FirstPass()
+        pass2 = typer.SecondPass(None, {}, pass1)
+        node = self.factory.funcdef(name=fname)
+        pass2.dispatch(node)
+        self.assertEqual(set(), pass2.calls)
+        self.assertEqual({}, pass2.callgraph)
+
+    def test_FuncDef_that_makes_calls(self):
+        fname = "foo"
+        othername = "bar"
+        pass1 = typer.FirstPass()
+        pass1.children[fname] = typer.FirstPass()
+        pass2 = typer.SecondPass(None, {othername: othername}, pass1)
+        node = self.factory.funcdef(name=fname, body=self.factory.variable(name=othername))
+        pass2.dispatch(node)
+        self.assertEqual(set(), pass2.calls)
+        self.assertEqual({fname: set([othername])}, pass2.callgraph)
+
+    def test_FuncDef_that_makes_calls_to_nested(self):
+        fname = "foo"
+        othername = "bar"
+        pass1 = typer.FirstPass()
+        pass1.children[fname] = typer.FirstPass()
+        pass1.children[fname].functions = {othername: othername}
+        pass2 = typer.SecondPass(None, {}, pass1)
+        node = self.factory.funcdef(name=fname, body=self.factory.variable(name=othername))
+        pass2.dispatch(node)
+        self.assertEqual(set(), pass2.calls)
+        self.assertEqual({fname: set([fname + '.' + othername])}, pass2.callgraph)

@@ -15,7 +15,9 @@ def triple(arg: int, count: int) -> int:
         return arg
 
 def aaa(x):
-    return bbb(x)
+    def ccc(x):
+        return bbb(x)
+    return ccc(x)
 
 def bbb(i):
     if i > 0:

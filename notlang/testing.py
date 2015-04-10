@@ -1,3 +1,4 @@
+from rpython.rlib.parsing.lexer import SourcePos
 from testtools.matchers import (
     AfterPreprocessing,
     Equals,
@@ -7,7 +8,7 @@ from testtools.matchers import (
     MatchesListwise,
 )
 
-from . import bytecode, typer
+from . import ast, bytecode, typer
 
 
 class BytecodeMatches(object):
@@ -167,3 +168,54 @@ class ConstraintMatches(object):
 
     def match(self, actual):
         return self.matcher.match(actual)
+
+
+class ASTFactory(object):
+
+    spos = SourcePos(0, 0, 0)
+
+    def __init__(self, testcase):
+        self.testcase = testcase
+
+    def variable(self, name=None):
+        if name is None:
+            name = self.testcase.getUniqueString()
+        return ast.Variable(name, self.spos)
+
+    def int(self):
+        return ast.ConstantInt(self.testcase.getUniqueInteger(), self.spos)
+
+    def assignment(self, target=None, source=None):
+        if target is None:
+            target = self.variable()
+        if source is None:
+            source = self.int()
+        return ast.Assignment(target, source, self.spos)
+
+    def pass_(self):
+        return ast.Pass(self.spos)
+
+    def conditional(self, true_block=None, false_block=None):
+        if true_block is None:
+            true_block = self.pass_()
+        return ast.Conditional(self.int(), true_block, false_block, self.spos)
+
+    def while_(self, block=None):
+        if block is None:
+            block = self.pass_()
+        return ast.While(self.int(), block, self.spos)
+
+    def binop(self):
+        return ast.BinOp('+', self.int(), self.int(), self.spos)
+
+    def newtype(self, block=None):
+        if block is None:
+            block = self.pass_()
+        return ast.NewType(block, self.spos)
+
+    def funcdef(self, name=None, body=None):
+        if name is None:
+            name = self.testcase.getUniqueString()
+        if body is None:
+            body = self.pass_()
+        return ast.FuncDef(name, [], body, self.spos)

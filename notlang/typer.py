@@ -135,21 +135,118 @@ class Constraint(object):
 
 
 class FirstPass(ASTVisitor):
+    """Collect the names of functions and types declared each level."""
+
+    def __init__(self):
+        self.functions = set()
+        self.types = set()
+        self.children = {}
+
+    def child_visit(self, node, name):
+        child = FirstPass()
+        self.children[name] = child
+        child.dispatch(node)
 
     def visit_FuncDef(self, node):
-        return [node.name]
+        if node.name in self.children:
+            raise NotNameError("Redefinition of %s" % node.name, [node.sourcepos])
+        self.functions.add(node.name)
+        self.child_visit(node.children[0], node.name)
+
+    def visit_Assignment(self, node):
+        if isinstance(node.children[0], NewType):
+            if node.var.varname in self.children:
+                raise NotNameError("Redefinition of %s" % node.var.varname, [node.sourcepos])
+            self.types.add(node.var.varname)
+            self.functions.add(node.var.varname)
+            self.child_visit(node.children[0].children[0], node.var.varname)
 
     def general_terminal_visit(self, node):
-        return []
+        pass
 
     def general_nonterminal_visit(self, node):
-        names = []
         for child in node.children:
-            cnames = self.dispatch(child)
-            for name in cnames:
-                if name not in names:
-                    names.append(name)
-        return names
+            self.dispatch(child)
+
+
+class SecondPass(ASTVisitor):
+    """Find the call graph."""
+
+    def __init__(self, prefix, functions, name_graph):
+        self.calls = set()
+        self.callgraph = {}
+        self.prefix = prefix
+        self.functions = functions
+        self.name_graph = name_graph
+
+    def visit_Variable(self, node):
+        # Maybe we should track use of the variable,
+        # and only if it is invoked include it in the
+        # calls, but passing the function to
+        # something else could well influence
+        # the type signature.
+        if node.varname in self.functions:
+            self.calls.add(self.functions[node.varname])
+
+    def child_visit(self, node, name):
+        functions = self.functions.copy()
+
+        def prefix(k):
+            prefixed = name + '.' + k
+            if self.prefix:
+                prefixed = self.prefix + '.'
+            return prefixed
+        child_graph = self.name_graph.children[name]
+        for sibling in self.name_graph.functions:
+            functions[sibling] = sibling
+        for child_f in child_graph.functions:
+            functions[child_f] = prefix(child_f)
+        new_prefix = name
+        if self.prefix:
+            new_prefix = self.prefix + '.' + name
+        child = SecondPass(new_prefix, functions, child_graph)
+        child.dispatch(node)
+        if child.calls:
+            self.callgraph[name] = child.calls
+        for k, v in child.callgraph.items():
+            self.callgraph[prefix(k)] = v
+
+    def visit_FuncDef(self, node):
+        self.child_visit(node.children[0], node.name)
+
+    def visit_Assignment(self, node):
+        if isinstance(node.children[0], NewType):
+            self.child_visit(node.children[0].children[0], node.var.varname)
+
+    def general_terminal_visit(self, node):
+        pass
+
+    def general_nonterminal_visit(self, node):
+        for child in node.children:
+            self.dispatch(child)
+
+
+class ThirdPass(ASTVisitor):
+
+    def __init__(self, active, only_process):
+        self.active = active
+        self.only_process = only_process
+
+    def should_handle(self, name):
+        return any(filter(lambda x: x == name or x.startswith(name + '.'), self.only_process))
+
+    def visit_FuncDef(self, node):
+        if self.should_handle(node.name):
+            child_process = map(lambda x: x[len(node.name + '.'):], filter(lambda x: x.startswith(node.name + '.'), self.only_process))
+            child = ThirdPass(node.name in self.only_process, child_process)
+            child.dispatch(node.children[0])
+
+    def general_terminal_visit(self, node):
+        pass
+
+    def general_nonterminal_visit(self, node):
+        for child in node.children:
+            self.dispatch(child)
 
 
 class TypeCollector(ASTVisitor):
@@ -662,11 +759,40 @@ def _typecheck(t):
 
 
 def typecheck(node):
-    fnames = FirstPass().dispatch(node)
+    pass1 = FirstPass()
+    pass1.dispatch(node)
     t = TypeCollector(FUNCTIONS.copy(), BASE_TYPES.copy())
-    for fname in fnames:
+    for fname in pass1.functions:
         func = t.get_typevar(fname)
         t.varmap[fname] = func
         t.functions[fname] = func
     t.dispatch(node)
     return t, _typecheck(t)
+
+
+def get_all_functions(p, prefix=None):
+    def add_prefix(name):
+        if prefix:
+            return prefix + '.' + name
+        return name
+    fs = map(add_prefix, p.functions)
+    def recurse(arg):
+        return get_all_functions(arg[1], add_prefix(arg[0]))
+    fs.extend(sum(map(recurse, p.children.items()), []))
+    return fs
+
+
+def typecheck2(node):
+    pass1 = FirstPass()
+    pass1.dispatch(node)
+    pass2 = SecondPass(None, {}, pass1)
+    pass2.dispatch(node)
+    all_functions = get_all_functions(pass1)
+    sets = graph.get_disjoint_sets(pass2.callgraph, all_functions)
+    print(sets)
+    handled = set()
+    for s in sets:
+        print("Processing {}".format(s))
+        handled.update(s)
+        pass3 = ThirdPass(False, s)
+        pass3.dispatch(node)
