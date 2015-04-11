@@ -45,7 +45,7 @@ if __name__ == '__main__':
         print e.nice_error_message(source=source, filename=sys.argv[1])
         sys.exit(1)
     try:
-        checker, substitutions = typer.typecheck2(parsed)
+        checker, substitutions = typer.typecheck2(parsed, trace=True)
     except (typer.NotNameError, typer.NotTypeError) as e:
         print e.nice_error_message(source=source, filename=sys.argv[1])
         sys.exit(1)

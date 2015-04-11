@@ -62,8 +62,7 @@ class TypeVariable(Type):
 
 class FunctionType(Type):
 
-    def __init__(self, name, args, rtype):
-        self.name = name
+    def __init__(self, args, rtype):
         self.args = args
         self.rtype = rtype
 
@@ -72,7 +71,7 @@ class FunctionType(Type):
             arg_str = " -> ".join([str(a) for a in self.args])
         else:
             arg_str = "(noargs)"
-        return "(" + str(self.name) + " " + arg_str + " -> " + str(self.rtype) + ")"
+        return "(" + arg_str + " -> " + str(self.rtype) + ")"
 
     def __repr__(self):
         return "<FunctionType:%s>" % str(self)
@@ -226,27 +225,162 @@ class SecondPass(ASTVisitor):
             self.dispatch(child)
 
 
+class TypeEnv(object):
+
+    def __init__(self, prefix):
+        self.env = {}
+        self.counter = -1
+        self.prefix = prefix
+
+    def newvar(self):
+        self.counter += 1
+        return TypeExpr(self.prefix + str(self.counter))
+
+    def register(self, k, inherit=False):
+        if k in self.env:
+            return self.env[k][0]
+        else:
+            return self.env.setdefault(k, (self.newvar(), inherit))[0]
+
+    def lookup(self, name, sourcepos):
+        if name not in self.env:
+            raise NotNameError("%s referenced before assignment" % name, [sourcepos])
+        return self.env[name][0]
+
+    def extend(self, k, v):
+        self.env[k] = (v, True)
+
+    def subenv(self, name):
+        new = TypeEnv(self.prefix + "." + name)
+        for name, (var, inherit) in self.env.items():
+            if inherit:
+                new.extend(name, var)
+        return new
+
+
 class ThirdPass(ASTVisitor):
 
-    def __init__(self, active, only_process):
+    def __init__(self, env, active, only_process):
+        self.env = env
         self.active = active
         self.only_process = only_process
+        self.rtype = self.env.newvar()
 
     def should_handle(self, name):
         return any(filter(lambda x: x == name or x.startswith(name + '.'), self.only_process))
 
+    def get_child_only_process(self, name):
+        return map(lambda x: x[len(name + '.'):], filter(lambda x: x.startswith(name + '.'), self.only_process))
+
     def visit_FuncDef(self, node):
-        if self.should_handle(node.name):
-            child_process = map(lambda x: x[len(node.name + '.'):], filter(lambda x: x.startswith(node.name + '.'), self.only_process))
-            child = ThirdPass(node.name in self.only_process, child_process)
-            child.dispatch(node.children[0])
+        if not self.should_handle(node.name):
+            return [], None
+        child_process = self.get_child_only_process(node.name)
+        env = self.env.subenv(node.name)
+        argtypes = []
+        for arg in node.args:
+            argtypes.append(env.register(arg))
+        for fname in child_process:
+            if "." not in fname:
+                env.register(fname, inherit=True)
+        child = ThirdPass(env, node.name in self.only_process, child_process)
+        constraints = child.dispatch(node.children[0])[0]
+        constraints.append(Constraint(
+            self.env.lookup(node.name, node.sourcepos),
+            SUPERTYPE_OF,
+            FunctionType(argtypes, child.rtype),
+            [node.sourcepos]))
+        return constraints, None
+
+    def _handle_new_type(self, node, name):
+        if not self.should_handle(name):
+            return [], None
+        child_process = self.get_child_only_process(name)
+        env = self.env.subenv(name)
+        child = ThirdPass(env, name in self.only_process, child_process)
+        constraints, new_t = child.dispatch(node)
+        new_t.name = name
+        ftype = FunctionType([], new_t)
+        constraints.append(Constraint(
+            self.env.lookup(name, node.sourcepos),
+            SUPERTYPE_OF,
+            ftype,
+            [node.sourcepos]))
+        return constraints, ftype
+
+    def visit_ConstantInt(self, node):
+        if not self.active:
+            return [], None
+        return [], INT
+
+    def visit_Variable(self, node):
+        if not self.active:
+            return [], None
+        # TODO: instantiate
+        return [], self.env.lookup(node.varname, node.sourcepos)
+
+    def visit_Assignment(self, node):
+        if isinstance(node.children[0], NewType):
+            return self._handle_new_type(node.children[0], node.var.varname)
+        if not self.active:
+            return [], None
+        # TODO: handle Attribute
+        t = self.env.register(node.var.varname)
+        constraints, child_t = self.dispatch(node.children[0])
+        constraints.append(Constraint(
+            t, SUPERTYPE_OF,
+            child_t,
+            [node.sourcepos]))
+        return constraints, t
+
+    def visit_Return(self, node):
+        if not self.active:
+            return [], None
+        constraints, child_t = self.dispatch(node.children[0])
+        constraints.append(Constraint(
+            self.rtype,
+            SUPERTYPE_OF,
+            child_t,
+            [node.sourcepos]))
+        return constraints, None
+
+    def _handle_function(self, node, target):
+        rtype = self.env.newvar()
+        constraints = []
+        argtypes = []
+        for arg in node.args:
+            arg_c, arg_t = self.dispatch(arg)
+            constraints.extend(arg_c)
+            argtypes.append(arg_t)
+        # TODO: instantiate
+        constraints.append(Constraint(target,
+            SUPERTYPE_OF, FunctionType(argtypes, rtype),
+            [node.sourcepos]))
+        return constraints, rtype
+
+    def visit_BinOp(self, node):
+        if not self.active:
+            return [], None
+        return self._handle_function(node, self.env.lookup(node.op, node.sourcepos))
+
+    def visit_Function(self, node):
+        if not self.active:
+            return [], None
+        constraints, target = self.dispatch(node.fname)
+        fcall_c, fcall_t = self._handle_function(node, target)
+        return constraints + fcall_c, fcall_t
+
+    def visit_NewType(self, node):
+        return [], Type("<anon>")
 
     def general_terminal_visit(self, node):
-        pass
+        return [], None
 
     def general_nonterminal_visit(self, node):
+        constraints = []
         for child in node.children:
-            self.dispatch(child)
+            constraints.extend(self.dispatch(child)[0])
+        return constraints, None
 
 
 class TypeCollector(ASTVisitor):
@@ -361,7 +495,7 @@ class TypeCollector(ASTVisitor):
         else:
             assert getattr(node, 'type_params', []) == [], "Can't define type params for normal function"
             rtype = TypeExpr("r" + name)
-            self.constraints.append(Constraint(ftype, SUPERTYPE_OF, FunctionType(name, args, rtype), [node.sourcepos]))
+            self.constraints.append(Constraint(ftype, SUPERTYPE_OF, FunctionType(args, rtype), [node.sourcepos]))
             return rtype
 
     def visit_BinOp(self, node):
@@ -391,7 +525,7 @@ class TypeCollector(ASTVisitor):
         child.varmap[node.name] = ftype
         child.args = node.args
         child.dispatch(node.children[0])
-        newftype = FunctionType(node.name, argtypes, child.rtype)
+        newftype = FunctionType(argtypes, child.rtype)
         child.constraints.append(Constraint(ftype, SUPERTYPE_OF, newftype, [node.sourcepos]))
         return None
 
@@ -403,13 +537,13 @@ class TypeCollector(ASTVisitor):
 
 
 FUNCTIONS = {
-    '+': FunctionType("+", [INT, INT], INT),
-    '-': FunctionType("-", [INT, INT], INT),
-    '*': FunctionType("*", [INT, INT], INT),
-    '>': FunctionType(">", [INT, INT], BOOL),
-    '==': FunctionType("==", [INT, INT], BOOL),
-    'true': FunctionType("true", [], BOOL),
-    'print': FunctionType("print", [ANY], NONE),
+    '+': FunctionType([INT, INT], INT),
+    '-': FunctionType([INT, INT], INT),
+    '*': FunctionType([INT, INT], INT),
+    '>': FunctionType([INT, INT], BOOL),
+    '==': FunctionType([INT, INT], BOOL),
+    'true': FunctionType([], BOOL),
+    'print': FunctionType([ANY], NONE),
 }
 
 
@@ -619,7 +753,7 @@ def get_substituted(var, substitutions):
     while var in substitutions:
         var = substitutions[var][0]
     if isinstance(var, FunctionType):
-        var = FunctionType(var.name, [get_substituted(a, substitutions) for a in var.args], get_substituted(var.rtype, substitutions))
+        var = FunctionType([get_substituted(a, substitutions) for a in var.args], get_substituted(var.rtype, substitutions))
     return var
 
 
@@ -632,7 +766,7 @@ def function_type_from_collector(t, substitutions):
     """
     args = [get_substituted(t.varmap[arg], substitutions) for arg in t.args]
     rtype = get_substituted(t.rtype, substitutions)
-    return FunctionType(t.fname, args, rtype)
+    return FunctionType(args, rtype)
 
 
 def type_from_collector(collector, t, substitutions):
@@ -664,10 +798,15 @@ def generalise(ftype):
     end.
     """
     vars = {}
+    next_name = {True: 'a'}
     def _generalise(var, generalise=True):
         if isinstance(var, TypeExpr):
             if generalise:
-                var = vars.setdefault(var, TypeVariable(var.name))
+                if var in vars:
+                    var = vars[var]
+                else:
+                    var = vars.setdefault(var, TypeVariable(next_name[True]))
+                    next_name[True] = chr(ord(next_name[True]) + 1)
             else:
                 var = vars.get(var, var)
         elif isinstance(var, FunctionType):
@@ -676,7 +815,6 @@ def generalise(ftype):
             # depends on whether you are at the top
             # level or not
             var = FunctionType(
-                var.name,
                 [_generalise(a, generalise=generalise) for a in var.args],
                 _generalise(var.rtype, generalise=generalise))
         return var
@@ -685,7 +823,7 @@ def generalise(ftype):
         rtype = _generalise(ftype.rtype, generalise=False)
         if isinstance(rtype, TypeExpr):
             raise AssertionError("%s has an unconstrained return type." % ftype.name)
-        return FunctionType(ftype.name, args, rtype)
+        return FunctionType(args, rtype)
     return ftype
 
 
@@ -719,7 +857,7 @@ def instantiate(ftype, vars=None):
             for arg in ftype.args:
                 new_args.append(_instantiate(arg))
             new_rtype = _instantiate(ftype.rtype)
-            return FunctionType(ftype.name, new_args, new_rtype)
+            return FunctionType(new_args, new_rtype)
         return ftype
     return do_instantiate(ftype, vars)
 
@@ -782,17 +920,35 @@ def get_all_functions(p, prefix=None):
     return fs
 
 
-def typecheck2(node):
-    pass1 = FirstPass()
+def typecheck2(node, trace=False):
+    pass1= FirstPass()
     pass1.dispatch(node)
     pass2 = SecondPass(None, {}, pass1)
     pass2.dispatch(node)
     all_functions = get_all_functions(pass1)
     sets = graph.get_disjoint_sets(pass2.callgraph, all_functions)
-    print(sets)
+    if trace:
+        print("Context sets: {}".format(str(sets)))
     handled = set()
+    base_env = TypeEnv('main')
+    for name, ftype in FUNCTIONS.items():
+        base_env.extend(name, ftype)
     for s in sets:
-        print("Processing {}".format(s))
+        if trace:
+            print("Processing {}".format(s))
         handled.update(s)
-        pass3 = ThirdPass(False, s)
-        pass3.dispatch(node)
+        ftypes = {}
+        for name in s:
+            if "." not in name:
+                ftypes[name] = base_env.register(name, inherit=True)
+        pass3 = ThirdPass(base_env, False, s)
+        constraints, t = pass3.dispatch(node)
+        if trace:
+            print("Constraints: {}".format(map(str, constraints)))
+        subst = satisfy_constraints(constraints)
+        for name, ftype in ftypes.items():
+            ftype = generalise(get_substituted(ftype, subst))
+            base_env.env[name] = (ftype, True)
+            if trace:
+                print("{} has type {}".format(name, ftype))
+    return None, subst

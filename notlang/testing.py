@@ -103,16 +103,13 @@ class IsTypeVariable(object):
 
 class IsFunctionType(object):
 
-    def __init__(self, name, args, rtype):
-        def get_name(a):
-            return getattr(a, 'name', None)
+    def __init__(self, args, rtype):
         def get_args(a):
             return getattr(a, 'args', [])
         def get_rtype(a):
             return getattr(a, 'rtype', None)
         self.matcher = MatchesAll(
             IsInstance(typer.FunctionType),
-            AfterPreprocessing(get_name, Equals(name)),
             AfterPreprocessing(get_args, MatchesListwise(args)),
             AfterPreprocessing(get_rtype, rtype),
         )
@@ -213,9 +210,21 @@ class ASTFactory(object):
             block = self.pass_()
         return ast.NewType(block, self.spos)
 
-    def funcdef(self, name=None, body=None):
+    def funcdef(self, name=None, body=None, args=None):
         if name is None:
             name = self.testcase.getUniqueString()
         if body is None:
             body = self.pass_()
-        return ast.FuncDef(name, [], body, self.spos)
+        if args is None:
+            args = []
+        return ast.FuncDef(name, args, body, self.spos)
+
+    def block(self, children=None):
+        if children is None:
+            children = []
+        return ast.Block(children, self.spos)
+
+    def stmt(self, child=None):
+        if child is None:
+            child = self.pass_()
+        return ast.Stmt(child, self.spos)

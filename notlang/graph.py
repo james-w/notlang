@@ -10,7 +10,7 @@ def copy_graph(graph):
 
 def expand_edges(graph):
     """Fully expand edge graph transitively.
-    
+
     Given an edge graph
 
         node: [node, node, ...]
