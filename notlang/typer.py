@@ -491,6 +491,51 @@ class NotTypeError(Exception):
         return "\n".join(lines)
 
 
+def satisfy_attribute_access(attr, other, direction, positions, substitution):
+    t = attr.type
+    t = get_substituted(t, substitution)
+    if attr.name not in t.attrs:
+        raise NotTypeError("%s has no attribute %s" % (t, attr.name), positions)
+    return [Constraint(t.attrs[attr.name], INVERSE_CONSTRAINT[direction], other, positions)]
+
+
+def satisfy_expr(expr, other, direction, positions, substitution):
+    if expr in substitution:
+        newlhs, newpos = substitution[expr]
+        return [Constraint(newlhs, direction, other, positions + newpos)]
+    else:
+        if isinstance(other, TypeExpr):
+            if other in substitution:
+                newrhs, newpos = substitution[other]
+                return [Constraint(expr, direction, newrhs, positions + newpos)]
+        if expr != get_substituted(other, substitution):
+            update_substitution(substitution, expr, get_substituted(other, substitution), positions)
+        return []
+
+
+def satisfy_function(a, b, direction, positions, substitution):
+    new_constraints = []
+    if not isinstance(b, FunctionType):
+        raise NotTypeError("Types mismatch: %s != %s" % (a, b), positions)
+    if len(a.args) != len(b.args):
+        raise NotTypeError("Types mismatch: %s != %s, argument lengths differ" % (a, b), positions)
+    for i, arg in enumerate(a.args):
+        new_constraints.insert(0, Constraint(arg, direction, b.args[i], positions))
+    new_constraints.insert(0, Constraint(a.rtype, direction, b.rtype, positions))
+    return new_constraints
+
+
+def satisfy_parameterised_type(a, b, direction, positions, substitution):
+    new_constraints = []
+    if not isinstance(b, ParameterisedType):
+        raise NotTypeError("Types mismatch: %s != %s" % (a, b), positions)
+    if len(a.types) != len(b.types):
+        raise NotTypeError("Types mismatch: %s != %s, wrong number of type params" % (a, b), positions)
+    for i, arg in enumerate(a.types):
+        new_constraints.insert(0, Constraint(arg, direction, b.types[i], positions))
+    return new_constraints
+
+
 def satisfy_constraint(constraint, substitution):
     """Attempt to satisfy a single constraint based on a substitution.
 
@@ -501,71 +546,25 @@ def satisfy_constraint(constraint, substitution):
     should be checked.
     """
     #print constraint
-    new_constraints = []
-    if isinstance(constraint.a, TypeExpr):
-        if constraint.a in substitution:
-            newlhs, newpos = substitution[constraint.a]
-            new_constraints.insert(0, Constraint(newlhs, constraint.constraint, constraint.b, constraint.positions + newpos))
-            return new_constraints
-        else:
-            if isinstance(constraint.b, TypeExpr):
-                if constraint.b in substitution:
-                    newrhs, newpos = substitution[constraint.b]
-                    new_constraints.insert(0, Constraint(constraint.a, constraint.constraint, newrhs, constraint.positions + newpos))
-                    return new_constraints
-            if constraint.a != get_substituted(constraint.b, substitution):
-                update_substitution(substitution, constraint.a, get_substituted(constraint.b, substitution), constraint.positions)
-    elif isinstance(constraint.a, AttributeAccess):
-        t = constraint.a.type
-        t = get_substituted(t, substitution)
-        if constraint.a.name not in t.attrs:
-            raise NotTypeError("%s has no attribute %s" % (t, constraint.a.name), constraint.positions)
-        new_constraints.append(Constraint(t.attrs[constraint.a.name], constraint.constraint, constraint.b, constraint.positions))
-    elif isinstance(constraint.a, FunctionType):
-        if isinstance(constraint.b, TypeExpr):
-            if constraint.b in substitution:
-                newrhs, newpos = substitution[constraint.b]
-                new_constraints.insert(0, Constraint(constraint.a, constraint.constraint, newrhs, constraint.positions + newpos))
-                return new_constraints
-        if not isinstance(constraint.b, FunctionType):
-            raise NotTypeError("Types mismatch: %s != %s" % (constraint.a, constraint.b), constraint.positions)
-        if len(constraint.a.args) != len(constraint.b.args):
-            raise NotTypeError("Types mismatch: %s != %s, argument lengths differ" % (constraint.a, constraint.b), constraint.positions)
-        a = constraint.a
-        b = constraint.b
-        for i, arg in enumerate(a.args):
-            new_constraints.insert(0, Constraint(arg, constraint.constraint, b.args[i], constraint.positions))
-        new_constraints.insert(0, Constraint(a.rtype, constraint.constraint, b.rtype, constraint.positions))
-    elif isinstance(constraint.a, ParameterisedType):
-        if isinstance(constraint.b, TypeExpr):
-            if constraint.b in substitution:
-                newrhs, newpos = substitution[constraint.b]
-                new_constraints.insert(0, Constraint(constraint.a, constraint.constraint, newrhs, constraint.positions + newpos))
-                return new_constraints
-            else:
-                update_substitution(substitution, constraint.b, constraint.a, constraint.positions)
-                return new_constraints
-        if not isinstance(constraint.b, ParameterisedType):
-            raise NotTypeError("Types mismatch: %s != %s" % (constraint.a, constraint.b), constraint.positions)
-        if len(constraint.a.types) != len(constraint.b.types):
-            raise NotTypeError("Types mismatch: %s != %s, wrong number of type params" % (constraint.a, constraint.b), constraint.positions)
-        a = constraint.a
-        b = constraint.b
-        for i, arg in enumerate(a.types):
-            new_constraints.insert(0, Constraint(arg, constraint.constraint, b.types[i], constraint.positions))
+    a = constraint.a
+    b = constraint.b
+    direction = constraint.constraint
+    positions = constraint.positions
+    if not isinstance(a, TypeExpr) and isinstance(b, TypeExpr):
+        return [Constraint(b, INVERSE_CONSTRAINT[direction], a, positions)]
+    if isinstance(b, AttributeAccess):
+        return satisfy_attribute_access(b, a, direction, positions, substitution)
+    elif isinstance(a, TypeExpr):
+        return satisfy_expr(a, b, direction, positions, substitution)
+    elif isinstance(a, FunctionType):
+        return satisfy_function(a, b, direction, positions, substitution)
+    elif isinstance(a, ParameterisedType):
+        return satisfy_parameterised_type(a, b, direction, positions, substitution)
     else:
-        if isinstance(constraint.b, TypeExpr):
-            if constraint.b in substitution:
-                newrhs, newpos = substitution[constraint.b]
-                new_constraints.insert(0, Constraint(constraint.a, constraint.constraint, newrhs, constraint.positions + newpos))
-                return new_constraints
-            else:
-                update_substitution(substitution, constraint.b, constraint.a, constraint.positions)
-                return new_constraints
-        newtype = unify_types(constraint.a, constraint.b, constraint.constraint)
+        newtype = unify_types(a, b, direction)
         if newtype is None:
-            raise NotTypeError("Type mismatch: %s is not a %s of %s" % (constraint.a, constraint.constraint, constraint.b), constraint.positions)
-    return new_constraints
+            raise NotTypeError("Type mismatch: %s is not a %s of %s" % (a, direction, b), positions)
+    return []
 
 
 def satisfy_constraints(constraints, initial_subtitution=None):

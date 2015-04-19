@@ -1,4 +1,5 @@
 from testtools import TestCase
+from testtools.content import text_content
 from testtools.matchers import Equals, Is, MatchesListwise
 from rpython.rlib.parsing.lexer import SourcePos
 from rpython.rlib.parsing.parsing import ParseError
@@ -52,35 +53,6 @@ class SatisfyConstraintsTests(TestCase):
         self.assertEqual([], ret)
         self.assertEqual({}, substitution)
 
-    def test_basic_type_vs_type_expr_substitute(self):
-        a = typer.TypeExpr('a')
-        b = typer.TypeExpr('b')
-        subs_pos = [SourcePos(1, 1, 1)]
-        constraint_pos = [SourcePos(2, 2, 2)]
-        substitution = {a: (b, subs_pos)}
-        ret = typer.satisfy_constraint(
-                typer.Constraint(typer.INT, typer.SUPERTYPE_OF, a, constraint_pos),
-                substitution)
-        self.assertEqual(1, len(ret))
-        self.assertThat(
-            ret[0],
-            testing.ConstraintMatches(
-                Is(typer.INT),
-                typer.SUPERTYPE_OF,
-                Is(b),
-                [Is(constraint_pos[0]), Is(subs_pos[0])]))
-        self.assertEqual(1, len(substitution))
-
-    def test_basic_type_vs_type_expr_no_substitute(self):
-        a = typer.TypeExpr('a')
-        constraint_pos = [SourcePos(2, 2, 2)]
-        substitution = {}
-        ret = typer.satisfy_constraint(
-                typer.Constraint(typer.INT, typer.SUPERTYPE_OF, a, constraint_pos),
-                substitution)
-        self.assertEqual([], ret)
-        self.assertEqual({a: (typer.INT, constraint_pos)}, substitution)
-
     def test_function_type_vs_non_function(self):
         a = typer.FunctionType([], typer.INT)
         constraint_pos = [SourcePos(2, 2, 2)]
@@ -90,20 +62,6 @@ class SatisfyConstraintsTests(TestCase):
             typer.satisfy_constraint,
             typer.Constraint(a, typer.SUPERTYPE_OF, typer.INT, constraint_pos),
             substitution)
-
-    def test_function_type_vs_expr(self):
-        a = typer.FunctionType([], typer.INT)
-        b = typer.TypeExpr('b')
-        constraint_pos = [SourcePos(2, 2, 2)]
-        subs_pos = [SourcePos(1, 1, 1)]
-        substitution = {b: (typer.INT, subs_pos)}
-        ret = typer.satisfy_constraint(
-                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
-                substitution)
-        self.assertEqual(1, len(ret))
-        self.assertThat(ret[0], testing.ConstraintMatches(
-            Is(a), typer.SUPERTYPE_OF, Is(typer.INT), [Is(constraint_pos[0]), Is(subs_pos[0])]))
-        self.assertEqual({b: (typer.INT, subs_pos)}, substitution)
 
     def test_function_type_vs_function_type(self):
         a = typer.FunctionType([typer.NONE], typer.INT)
@@ -171,6 +129,20 @@ class SatisfyConstraintsTests(TestCase):
         self.assertEqual([], ret)
         self.assertEqual({a: (b, constraint_pos)}, substitution)
 
+    def test_swaps_type_expr_vs_anything(self):
+        a = typer.Type('foo')
+        b = typer.TypeExpr('bar')
+        constraint_pos = [SourcePos(2, 2, 2)]
+        substitution = {}
+        ret = typer.satisfy_constraint(
+                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+                substitution)
+        self.assertThat(
+            ret,
+            MatchesListwise([
+                testing.ConstraintMatches(Is(b), typer.SUBTYPE_OF, Is(a), [Is(constraint_pos[0])])]))
+        self.assertEqual({}, substitution)
+
     def test_getattr_no_attr(self):
         a = typer.AttributeAccess(typer.INT, 'a')
         b = typer.BOOL
@@ -189,7 +161,7 @@ class SatisfyConstraintsTests(TestCase):
         constraint_pos = [SourcePos(2, 2, 2)]
         substitution = {}
         ret = typer.satisfy_constraint(
-                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+                typer.Constraint(b, typer.SUBTYPE_OF, a, constraint_pos),
                 substitution)
         self.assertEqual(1, len(ret))
         self.assertThat(
@@ -206,7 +178,7 @@ class SatisfyConstraintsTests(TestCase):
         constraint_pos = [SourcePos(2, 2, 2)]
         substitution = {d: (c, [])}
         ret = typer.satisfy_constraint(
-                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+                typer.Constraint(b, typer.SUBTYPE_OF, a, constraint_pos),
                 substitution)
         self.assertEqual(1, len(ret))
         self.assertThat(
@@ -229,36 +201,36 @@ def get_type_of(name, source):
 class IntegrationTests(TestCase):
 
     def test_int(self):
-        self.assertThat(get_type_of('a', 'a = 1\n'), Is(typer.INT))
+        self.assertThat(self.get_type('a', 'a = 1\n'), Is(typer.INT))
 
     def test_int_by_inference(self):
-        self.assertThat(get_type_of('a', 'b = 1\na = b\n'), Is(typer.INT))
+        self.assertThat(self.get_type('a', 'b = 1\na = b\n'), Is(typer.INT))
 
     def test_return_int(self):
         self.assertThat(
-            get_type_of('a', 'def a():\n    return 1\n\n'),
+            self.get_type('a', 'def a():\n    return 1\n\n'),
             testing.IsFunctionType([], Is(typer.INT)))
 
     def test_return_arg(self):
-        ftype = get_type_of('a', 'def a(b):\n    return b\n\n')
+        ftype = self.get_type('a', 'def a(b):\n    return b\n\n')
         self.assertThat(
             ftype,
             testing.IsFunctionType([Is(ftype.rtype)], testing.IsTypeVariable('a')))
 
     def test_type_not_bound(self):
-        ftype = get_type_of('a', 'def a(b):\n    return b\n\na(1)\n')
+        ftype = self.get_type('a', 'def a(b):\n    return b\n\na(1)\n')
         self.assertThat(
             ftype,
             testing.IsFunctionType([Is(ftype.rtype)], testing.IsTypeVariable('a')))
 
     def test_instantiate(self):
-        ftype = get_type_of('a', 'def a(b):\n    return b\n\na(1)\na(true())\n')
+        ftype = self.get_type('a', 'def a(b):\n    return b\n\na(1)\na(true())\n')
         self.assertThat(
             ftype,
             testing.IsFunctionType([Is(ftype.rtype)], testing.IsTypeVariable('a')))
 
     def test_higher_order(self):
-        ftype = get_type_of('a', 'def a(b, c):\n    return b(c)\n\n')
+        ftype = self.get_type('a', 'def a(b, c):\n    return b(c)\n\n')
         self.assertThat(
             ftype,
             testing.IsFunctionType(
@@ -269,7 +241,7 @@ class IntegrationTests(TestCase):
                 testing.IsTypeVariable('b')))
 
     def test_recursive(self):
-        ftype = get_type_of('a', 'def a(b):\n    if b > 0:\n        return a(b-1)\n    else:\n        return b\n\n')
+        ftype = self.get_type('a', 'def a(b):\n    if b > 0:\n        return a(b-1)\n    else:\n        return b\n\n')
         self.assertThat(
             ftype,
             testing.IsFunctionType(
@@ -277,7 +249,7 @@ class IntegrationTests(TestCase):
                 Is(typer.INT)))
 
     def test_mutually_recursive(self):
-        ftype = get_type_of('a', """
+        ftype = self.get_type('a', """
 def a(b):
     return c(b)
 
@@ -295,14 +267,14 @@ def c(x):
                 Is(typer.INT)))
 
     def test_infinite_recursion(self):
-        self.assertRaises(AssertionError, get_type_of, 'a', """
+        self.assertRaises(AssertionError, self.get_type, 'a', """
 def a(b):
     return a(b)
 
 """)
 
     def test_inferred_from_other(self):
-        ftype = get_type_of('a', """
+        ftype = self.get_type('a', """
 def a(b):
     return c(b)
 
@@ -315,7 +287,7 @@ def c(x):
             testing.IsFunctionType([Is(typer.INT)], Is(typer.INT)))
 
     def test_use_of_higher_order(self):
-        ftype = get_type_of('e', """
+        ftype = self.get_type('e', """
 def b(x):
     return x
 
@@ -327,7 +299,7 @@ e = a(b, 1)
         self.assertThat(ftype, Is(typer.INT))
 
     def test_new_type(self):
-        ftype = get_type_of('Dog', """
+        ftype = self.get_type('Dog', """
 Dog = new Type:
     pass
 
@@ -335,7 +307,7 @@ Dog = new Type:
         self.assertThat(ftype, testing.IsFunctionType([], testing.IsType('Dog')))
 
     def test_new_type_in_signature(self):
-        ftype = get_type_of('foo', """
+        ftype = self.get_type('foo', """
 Dog = new Type:
     pass
 
@@ -346,7 +318,7 @@ def foo(d: Dog):
         self.assertThat(ftype, testing.IsFunctionType([Is(ftype.rtype)], testing.IsType("Dog")))
 
     def test_parameterised_type(self):
-        ftype = get_type_of('foo', """
+        ftype = self.get_type('foo', """
 List = new Type<a>:
     pass
 
@@ -357,7 +329,7 @@ foo = List()
     def test_parameterised_type_instantiated(self):
         # Double define foo to be sure that List<int> == List<int>
         # when instatiated in different places
-        ftype = get_type_of('foo', """
+        ftype = self.get_type('foo', """
 List = new Type<a>:
     pass
 
@@ -367,7 +339,7 @@ foo = List<int>()
         self.assertThat(ftype, testing.IsParametricType([testing.IsType('List'), Is(typer.INT)]))
 
     def test_different_parameterised_types(self):
-        self.assertRaises(typer.NotTypeError, get_type_of, 'foo', """
+        self.assertRaises(typer.NotTypeError, self.get_type, 'foo', """
 List = new Type<a>:
     pass
 
@@ -375,18 +347,23 @@ foo = List<int>()
 foo = List<bool>()
 """)
 
+    def get_type(self, name, source):
+        self.addDetail('source', text_content(source))
+        return get_type_of(name, source)
+
     def test_attribute_access(self):
-        ftype = get_type_of('foo', """
+        source = """
 Thing = new Type:
     a = 1
 
 bar = Thing()
 foo = bar.a
-""")
+"""
+        ftype = self.get_type('foo', source)
         self.assertThat(ftype, Is(typer.INT))
 
     def test_attribute_access_on_returned_value(self):
-        ftype = get_type_of('foo', """
+        ftype = self.get_type('foo', """
 Thing = new Type:
     a = 1
 
