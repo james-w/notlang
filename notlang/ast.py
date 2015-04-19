@@ -106,6 +106,7 @@ class BinOp(Function):
         self.op = op
         self.children = [left, right]
         self.sourcepos = sourcepos
+        self.type_params = []
 
     def get_extra_dot_info(self):
         return str(self.op)

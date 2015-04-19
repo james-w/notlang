@@ -12,25 +12,9 @@ def get_substituted(var, substitutions):
     return var
 
 
-def substitute(t, substitutions):
-    t = get_substituted(t, substitutions)
-    if isinstance(t, typer.FunctionType):
-        t = typer.FunctionType(t.name, [substitute(a, substitutions) for a in t.args], substitute(t.rtype, substitutions))
-    return t
-
-
-def dump(checker, substitutions):
-    fnames = []
-    for name, context in checker.child_contexts.items():
-        fnames.append(name)
-        print("function %s has type %s" % (name, substitute(checker.varmap[name], substitutions)))
-        for varname, t in context.varmap.items():
-            if varname != name:
-                print("%s has type %s" % (varname, substitute(t, substitutions)))
-        print("")
-    for varname, t in checker.varmap.items():
-        if varname not in fnames:
-            print("%s has type %s" % (varname, substitute(t, substitutions)))
+def dump(env, substitutions):
+    for name, (t, _)in env.env.items():
+        print("%s has type %s" % (name, get_substituted(t, substitutions)))
 
 
 if __name__ == '__main__':
@@ -45,10 +29,10 @@ if __name__ == '__main__':
         print e.nice_error_message(source=source, filename=sys.argv[1])
         sys.exit(1)
     try:
-        checker, substitutions = typer.typecheck2(parsed, trace=True)
+        env, substitutions = typer.typecheck(parsed)
     except (typer.NotNameError, typer.NotTypeError) as e:
         print e.nice_error_message(source=source, filename=sys.argv[1])
         sys.exit(1)
     else:
-        #dump(checker, substitutions)
+        dump(env, substitutions)
         pass

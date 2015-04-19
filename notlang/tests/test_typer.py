@@ -3,363 +3,7 @@ from testtools.matchers import Equals, Is, MatchesListwise
 from rpython.rlib.parsing.lexer import SourcePos
 from rpython.rlib.parsing.parsing import ParseError
 
-from .. import ast, parsing, testing, typer
-
-
-class TypeCollectorTests(TestCase):
-
-    spos = SourcePos(0, 0, 0)
-
-    def get_typecollector(self):
-        return typer.TypeCollector(typer.FUNCTIONS.copy(), typer.BASE_TYPES.copy())
-
-    def test_ConstantInt(self):
-        node = ast.ConstantInt(2, self.spos)
-        t = self.get_typecollector()
-        rtype = t.dispatch(node)
-        self.assertIs(typer.INT, rtype)
-        self.assertEqual([], t.constraints)
-
-    def test_Assignment(self):
-        varname = "a"
-        rhs = ast.ConstantInt(2, self.spos)
-        lhs = ast.Variable(varname, self.spos)
-        node = ast.Assignment(lhs, rhs, self.spos)
-        t = self.get_typecollector()
-        rtype = t.dispatch(node)
-        self.assertThat(rtype, testing.IsTypeExpr(varname))
-        self.assertEqual(1, len(t.constraints))
-        self.assertThat(t.constraints[0], testing.ConstraintMatches(Is(rtype), typer.SUPERTYPE_OF, Is(typer.INT), [Is(self.spos)]))
-        self.assertEqual(rtype, t.varmap[varname])
-
-    def test_Return(self):
-        rhs = ast.ConstantInt(2, self.spos)
-        node = ast.Return(rhs, self.spos)
-        t = self.get_typecollector()
-        rtype = t.dispatch(node)
-        self.assertIs(None, rtype)
-        self.assertEqual(1, len(t.constraints))
-        self.assertThat(
-            t.constraints[0],
-            testing.ConstraintMatches(Is(t.rtype), typer.SUPERTYPE_OF, Is(typer.INT), [Is(self.spos)]))
-
-    def test_Return_noarg(self):
-        node = ast.Return(None, self.spos)
-        t = self.get_typecollector()
-        rtype = t.dispatch(node)
-        self.assertIs(None, rtype)
-        self.assertEqual(1, len(t.constraints))
-        self.assertThat(
-            t.constraints[0],
-            testing.ConstraintMatches(Is(t.rtype), typer.SUPERTYPE_OF, Is(typer.NONE), [Is(self.spos)]))
-
-    def test_Variable_existing(self):
-        varname = "a"
-        node = ast.Variable(varname, self.spos)
-        t = self.get_typecollector()
-        vartype = typer.TypeVariable(varname)
-        t.varmap[varname] = vartype
-        self.assertIs(vartype, t.dispatch(node))
-        self.assertEqual([], t.constraints)
-
-    def test_Variable_nonexisting(self):
-        varname = "a"
-        node = ast.Variable(varname, self.spos)
-        t = self.get_typecollector()
-        self.assertRaises(typer.NotNameError, t.dispatch, node)
-
-    def test_Variable_attr(self):
-        varname = "a"
-        attrname = "b"
-        node = ast.Attribute(ast.Variable(varname, self.spos), attrname, self.spos)
-        t = self.get_typecollector()
-        vartype = typer.Type(varname)
-        t.varmap[varname] = vartype
-        ret = t.dispatch(node)
-        self.assertThat(ret, testing.IsTypeExpr("a.b"))
-        self.assertEqual(1, len(t.constraints))
-        self.assertThat(t.constraints[0], testing.ConstraintMatches(
-            testing.IsAttributeAccess(Is(vartype), 'b'), typer.SUPERTYPE_OF, Is(ret), [Is(self.spos)]))
-
-    def test_Variable_attr_nested(self):
-        varname = "a"
-        attrname = "b"
-        attrname2 = "c"
-        node = ast.Attribute(ast.Attribute(ast.Variable(varname, self.spos), attrname, self.spos), attrname2, self.spos)
-        t = self.get_typecollector()
-        vartype = typer.TypeVariable(varname)
-        t.varmap[varname] = vartype
-        ret = t.dispatch(node)
-        self.assertThat(ret, testing.IsTypeExpr("a.b.c"))
-        self.assertEqual(2, len(t.constraints))
-        self.assertThat(t.constraints[0], testing.ConstraintMatches(
-            testing.IsAttributeAccess(Is(vartype), 'b'), typer.SUPERTYPE_OF, testing.IsTypeExpr("a.b"), [Is(self.spos)]))
-        self.assertThat(t.constraints[1], testing.ConstraintMatches(
-            testing.IsAttributeAccess(testing.IsTypeExpr("a.b"), 'c'), typer.SUPERTYPE_OF, Is(ret), [Is(self.spos)]))
-
-    def test_BinOp(self):
-        op = "+"
-        lhs = ast.ConstantInt(1, self.spos)
-        node = ast.BinOp(op, lhs, lhs, self.spos)
-        t = self.get_typecollector()
-        rtype = t.dispatch(node)
-        self.assertIsInstance(rtype, typer.TypeExpr)
-        self.assertEqual("r+", rtype.name)
-        self.assertEqual(1, len(t.constraints))
-        self.assertThat(
-            t.constraints[0],
-            testing.ConstraintMatches(
-                testing.IsFunctionType([Is(typer.INT), Is(typer.INT)], Is(typer.INT)),
-                typer.SUPERTYPE_OF,
-                testing.IsFunctionType([Is(typer.INT), Is(typer.INT)], testing.IsTypeExpr("r+")),
-                [Is(self.spos)]))
-
-    def test_nested_BinOp(self):
-        op = "+"
-        lhs = ast.ConstantInt(1, self.spos)
-        node = ast.BinOp(op, lhs, lhs, self.spos)
-        node = ast.BinOp(op, lhs, node, self.spos)
-        t = self.get_typecollector()
-        rtype = t.dispatch(node)
-        typer.TypeVariable("(rtype of + int -> a)")
-        self.assertIsInstance(rtype, typer.TypeExpr)
-        self.assertEqual("r+", rtype.name)
-        self.assertEqual(2, len(t.constraints))
-        self.assertThat(
-            t.constraints[0],
-            testing.ConstraintMatches(
-                testing.IsFunctionType([Is(typer.INT), Is(typer.INT)], Is(typer.INT)),
-                typer.SUPERTYPE_OF,
-                testing.IsFunctionType([Is(typer.INT), Is(typer.INT)], testing.IsTypeExpr("r+")),
-                [Is(self.spos)],
-                )
-            )
-        self.assertThat(
-            t.constraints[1],
-            testing.ConstraintMatches(
-                testing.IsFunctionType([Is(typer.INT), Is(typer.INT)], Is(typer.INT)),
-                typer.SUPERTYPE_OF,
-                testing.IsFunctionType([Is(typer.INT), testing.IsTypeExpr("r+")], testing.IsTypeExpr("r+")),
-                [Is(self.spos)],
-                )
-            )
-        # probably applies to foo(bar(baz)) too?
-        # also test foo(bar) + 1 etc.
-        # Maybe need to create a lot more typevars and add equalities?
-
-    def test_Conditional(self):
-        varname = "a"
-        condition = ast.ConstantInt(1, self.spos)
-        block = ast.Assignment(ast.Variable(varname, self.spos), ast.ConstantInt(2, self.spos), self.spos)
-        node = ast.Conditional(condition, block, None, self.spos)
-        t = self.get_typecollector()
-        rtype = t.dispatch(node)
-        self.assertIs(None, rtype)
-        self.assertEqual(2, len(t.constraints))
-        self.assertThat(
-            t.constraints[0],
-            testing.ConstraintMatches(
-                Is(typer.INT),
-                typer.SUBTYPE_OF,
-                Is(typer.BOOL),
-                [Is(self.spos)]))
-        self.assertThat(
-            t.constraints[1],
-            testing.ConstraintMatches(
-                testing.IsTypeExpr(varname),
-                typer.SUPERTYPE_OF,
-                Is(typer.INT),
-                [Is(self.spos)]))
-
-    def test_Conditional_with_else(self):
-        varname = "a"
-        condition = ast.ConstantInt(1, self.spos)
-        block = ast.Assignment(ast.Variable(varname, self.spos), ast.ConstantInt(2, self.spos), self.spos)
-        node = ast.Conditional(condition, block, block, self.spos)
-        t = self.get_typecollector()
-        rtype = t.dispatch(node)
-        self.assertIs(None, rtype)
-        self.assertEqual(3, len(t.constraints))
-        self.assertThat(
-            t.constraints[0],
-            testing.ConstraintMatches(
-                Is(typer.INT),
-                typer.SUBTYPE_OF,
-                Is(typer.BOOL),
-                [Is(self.spos)]))
-        self.assertThat(
-            t.constraints[1],
-            testing.ConstraintMatches(
-                testing.IsTypeExpr(varname),
-                typer.SUPERTYPE_OF,
-                Is(typer.INT),
-                [Is(self.spos)]))
-        self.assertThat(
-            t.constraints[2],
-            testing.ConstraintMatches(
-                testing.IsTypeExpr(varname),
-                typer.SUPERTYPE_OF,
-                Is(typer.INT),
-                [Is(self.spos)]))
-
-    def test_While(self):
-        varname = "a"
-        condition = ast.ConstantInt(1, self.spos)
-        block = ast.Assignment(ast.Variable(varname, self.spos), ast.ConstantInt(2, self.spos), self.spos)
-        node = ast.While(condition, block, self.spos)
-        t = self.get_typecollector()
-        rtype = t.dispatch(node)
-        self.assertIs(None, rtype)
-        self.assertEqual(2, len(t.constraints))
-        self.assertThat(
-            t.constraints[0],
-            testing.ConstraintMatches(Is(typer.INT), typer.SUBTYPE_OF, Is(typer.BOOL), [Is(self.spos)]),
-            )
-        self.assertThat(
-            t.constraints[1],
-            testing.ConstraintMatches(testing.IsTypeExpr(varname), typer.SUPERTYPE_OF, Is(typer.INT), [Is(self.spos)]),
-            )
-
-    def test_Function_noargs(self):
-        fname = "foo"
-        node = ast.Function(ast.Variable(fname, self.spos), [], self.spos)
-        t = self.get_typecollector()
-        t.functions[fname] = typer.TypeExpr(fname)
-        rtype = t.dispatch(node)
-        self.assertThat(rtype, testing.IsTypeExpr("rfoo"))
-        self.assertEqual(1, len(t.constraints))
-        self.assertThat(
-            t.constraints[0],
-            testing.ConstraintMatches(
-                testing.IsTypeExpr(fname),
-                typer.SUPERTYPE_OF,
-                testing.IsFunctionType([], Is(rtype)),
-                [Is(self.spos)]))
-
-    # TODO: test recursion
-
-    def test_Function_args(self):
-        fname = "foo"
-        arg = ast.ConstantInt(1, self.spos)
-        node = ast.Function(ast.Variable(fname, self.spos), [arg], self.spos)
-        t = self.get_typecollector()
-        t.functions[fname] = typer.TypeExpr(fname)
-        rtype = t.dispatch(node)
-        self.assertThat(rtype, testing.IsTypeExpr("rfoo"))
-        self.assertEqual(1, len(t.constraints))
-        self.assertThat(
-            t.constraints[0],
-            testing.ConstraintMatches(
-                testing.IsTypeExpr(fname),
-                typer.SUPERTYPE_OF,
-                testing.IsFunctionType([Is(typer.INT)], Is(rtype)),
-                [Is(self.spos)]))
-
-    def test_Function_on_attribute(self):
-        self.skip("Not implemented yet.")
-        objname = "bar"
-        fname = "foo"
-        node = ast.Function(ast.Attribute(ast.Variable(objname, self.spos), fname, self.spos), [], self.spos)
-        t = self.get_typecollector()
-        t.functions[fname] = typer.TypeExpr(fname)
-        rtype = t.dispatch(node)
-        self.assertThat(rtype, testing.IsTypeExpr("rfoo"))
-        self.assertEqual(1, len(t.constraints))
-        self.assertThat(
-            t.constraints[0],
-            testing.ConstraintMatches(
-                testing.IsTypeExpr(fname),
-                typer.SUPERTYPE_OF,
-                testing.IsFunctionType([Is(typer.INT)], Is(rtype)),
-                [Is(self.spos)]))
-
-    def test_FuncDef(self):
-        fname = "foo"
-        argname = "bar"
-        code = ast.Return(ast.Variable(argname, self.spos), self.spos)
-        node = ast.FuncDef(fname, [argname], code, self.spos)
-        t = self.get_typecollector()
-        rtype = t.dispatch(node)
-        self.assertIs(None, rtype)
-        self.assertEqual(0, len(t.constraints))
-        self.assertEqual(1, len(t.child_contexts))
-        self.assertIn(fname, t.child_contexts)
-        context = t.child_contexts[fname]
-        self.assertIsInstance(context, typer.TypeCollector)
-        self.assertThat(
-            context.constraints[0],
-            testing.ConstraintMatches(
-                Is(context.rtype),
-                typer.SUPERTYPE_OF,
-                Is(context.varmap[argname]),
-                [Is(self.spos)]))
-        self.assertEqual(2, len(context.varmap))
-        self.assertThat(context.varmap[argname], testing.IsTypeExpr(argname))
-        self.assertThat(context.varmap[fname], testing.IsTypeExpr(fname))
-
-    def test_FuncDef_with_annotations(self):
-        fname = "foo"
-        argname = "bar"
-        rtype = "int"
-        argtype = "int"
-        code = ast.Return(ast.Variable(argname, self.spos), self.spos)
-        node = ast.FuncDef(fname, [argname], code, self.spos, rtype=rtype, argtypes=[argtype])
-        t = self.get_typecollector()
-        self.assertIs(None, t.dispatch(node))
-        self.assertEqual(0, len(t.constraints))
-        self.assertEqual(1, len(t.child_contexts))
-        self.assertIn(fname, t.child_contexts)
-        context = t.child_contexts[fname]
-        self.assertIsInstance(context, typer.TypeCollector)
-        self.assertThat(
-            context.constraints[0],
-            testing.ConstraintMatches(
-                Is(typer.INT),
-                typer.SUPERTYPE_OF,
-                Is(typer.INT),
-                [Is(self.spos)]))
-        self.assertEqual(typer.INT, context.rtype)
-        self.assertEqual(typer.INT, context.varmap[argname])
-
-    def test_NewType_assigned(self):
-        varname = "atype"
-        block = ast.ConstantInt(1, self.spos)
-        node = ast.Assignment(ast.Variable(varname, self.spos), ast.NewType(block, self.spos), self.spos)
-        t = self.get_typecollector()
-        rtype = t.dispatch(node)
-        self.assertThat(rtype, testing.IsTypeExpr(varname))
-        self.assertEqual(1, len(t.constraints))
-        self.assertThat(
-            t.constraints[0],
-            testing.ConstraintMatches(Is(rtype), typer.SUPERTYPE_OF, testing.IsType(varname), [Is(self.spos)]))
-        self.assertEqual(rtype, t.varmap[varname])
-
-    def test_parameterised_NewType_assigned(self):
-        varname = "atype"
-        block = ast.ConstantInt(1, self.spos)
-        node = ast.Assignment(ast.Variable(varname, self.spos), ast.NewType(block, self.spos, ["a"]), self.spos)
-        t = self.get_typecollector()
-        rtype = t.dispatch(node)
-        self.assertThat(rtype, testing.IsTypeExpr(varname))
-        self.assertEqual(1, len(t.constraints))
-        self.assertThat(
-            t.constraints[0],
-            testing.ConstraintMatches(
-                Is(rtype),
-                typer.SUPERTYPE_OF,
-                testing.IsParametricType([testing.IsType(varname), testing.IsTypeVariable("a")]),
-                [Is(self.spos)]))
-        self.assertEqual(rtype, t.varmap[varname])
-
-    def test_Block(self):
-        # Test that children are dispatched to by default
-        varname = "a"
-        rhs = ast.ConstantInt(2, self.spos)
-        lhs = ast.Variable(varname, self.spos)
-        node = ast.Assignment(lhs, rhs, self.spos)
-        t = self.get_typecollector()
-        t.dispatch(ast.Block([node], self.spos))
-        self.assertEqual(1, len(t.constraints))
+from .. import parsing, testing, typer
 
 
 class SatisfyConstraintsTests(TestCase):
@@ -578,8 +222,8 @@ def get_type_of(name, source):
     except ParseError as e:
         print e.nice_error_message(source=source)
         raise
-    checker, substitutions = typer.typecheck(parsed)
-    return typer.get_substituted(checker.varmap[name], substitutions)
+    env, substitutions = typer.typecheck(parsed, trace=True)
+    return typer.get_substituted(env.env[name][0], substitutions)
 
 
 class IntegrationTests(TestCase):
@@ -599,19 +243,19 @@ class IntegrationTests(TestCase):
         ftype = get_type_of('a', 'def a(b):\n    return b\n\n')
         self.assertThat(
             ftype,
-            testing.IsFunctionType([Is(ftype.rtype)], testing.IsTypeVariable('b')))
+            testing.IsFunctionType([Is(ftype.rtype)], testing.IsTypeVariable('a')))
 
     def test_type_not_bound(self):
         ftype = get_type_of('a', 'def a(b):\n    return b\n\na(1)\n')
         self.assertThat(
             ftype,
-            testing.IsFunctionType([Is(ftype.rtype)], testing.IsTypeVariable('b')))
+            testing.IsFunctionType([Is(ftype.rtype)], testing.IsTypeVariable('a')))
 
     def test_instantiate(self):
         ftype = get_type_of('a', 'def a(b):\n    return b\n\na(1)\na(true())\n')
         self.assertThat(
             ftype,
-            testing.IsFunctionType([Is(ftype.rtype)], testing.IsTypeVariable('b')))
+            testing.IsFunctionType([Is(ftype.rtype)], testing.IsTypeVariable('a')))
 
     def test_higher_order(self):
         ftype = get_type_of('a', 'def a(b, c):\n    return b(c)\n\n')
@@ -621,8 +265,8 @@ class IntegrationTests(TestCase):
                 [testing.IsFunctionType(
                     [Is(ftype.args[1])],
                     Is(ftype.rtype)),
-                testing.IsTypeVariable('c')],
-                testing.IsTypeVariable('rb')))
+                testing.IsTypeVariable('a')],
+                testing.IsTypeVariable('b')))
 
     def test_recursive(self):
         ftype = get_type_of('a', 'def a(b):\n    if b > 0:\n        return a(b-1)\n    else:\n        return b\n\n')
@@ -688,7 +332,7 @@ Dog = new Type:
     pass
 
 """)
-        self.assertThat(ftype, testing.IsType('Dog'))
+        self.assertThat(ftype, testing.IsFunctionType([], testing.IsType('Dog')))
 
     def test_new_type_in_signature(self):
         ftype = get_type_of('foo', """
@@ -708,7 +352,7 @@ List = new Type<a>:
 
 foo = List()
 """)
-        self.assertThat(ftype, testing.IsParametricType([testing.IsType('List'), testing.IsTypeVariable('a')]))
+        self.assertThat(ftype, testing.IsParametricType([testing.IsType('List'), testing.IsTypeExpr('a')]))
 
     def test_parameterised_type_instantiated(self):
         # Double define foo to be sure that List<int> == List<int>
@@ -757,7 +401,6 @@ foo = thing().a
 class InstantiateTests(TestCase):
 
     def test_types(self):
-        fname = "foo"
         self.assertThat(
             typer.instantiate(typer.FunctionType([typer.INT], typer.INT)),
             testing.IsFunctionType(
@@ -766,7 +409,6 @@ class InstantiateTests(TestCase):
             )
 
     def test_vars(self):
-        fname = "foo"
         tvar = typer.TypeVariable('a')
         ret = typer.instantiate(typer.FunctionType([tvar], tvar))
         self.assertThat(
@@ -777,8 +419,6 @@ class InstantiateTests(TestCase):
             )
 
     def test_nested(self):
-        fname = "foo"
-        nested_fname = "bar"
         tvar1 = typer.TypeVariable('a')
         tvar2 = typer.TypeVariable('b')
         ret = typer.instantiate(
@@ -801,56 +441,9 @@ class InstantiateTests(TestCase):
             )
 
 
-class FunctionTypeFromContextTests(TestCase):
-
-    def test_no_vars(self):
-        t = typer.TypeCollector({}, {})
-        t.fname = "foo"
-        argname = "a"
-        t.args = [argname]
-        t.varmap[argname] = typer.INT
-        t.rtype = typer.INT
-        ftype = typer.function_type_from_collector(t, {})
-        self.assertThat(
-            ftype,
-            testing.IsFunctionType(
-                [Is(typer.INT)],
-                Is(typer.INT)))
-
-    def test_one_var(self):
-        t = typer.TypeCollector({}, {})
-        t.fname = "foo"
-        argname = "a"
-        t.args = [argname]
-        t.varmap[argname] = typer.TypeExpr(argname)
-        t.rtype = typer.INT
-        ftype = typer.function_type_from_collector(t, {})
-        self.assertThat(
-            ftype,
-            testing.IsFunctionType(
-                [Is(t.varmap[argname])],
-                Is(typer.INT)))
-
-    def test_substituted(self):
-        t = typer.TypeCollector({}, {})
-        t.fname = "foo"
-        argname = "a"
-        t.args = [argname]
-        t.varmap[argname] = typer.TypeExpr("nonsense")
-        argtype = typer.TypeExpr(argname)
-        t.rtype = typer.INT
-        ftype = typer.function_type_from_collector(t, {t.varmap[argname]: (argtype, [])})
-        self.assertThat(
-            ftype,
-            testing.IsFunctionType(
-                [Is(argtype)],
-                Is(typer.INT)))
-
-
 class GeneraliseFunctionTests(TestCase):
 
     def test_no_vars(self):
-        fname = "foo"
         input = typer.FunctionType([typer.INT], typer.INT)
         ftype = typer.generalise(input)
         self.assertThat(
@@ -860,7 +453,6 @@ class GeneraliseFunctionTests(TestCase):
                 Is(typer.INT)))
 
     def test_one_var(self):
-        fname = "foo"
         argname = "bar"
         argtype = typer.TypeExpr(argname)
         input = typer.FunctionType([argtype], typer.INT)
@@ -868,11 +460,10 @@ class GeneraliseFunctionTests(TestCase):
         self.assertThat(
             ftype,
             testing.IsFunctionType(
-                [testing.IsTypeVariable(argname)],
+                [testing.IsTypeVariable('a')],
                 Is(typer.INT)))
 
     def test_one_var_repeated(self):
-        fname = "foo"
         argname = "bar"
         argtype = typer.TypeExpr(argname)
         input = typer.FunctionType([argtype], argtype)
@@ -881,11 +472,9 @@ class GeneraliseFunctionTests(TestCase):
             ftype,
             testing.IsFunctionType(
                 [Is(ftype.rtype)],
-                testing.IsTypeVariable(argname)))
+                testing.IsTypeVariable('a')))
 
     def test_nested_function(self):
-        fname = "foo"
-        nested_fname = "baz"
         argname = "bar"
         argtype = typer.TypeExpr(argname)
         input = typer.FunctionType(
@@ -898,15 +487,14 @@ class GeneraliseFunctionTests(TestCase):
         self.assertThat(
             ftype,
             testing.IsFunctionType(
-                [testing.IsTypeVariable(argname),
+                [testing.IsTypeVariable('a'),
                 testing.IsFunctionType([Is(new_argtype)], Is(typer.INT))],
                 Is(typer.INT)))
 
     def test_unconstrained_rtype(self):
-        fname = "foo"
         input = typer.FunctionType([typer.INT], typer.TypeExpr("bar"))
         e = self.assertRaises(AssertionError, typer.generalise, input)
-        self.assertThat(str(e), Equals("%s has an unconstrained return type." % fname))
+        self.assertThat(str(e), Equals("unconstrained return type: %s" % input))
 
 
 class SubstitutionTests(TestCase):
@@ -1112,10 +700,13 @@ class ThirdPassTests(TestCase):
         super(ThirdPassTests, self).setUp()
         self.factory = testing.ASTFactory(self)
 
-    def get_third_pass(self, active, only_handle=None):
+    def get_third_pass(self, active, name_graph=None, only_handle=None):
         if only_handle is None:
             only_handle = []
-        return typer.ThirdPass(typer.TypeEnv('main'), active, only_handle)
+        if name_graph is None:
+            name_graph = typer.FirstPass()
+        return typer.ThirdPass(
+            typer.TypeEnv('main'), active, name_graph, only_process=only_handle)
 
     def test_ConstantInt(self):
         node = self.factory.int()
@@ -1170,7 +761,7 @@ class ThirdPassTests(TestCase):
         node = self.factory.assignment()
         checker = self.get_third_pass(True)
         constraints, t = checker.dispatch(node)
-        self.assertThat(t, testing.IsTypeExpr("main0"))
+        self.assertThat(t, testing.IsTypeExpr("main:1"))
         self.assertThat(checker.env.env[node.var.varname][0], Is(t))
         self.assertThat(
             constraints,
@@ -1210,7 +801,19 @@ class ThirdPassTests(TestCase):
             name=fname,
             body=self.factory.assignment(source=self.factory.variable(name=varname)),
             args=[varname])
-        checker = self.get_third_pass(False, only_handle=[fname])
+        name_graph = typer.FirstPass()
+        name_graph.children[fname] = typer.FirstPass()
+        checker = self.get_third_pass(False, name_graph=name_graph, only_handle=[fname])
+        ftype = checker.env.register(fname)
         constraints, t = checker.dispatch(node)
         self.assertThat(t, Is(None))
-        self.assertThat(len(constraints), Equals(1))
+        self.assertThat(len(constraints), Equals(2))
+        child_env = checker.env.children[fname]
+        self.assertThat(constraints[1], testing.ConstraintMatches(
+            Is(ftype),
+            typer.SUPERTYPE_OF,
+            testing.IsFunctionType(
+                [Is(child_env.env[varname][0])],
+                Is(child_env.rtype)),
+            [Is(self.factory.spos)],
+            ))
