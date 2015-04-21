@@ -9,6 +9,10 @@ class Compiler(ast.ASTVisitor):
     def general_nonterminal_visit(self, node):
         [self.dispatch(c) for c in node.children]
 
+    def visit_Attribute(self, node):
+        self.dispatch(node.children[0])
+        codegen.load_attr(self.ctx, node.name)
+
     def visit_Variable(self, node):
         codegen.load_var(self.ctx, node.varname)
 

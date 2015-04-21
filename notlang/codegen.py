@@ -16,7 +16,6 @@ def load_attr(ctx, name):
     ctx.emit(bytecode.LOAD_ATTR, ctx.register_var(name))
 
 
-
 def load_constant_int(ctx, val):
     vnum = ctx.register_constant(objectspace.W_Int(val))
     ctx.emit(bytecode.LOAD_CONSTANT, vnum)
