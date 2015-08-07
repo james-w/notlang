@@ -14,6 +14,14 @@ class Type(object):
     def __str__(self):
         return self.name
 
+    def __eq__(self, other):
+        return (self.__class__ == other.__class__
+                and self.name == other.name
+                and self.attrs == other.attrs)
+
+    def __ne__(self, other):
+        return not(self.__eq__(other))
+
     def __repr__(self):
         return "<Type:%s>" % str(self)
 
@@ -32,8 +40,9 @@ class ParameterisedType(object):
     def __eq__(self, other):
         return self.__class__ == other.__class__ and self.types == other.types
 
-    def __ne__(self, other):
-        return not(self.__eq__(other))
+    @property
+    def attrs(self):
+        return self.types[0].attrs
 
 
 class TypeExpr(Type):
@@ -43,6 +52,9 @@ class TypeExpr(Type):
 
     def __str__(self):
         return str(self.name)
+
+    def __eq__(self, other):
+        return id(self) == id(other)
 
     def __repr__(self):
         return "<TypeExpr:%s>" % str(self)
@@ -58,6 +70,9 @@ class TypeVariable(Type):
 
     def __repr__(self):
         return "<TypeVariable:%s>" % str(self)
+
+    def __eq__(self, other):
+        return id(self) == id(other)
 
 
 class FunctionType(Type):
@@ -76,6 +91,9 @@ class FunctionType(Type):
     def __repr__(self):
         return "<FunctionType:%s>" % str(self)
 
+    def __eq__(self, other):
+        return id(self) == id(other)
+
 
 class AttributeAccess(Type):
 
@@ -89,17 +107,33 @@ class AttributeAccess(Type):
     def __repr__(self):
         return "<AttributeAccess:%s>" % str(self)
 
+    def __eq__(self, other):
+        return id(self) == id(other)
+
 
 ANY = Type("ANY")
 INT = Type("int")
 NONE = Type("None")
 BOOL = Type("bool")
 
+
+def make_list_type():
+    content_type = TypeVariable("a")
+    l = ParameterisedType([Type("List", {}), content_type])
+    l.types[0].attrs['append'] = FunctionType([content_type], l)
+    l.types[0].attrs['last'] = FunctionType([], content_type)
+    return l
+
+
+LIST = make_list_type()
+
+
 BASE_TYPES = {
     "any": ANY,
     "int": INT,
     "None": NONE,
     "bool": BOOL,
+    "List": LIST,
 }
 
 
@@ -347,7 +381,7 @@ class ThirdPass(ASTVisitor):
         constraints, _ = child.dispatch(node.children[0].children[0])
         ftype = FunctionType([], new_t)
         constraints.append(Constraint(
-            self.env.lookup(name, node.sourcepos),
+            instantiate(self.env.lookup(name, node.sourcepos)),
             SUPERTYPE_OF,
             ftype,
             [node.sourcepos]))
@@ -424,6 +458,8 @@ class ThirdPass(ASTVisitor):
         return constraints + fcall_c, fcall_t
 
     def visit_Attribute(self, node):
+        if not self.active:
+            return [], None
         new_t = self.env.newvar()
         child_c, child_t = self.dispatch(node.children[0])
         constraints = child_c
@@ -448,6 +484,7 @@ FUNCTIONS = {
     '==': FunctionType([INT, INT], BOOL),
     'true': FunctionType([], BOOL),
     'print': FunctionType([ANY], NONE),
+    'List': FunctionType([], LIST),
 }
 
 
@@ -721,7 +758,7 @@ def generalise(ftype):
     return ftype
 
 
-def instantiate(ftype, vars=None):
+def instantiate(ftype):
     """Instantiate a function type, i.e. create new TypeExpr for each TypeVariable.
 
     Given a function like TypeVariable(a) -> TypeVariable(a) it will return
@@ -736,31 +773,34 @@ def instantiate(ftype, vars=None):
     to a function with type variables would have to use the same
     argument types.
     """
-    if vars is None:
-        vars = {}
-    def do_instantiate(ftype, vars):
-        def _instantiate(arg):
-            if isinstance(arg, TypeVariable):
-                newvar = vars.setdefault(arg, TypeExpr(arg.name))
-                return newvar
-            elif isinstance(arg, FunctionType):
-                return do_instantiate(arg, vars)
-            elif isinstance(arg, ParameterisedType):
-                return do_instantiate(arg, vars)
-            return arg
-        if isinstance(ftype, FunctionType):
+    def do_instantiate(ftype, subs):
+        newt = ftype
+        if ftype in subs:
+            newt = subs[ftype]
+        elif isinstance(ftype, TypeVariable):
+            newt = TypeExpr(ftype.name)
+            subs[ftype] = newt
+        elif isinstance(ftype, FunctionType):
             new_args = []
             for arg in ftype.args:
-                new_args.append(_instantiate(arg))
-            new_rtype = _instantiate(ftype.rtype)
-            return FunctionType(new_args, new_rtype)
+                new_args.append(do_instantiate(arg, subs))
+            new_rtype = do_instantiate(ftype.rtype, subs)
+            newt = FunctionType(new_args, new_rtype)
+            subs[ftype] = newt
         elif isinstance(ftype, ParameterisedType):
             new_types = []
-            for arg in ftype.types:
-                new_types.append(_instantiate(arg))
-            return ParameterisedType(new_types)
-        return ftype
-    return do_instantiate(ftype, vars)
+            base = ftype.types[0]
+            new_base = Type(base.name)
+            for arg in ftype.types[1:]:
+                new_types.append(do_instantiate(arg, subs))
+            newt = ParameterisedType([new_base] + new_types)
+            subs[ftype] = newt
+            new_attrs = {}
+            for name, t in base.attrs.items():
+                new_attrs[name] = do_instantiate(t, subs)
+            new_base.attrs = new_attrs
+        return newt
+    return do_instantiate(ftype, {})
 
 
 def get_all_functions(p, prefix=None):
@@ -783,7 +823,7 @@ def typecheck(node, trace=False):
     all_functions = get_all_functions(pass1)
     sets = graph.get_disjoint_sets(pass2.callgraph, all_functions)
     if trace:
-        print("Context sets: {}".format(str(sets)))
+        print("Type-context sets: {}".format(str(sets)))
     handled = set()
     base_env = TypeEnv('main')
     for name, ftype in FUNCTIONS.items():
@@ -793,7 +833,7 @@ def typecheck(node, trace=False):
     subst = {}
     for s in sets:
         if trace:
-            print("Processing {}".format(s))
+            print("Processing type-context(s) {}".format(s))
         handled.update(s)
         ftypes = {}
         for name in s:
@@ -802,7 +842,7 @@ def typecheck(node, trace=False):
         pass3 = ThirdPass(base_env, False, pass1, only_process=s)
         constraints, t = pass3.dispatch(node)
         if trace:
-            print("Constraints: {}".format(map(str, constraints)))
+            print("Gathered constraints: {}".format(map(str, constraints)))
         subst = satisfy_constraints(constraints, initial_subtitution=subst)
         for name, ftype in ftypes.items():
             ftype = generalise(get_substituted(ftype, subst))

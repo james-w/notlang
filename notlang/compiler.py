@@ -135,8 +135,8 @@ def max_stacksize(code):
     return maximum, max_line, bytecode.reverse_map.get(max_instr)
 
 
-def get_compiler(astnode):
-    typer.typecheck(astnode)
+def get_compiler(astnode, trace_typer=False):
+    typer.typecheck(astnode, trace=trace_typer)
     c = compilercontext.CompilerContext()
     c.locals = ast.GatherAssignedNames().dispatch(astnode)
     Compiler(c).dispatch(astnode)
@@ -144,6 +144,6 @@ def get_compiler(astnode):
     c.emit(bytecode.RETURN)
     return c
 
-def compile_ast(astnode):
-    c = get_compiler(astnode)
+def compile_ast(astnode, trace_typer=False):
+    c = get_compiler(astnode, trace_typer=trace_typer)
     return c.create_bytecode()

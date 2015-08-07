@@ -34,7 +34,7 @@ class Space(object):
 
 class Frame(object):
     _virtualizable_ = ['valuestack[*]', 'valuestack_pos', 'vars[*]', 'names[*]']
-    
+
     def __init__(self, space, prog, globals):
         self = jit.hint(self, fresh_virtualizable=True, access_directly=True)
         self.valuestack = [None] * prog.max_stacksize
@@ -63,7 +63,7 @@ class Frame(object):
             v.append(self.valuestack[new_pos])
             self.valuestack_pos = new_pos
         return v
-    
+
     def pop(self):
         return self.popmany(1)[0]
 
@@ -175,11 +175,11 @@ class Frame(object):
                 assert False, "Unknown opcode: %d" % c
 
 
-def get_bytecode(source):
-    return compiler.compile_ast(parse(source))
+def get_bytecode(source, trace_typer=False):
+    return compiler.compile_ast(parse(source), trace_typer=trace_typer)
 
 
-def interpret(source, trace=False):
-    prog = get_bytecode(source)
+def interpret(source, trace=False, trace_typer=False):
+    prog = get_bytecode(source, trace_typer=trace_typer)
     space = Space()
     return space.call_function(prog, [], None, trace=trace)

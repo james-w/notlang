@@ -319,32 +319,32 @@ def foo(d: Dog):
 
     def test_parameterised_type(self):
         ftype = self.get_type('foo', """
-List = new Type<a>:
+Thing = new Type<a>:
     pass
 
-foo = List()
+foo = Thing()
 """)
-        self.assertThat(ftype, testing.IsParametricType([testing.IsType('List'), testing.IsTypeExpr('a')]))
+        self.assertThat(ftype, testing.IsParametricType([testing.IsType('Thing'), testing.IsTypeExpr('a')]))
 
     def test_parameterised_type_instantiated(self):
-        # Double define foo to be sure that List<int> == List<int>
+        # Double define foo to be sure that Thing<int> == Thing<int>
         # when instatiated in different places
         ftype = self.get_type('foo', """
-List = new Type<a>:
+Thing = new Type<a>:
     pass
 
-foo = List<int>()
-foo = List<int>()
+foo = Thing<int>()
+foo = Thing<int>()
 """)
-        self.assertThat(ftype, testing.IsParametricType([testing.IsType('List'), Is(typer.INT)]))
+        self.assertThat(ftype, testing.IsParametricType([testing.IsType('Thing'), Is(typer.INT)]))
 
     def test_different_parameterised_types(self):
         self.assertRaises(typer.NotTypeError, self.get_type, 'foo', """
-List = new Type<a>:
+Thing = new Type<a>:
     pass
 
-foo = List<int>()
-foo = List<bool>()
+foo = Thing<int>()
+foo = Thing<bool>()
 """)
 
     def get_type(self, name, source):
@@ -416,6 +416,17 @@ class InstantiateTests(TestCase):
                  testing.IsTypeExpr(tvar1.name)],
                 testing.IsTypeExpr(tvar2.name))
             )
+
+    def test_recursive_attrs(self):
+        t = typer.ParameterisedType([typer.Type('a'), typer.TypeVariable('b')])
+        t.types[0].attrs = dict(child=t)
+        ret = typer.instantiate(t)
+        self.assertThat(
+            ret,
+            testing.IsParametricType(
+                [testing.IsType(t.types[0].name), testing.IsTypeExpr(t.types[1].name)]
+            ))
+        self.assertThat(ret.types[0].attrs['child'], Is(ret))
 
 
 class GeneraliseFunctionTests(TestCase):

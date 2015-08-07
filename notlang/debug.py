@@ -1,10 +1,12 @@
 ERROR = 'error'
 INTERP = 'interp'
+TYPE = 'type'
 
 
 DEBUG_TARGETS = {
     ERROR: 'Turn on full exception reporting, including tracebacks.',
     INTERP: 'Trace execution of the interpreter.',
+    TYPE: 'Trace steps of the type-checker.',
 }
 
 
@@ -29,3 +31,7 @@ def show_errors(opts):
 
 def trace_interp(opts):
     return INTERP in opts.debug
+
+
+def trace_typer(opts):
+    return TYPE in opts.debug

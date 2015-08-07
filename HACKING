@@ -6,7 +6,7 @@ Getting started
 
 You can try running the test file with
 
-  PYTHONPATH=pypy virtualenv/bin/python targetnotlang.py test.syl
+  PYTHONPATH=pypy virtualenv/bin/python targetnotlang.py test.not
 
 Translating
 -----------
@@ -48,3 +48,4 @@ Some of note are
 
   - -Derror to show all tracebacks
   - -Dinterp to get tracing from the interpreter as it works.
+  - -Dtype to get debug output from the type checker.
