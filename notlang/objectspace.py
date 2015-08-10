@@ -1,3 +1,6 @@
+from pyrsistent import pvector
+
+
 class W_Root(object):
 
     __slots__ = ()
@@ -34,7 +37,7 @@ class W_Root(object):
 class W_Code(W_Root):
     _immutable_ = True
     _immutable_fields_ = ['bytecode', 'constants[*]', 'names', 'max_stacksize']
-   
+
     def __init__(self, code, constants, names, max_stacksize):
         self.bytecode = code
         self.constants = constants
@@ -75,12 +78,12 @@ class W_Int(W_Root):
             raise Exception("wrong type")
         return W_Int(self.intval * other.intval)
 
-    def lt(self, other): 
+    def lt(self, other):
         if not isinstance(other, W_Int):
             raise Exception("wrong type")
         return W_Int(self.intval < other.intval)
 
-    def gt(self, other): 
+    def gt(self, other):
         if not isinstance(other, W_Int):
             raise Exception("wrong type")
         return W_Int(self.intval > other.intval)
@@ -116,7 +119,7 @@ class W_Func(W_Root):
         self.code = code
 
     def call(self, space, args, globals, trace=False):
-        return space.call_function(self.code, args, globals, trace=trace)
+        return space.call_function(self.code, args, globals, {}, trace=trace)
 
 
 class W_Type(W_Root):
@@ -124,12 +127,10 @@ class W_Type(W_Root):
     __slots__ = ['name']
     _immutable_fields_ = ['name']
 
-    def __init__(self, name):
-        self.name = name
-
     @classmethod
     def call(cls, space, args, globals, trace=False):
-        return cls.__new__(cls, args)
+        obj = cls()
+        return obj
 
 
 class W_Dict(W_Root):
@@ -151,3 +152,24 @@ class W_String(W_Root):
 
     def repr(self):
         return repr(self.strval)
+
+
+class W_List(W_Type):
+
+    __slots__ = ['listval']
+    _immutable_fields_ = ['listval']
+
+    def __init__(self, listval=None):
+        if listval is None:
+            listval = pvector([])
+        self.listval = listval
+
+    def repr(self):
+        return repr(self.listval)
+
+    def append(self, space, args, globals, trace=False):
+        val = args[0]
+        return W_List(listval=self.listval.append(val))
+
+    def first(self, space, args, globals, trace=False):
+        return self.listval[0]

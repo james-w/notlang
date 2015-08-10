@@ -121,7 +121,7 @@ def make_list_type():
     content_type = TypeVariable("a")
     l = ParameterisedType([Type("List", {}), content_type])
     l.types[0].attrs['append'] = FunctionType([content_type], l)
-    l.types[0].attrs['last'] = FunctionType([], content_type)
+    l.types[0].attrs['first'] = FunctionType([], content_type)
     return l
 
 

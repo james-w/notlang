@@ -59,4 +59,4 @@ c = trip(b+1, 3) + 1
 print(c)
 
 l = List<int>().append(1)
-print(l.last())
+print(l.first())

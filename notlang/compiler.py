@@ -139,6 +139,8 @@ def get_compiler(astnode, trace_typer=False):
     typer.typecheck(astnode, trace=trace_typer)
     c = compilercontext.CompilerContext()
     c.locals = ast.GatherAssignedNames().dispatch(astnode)
+    # XXX: needs to be generalised
+    c.locals.append("List")
     Compiler(c).dispatch(astnode)
     c.emit(bytecode.LOAD_CONSTANT, c.register_constant(objectspace.TheNone))
     c.emit(bytecode.RETURN)

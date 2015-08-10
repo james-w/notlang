@@ -5,7 +5,7 @@ from .. import bytecode, codegen, compilercontext, objectspace, interpreter
 
 def interpret(bcode):
     space = interpreter.Space()
-    return space.call_function(bcode, [], None)
+    return space.call_function(bcode, [], {}, {})
 
 
 def make_simple_function(ctx, name):

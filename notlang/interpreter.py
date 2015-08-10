@@ -4,7 +4,7 @@ from rpython.rlib import jit
 from rpython.rlib.debug import make_sure_not_resized
 
 from . import bytecode, compiler
-from .objectspace import W_Code, W_Dict, W_Func, W_Type
+from .objectspace import W_Code, W_Dict, W_Func, W_Type, W_List
 from .parsing import parse
 
 
@@ -25,8 +25,8 @@ def make_type(name, attrs):
 
 class Space(object):
 
-    def call_function(self, code, args, globals, trace=False):
-        child_f = Frame(self, code, globals)
+    def call_function(self, code, args, globals, locals, trace=False):
+        child_f = Frame(self, code, globals, locals)
         for i, arg in enumerate(args):
             child_f.vars[i] = arg
         return child_f.execute(trace=trace)
@@ -35,7 +35,7 @@ class Space(object):
 class Frame(object):
     _virtualizable_ = ['valuestack[*]', 'valuestack_pos', 'vars[*]', 'names[*]']
 
-    def __init__(self, space, prog, globals):
+    def __init__(self, space, prog, globals, locals):
         self = jit.hint(self, fresh_virtualizable=True, access_directly=True)
         self.valuestack = [None] * prog.max_stacksize
         make_sure_not_resized(self.valuestack)
@@ -44,9 +44,16 @@ class Frame(object):
         make_sure_not_resized(self.names)
         self.valuestack_pos = 0
         self.globals = globals
+        self.locals = locals
+        self.locals2fast()
         self.code = prog.bytecode
         self.constants = prog.constants
         self.space = space
+
+    def locals2fast(self):
+        for i, name in enumerate(self.names):
+            if name in self.locals:
+                self.vars[i] = self.locals[name]
 
     def push(self, v):
         pos = jit.hint(self.valuestack_pos, promote=True)
@@ -143,14 +150,17 @@ class Frame(object):
             elif c == bytecode.CALL_FUNCTION:
                 fargs = self.popmany(arg)
                 fobj = self.pop()
-                if getattr(fobj, 'call', None) is None:
-                    raise AssertionError("%s is not callable" % fobj)
-                globals = self.globals
-                if globals is None:
-                    globals = {}
-                    for i, name in enumerate(self.names):
+                callable = getattr(fobj, 'call', None)
+                if callable is None:
+                    if getattr(fobj, '__call__', None) is None:
+                        raise AssertionError("%s is not callable" % fobj)
+                    else:
+                        callable = fobj
+                globals = self.globals.copy()
+                for i, name in enumerate(self.names):
+                    if self.vars[i] is not None:
                         globals[name] = self.vars[i]
-                self.push(fobj.call(self.space, fargs, globals, trace=trace))
+                self.push(callable(self.space, fargs, globals, trace=trace))
             elif c == bytecode.MAKE_FUNCTION:
                 code_obj = self.pop()
                 if not isinstance(code_obj, W_Code):
@@ -182,4 +192,5 @@ def get_bytecode(source, trace_typer=False):
 def interpret(source, trace=False, trace_typer=False):
     prog = get_bytecode(source, trace_typer=trace_typer)
     space = Space()
-    return space.call_function(prog, [], None, trace=trace)
+    globals = dict(List=W_List)
+    return space.call_function(prog, [], globals, globals, trace=trace)
