@@ -121,6 +121,23 @@ class W_Func(W_Root):
     def call(self, space, args, globals, trace=False):
         return space.call_function(self.code, args, globals, {}, trace=trace)
 
+    def __get__(self, instance, cls):
+        """When accessed via an attribute on an instance, transform to a method"""
+        return W_Method(self.code, instance)
+
+
+class W_Method(W_Root):
+
+    __slots__ = ['code', 'instance']
+    _immutable_fields_ = ['code', 'instance']
+
+    def __init__(self, code, instance):
+        self.code = code
+        self.instance = instance
+
+    def call(self, space, args, globals, trace=False):
+        return space.call_function(self.code, [self.instance] + args, globals, {}, trace=trace)
+
 
 class W_Type(W_Root):
 

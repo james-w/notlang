@@ -296,10 +296,12 @@ class TypeEnv(object):
         self.env[k] = (v, inherit)
 
     def subenv(self, name):
+        if name in self.children:
+            return self.children[name]
         new = TypeEnv(self.prefix + "." + name)
-        for name, (var, inherit) in self.env.items():
+        for n, (var, inherit) in self.env.items():
             if inherit:
-                new.extend(name, var)
+                new.extend(n, var)
         new.types = self.types.copy()
         self.children[name] = new
         return new
@@ -313,7 +315,7 @@ class TypeEnv(object):
 
 class ThirdPass(ASTVisitor):
 
-    def __init__(self, env, active, name_graph, only_process=None, skip=None):
+    def __init__(self, env, active, name_graph, only_process=None, skip=None, self_type=None):
         self.env = env
         self.active = active
         if only_process is None:
@@ -323,9 +325,14 @@ class ThirdPass(ASTVisitor):
             skip = set()
         self.skip = skip
         self.name_graph = name_graph
+        self.self_type = self_type
 
     def should_handle(self, name):
         only = any(filter(lambda x: x == name or x.startswith(name + '.'), self.only_process))
+        return only and not name in self.skip
+
+    def should_handle_direct(self, name):
+        only = any(filter(lambda x: x == name, self.only_process))
         return only and not name in self.skip
 
     def get_child_only_process(self, name):
@@ -339,14 +346,18 @@ class ThirdPass(ASTVisitor):
         argtypes = []
         for i, arg in enumerate(node.args):
             argtype_str = node.argtypes[i]
-            if argtype_str is None:
+            if i == 0 and self.self_type is not None:
+                # XXX: need to check conflict with declared type
+                argtype = self.self_type
+            elif argtype_str is None:
                 argtype = env.newvar()
             else:
                 argtype = self.env.get_type(argtype_str)
                 if argtype is None:
                     argtype = env.newvar()
             env.extend(arg, argtype, False)
-            argtypes.append(argtype)
+            if i > 0 or self.self_type is None:
+                argtypes.append(argtype)
         for fname in child_process:
             if "." not in fname:
                 env.register(fname, inherit=True)
@@ -370,21 +381,26 @@ class ThirdPass(ASTVisitor):
             attrs[n] = env.register(n, inherit=True)
         for n in names.assignments:
             attrs[n] = env.register(n, inherit=False)
-        new_t = Type(name, attrs=attrs)
-        if node.type_params:
-            t_params = [new_t]
-            for param in node.type_params:
-                t_params.append(TypeVariable(param))
-            new_t = ParameterisedType(t_params)
-        self.env.register_type(name, new_t)
-        child = ThirdPass(env, name in self.only_process, child_process)
-        constraints, _ = child.dispatch(node.children[0].children[0])
-        ftype = FunctionType([], new_t)
-        constraints.append(Constraint(
-            instantiate(self.env.lookup(name, node.sourcepos)),
-            SUPERTYPE_OF,
-            ftype,
-            [node.sourcepos]))
+        if self.should_handle_direct(name):
+            new_t = Type(name, attrs=attrs)
+            if node.type_params:
+                t_params = [new_t]
+                for param in node.type_params:
+                    t_params.append(TypeVariable(param))
+                new_t = ParameterisedType(t_params)
+            self.env.register_type(name, new_t)
+        else:
+            ftype = self.env.lookup(name, node.sourcepos)
+            new_t = ftype.rtype
+        child = ThirdPass(env, name in self.only_process, self.name_graph.children[name], only_process=child_process, self_type=new_t)
+        constraints, _ = child.dispatch(node.children[0])
+        if self.should_handle_direct(name):
+            ftype = FunctionType([], new_t)
+            constraints.append(Constraint(
+                instantiate(self.env.lookup(name, node.sourcepos)),
+                SUPERTYPE_OF,
+                ftype,
+                [node.sourcepos]))
         return constraints, ftype
 
     def visit_ConstantInt(self, node):

@@ -1,6 +1,8 @@
-def truer(arg):
-    return arg
+Foo = new Type:
 
-truer(1)
-truer(true())
+    a = 1
+    def foo(self):
+        return self.a
 
+b = Foo().foo()
+print(b)

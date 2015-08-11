@@ -374,6 +374,17 @@ foo = thing().a
 """)
         self.assertThat(ftype, Is(typer.INT))
 
+    def test_method_call(self):
+        ftype = self.get_type('foo', """
+Thing = new Type:
+
+    def foo(self):
+        return 1
+
+foo = Thing().foo()
+""")
+        self.assertThat(ftype, Is(typer.INT))
+
 
 class InstantiateTests(TestCase):
 
