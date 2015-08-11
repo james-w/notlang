@@ -93,7 +93,7 @@ constructor. You probably can't assign to instance variables.
 
 Prints something to the console.
 
-   print(1)
+    print(1)
 
 It currently can only print numbers.
 
@@ -101,8 +101,8 @@ It currently can only print numbers.
 
 There is a homogenous immutable List type.
 
-   l = List().append(1)
-   print(l.first())
+    l = List().append(1)
+    print(l.first())
 
 ## Types
 
