@@ -1,25 +1,21 @@
-notlang
-=======
+# notlang
 
 This is most certainly not a language. If you are looking for a language
 then look elsewhere. You won't find a language here, especially not a good
 one that you should use.
 
-Syntax
-======
+## Syntax
 
 If this were a language, it would have syntax roughly the same as Python's,
 with significant whitespace (spaces only though.)
 
 However, Python's a language, so it's not really a good comparison to make.
 
-Features
-========
+## Features
 
 These are some features that this not-language definitely doesn't have.
 
-Basic types
------------
+### Basic types
 
 Currently there are only really integers. What sort of language would only
 have integers?
@@ -31,16 +27,14 @@ Some integers
     100
     -1
 
-Variables
----------
+### Variables
 
 You can assign values to variables, using the syntax you would expect.
 
     a = 1
     b = a
 
-Operators
----------
+### Operators
 
 There are a few operators you can use.
 
@@ -50,8 +44,7 @@ There are a few operators you can use.
     1 > 2
     1 == 2
 
-Conditionals
-------------
+### Conditionals
 
 You can write an if statement, with then and else blocks:
 
@@ -60,16 +53,14 @@ You can write an if statement, with then and else blocks:
     else:
        c = 2
 
-Loops
------
+### Loops
 
 There's only while loops currently
 
     while  a > 0:
        a = a - 1
 
-Functions
----------
+### Functions
 
 You can create a function, it can take arguments and return things.
 
@@ -79,8 +70,7 @@ You can create a function, it can take arguments and return things.
 Note that currently there are no closures, you can't reference locals
 from the parent scope, only their functions.
 
-Types
------
+### Types
 
 You can create your own types and instantiate them. You can't do
 very much with them at all currently. You can't have a non-default
@@ -97,11 +87,9 @@ constructor. You probably can't assign to instance variables.
     d.age
     d.age_fn()
 
-Builtins
---------
+### Builtins
 
-print
-~~~~~
+#### print
 
 Prints something to the console.
 
@@ -109,16 +97,14 @@ Prints something to the console.
 
 It currently can only print numbers.
 
-List
-~~~~
+#### List
 
 There is a homogenous immutable List type.
 
    l = List().append(1)
    print(l.first())
 
-Types
-=====
+## Types
 
 not is statically typed. Though it's not a language, so it's not really
 clear what that even means.
@@ -126,8 +112,7 @@ clear what that even means.
 It uses type inference, so you don't have to write type annotations for
 most things. It's definitely buggy though.
 
-Annotations
------------
+### Annotations
 
 You can annotate a function with the types that it uses:
 
@@ -138,8 +123,7 @@ Hopefully the inference system will confirm that the annotations match
 the use, that they are as general as possible etc., but it probably
 doesn't work.
 
-Type variables
---------------
+### Type variables
 
 You can specify a type variable for a function if you want.
 
@@ -150,22 +134,19 @@ The parser is pretty limited as it stands though, so you can't annotate
 this function correctly (multiple variables, function types). It would
 infer the type variables if you did nothing though.
 
-User-defined types
-------------------
+### User-defined types
 
 User defined types can be parameterised too.
 
      List = new Type<A>:
          pass
 
-Usage
-=====
+## Usage
 
 If you wanted to try this not-a-language (which you don't), then
 see the HACKING file.
 
-Inspiration
-===========
+## Inspiration
 
 There aren't new ideas here, I'm just playing with ideas from these
 places:
