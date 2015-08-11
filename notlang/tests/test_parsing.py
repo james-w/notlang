@@ -138,6 +138,15 @@ class BasicParsingTests(TestCase):
     def test_new_decl_with_type_param(self):
         self.assert_parses_ok("Foo = new Type<a>:\n    pass\n\n")
 
+    def test_new_decl_with_field(self):
+        self.assert_parses_ok("Foo = new Type<a>:\n    a = 1\n\n")
+
+    def test_new_decl_with_method(self):
+        self.assert_parses_ok("Foo = new Type<a>:\n    def foo(self):\n        pass\n\n")
+
+    def test_new_decl_with_blank_line(self):
+        self.assert_parses_ok("Foo = new Type:\n\n    pass\n\n")
+
 
 class ASTTests(TestCase):
 

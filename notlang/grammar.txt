@@ -28,7 +28,9 @@ assignment_trailer: ["="] <testlist> | ["="] new_decl;
 
 testlist: comparison;
 
-new_decl: "new" ["Type"] type_params? [":" NEWLINE] suite;
+newlines: NEWLINE+;
+
+new_decl: "new" ["Type"] type_params? [":" newlines] suite;
 
 type_params: [TYPE_PARAM_START] IDENTIFIER [TYPE_PARAM_END];
 

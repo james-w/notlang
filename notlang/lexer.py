@@ -34,6 +34,9 @@ class AbstractIndentTrackingLexingDFARunner(deterministic.DFARunner):
 
             # Handle end of file situation
             if start == len(self.text) and self.eof:
+                if len(self.indents) > 1:
+                    self.indents.pop()
+                    return self.make_token(start, -3, "")
                 self.last_matched_index += 1
                 return self.make_token(start, -1, "", eof=True)
             elif start >= len(self.text):
