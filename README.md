@@ -65,8 +65,8 @@ Loops
 
 There's only while loops currently
 
-    if a > 0:
-       a = a -1
+    while  a > 0:
+       a = a - 1
 
 Functions
 ---------
@@ -83,20 +83,39 @@ Types
 -----
 
 You can create your own types and instantiate them. You can't do
-very much with them at all currently.
+very much with them at all currently. You can't have a non-default
+constructor. You probably can't assign to instance variables.
 
 
     Dog = new Type:
         age = 7
 
+        def age_fn(self):
+            return self.age
+
     d = Dog()
     d.age
+    d.age_fn()
 
 Builtins
 --------
 
-There is currently one builtin: 'print'. It will print some things,
-but not all of them. Mainly only numbers.
+print
+~~~~~
+
+Prints something to the console.
+
+   print(1)
+
+It currently can only print numbers.
+
+List
+~~~~
+
+There is a homogenous immutable List type.
+
+   l = List().append(1)
+   print(l.first())
 
 Types
 =====
@@ -104,15 +123,15 @@ Types
 not is statically typed. Though it's not a language, so it's not really
 clear what that even means.
 
-It uses type inference, so you don't have to write type annotations. It's
-definitely buggy though.
+It uses type inference, so you don't have to write type annotations for
+most things. It's definitely buggy though.
 
 Annotations
 -----------
 
 You can annotate a function with the types that it uses:
 
-     def plusone(a: int) -> int:
+     def increment(a: int) -> int:
          return a + 1
 
 Hopefully the inference system will confirm that the annotations match
@@ -138,8 +157,6 @@ User defined types can be parameterised too.
 
      List = new Type<A>:
          pass
-
-It doesn't currently do anything though.
 
 Usage
 =====
