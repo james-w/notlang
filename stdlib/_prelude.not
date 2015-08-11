@@ -1,0 +1,7 @@
+List = new Type<a>:
+
+    def append(self, val: a) -> List<a>:
+        pass
+
+    def first(self) -> a:
+        pass
