@@ -185,12 +185,12 @@ class Frame(object):
                 assert False, "Unknown opcode: %d" % c
 
 
-def get_bytecode(source, trace_typer=False):
-    return compiler.compile_ast(parse(source), trace_typer=trace_typer)
+def get_bytecode(source, trace_typer=False, trace_lexer=False):
+    return compiler.compile_ast(parse(source, trace_lexer=trace_lexer), trace_typer=trace_typer)
 
 
-def interpret(source, trace=False, trace_typer=False):
-    prog = get_bytecode(source, trace_typer=trace_typer)
+def interpret(source, trace=False, trace_typer=False, trace_lexer=False):
+    prog = get_bytecode(source, trace_typer=trace_typer, trace_lexer=trace_lexer)
     space = Space()
     globals = dict(List=W_List)
     return space.call_function(prog, [], globals, globals, trace=trace)

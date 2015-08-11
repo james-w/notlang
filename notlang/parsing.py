@@ -29,9 +29,9 @@ def make_parse_function(regexs, rules, eof=False):
     else:
         ignore = []
     check_for_missing_names(names, regexs, rules)
-    lexer = mod_lexer.IndentTrackingLexer(list(regexs), list(names), ignore=ignore)
     parser = PackratParser(rules, rules[0].nonterminal)
-    def parse(s):
+    def parse(s, trace_lexer=False):
+        lexer = mod_lexer.IndentTrackingLexer(list(regexs), list(names), ignore=ignore, trace=trace_lexer)
         tokens = lexer.tokenize(s, eof=eof)
         s = parser.parse(tokens)
         if not we_are_translated():
@@ -244,5 +244,5 @@ def view_processed_parse_tree(source):
     return graphview(parse(source))
 
 
-def parse(source):
-    return transformer.dispatch(ToAST().transform(_parse(source)))
+def parse(source, trace_lexer=False):
+    return transformer.dispatch(ToAST().transform(_parse(source, trace_lexer=trace_lexer)))

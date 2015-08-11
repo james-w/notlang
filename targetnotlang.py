@@ -6,7 +6,7 @@ import sys
 
 from rpython.rlib.parsing.parsing import ParseError
 from rpython.jit.codewriter.policy import JitPolicy
-from notlang.debug import add_debug_args, show_errors, trace_interp, trace_typer
+from notlang.debug import add_debug_args, show_errors, trace_interp, trace_typer, trace_lexer
 from notlang.interpreter import interpret
 from notlang.typer import NotNameError, NotTypeError
 
@@ -20,7 +20,7 @@ def main(argv):
     opts.file.close()
     do_raise = show_errors(opts)
     try:
-        interpret(data, trace=trace_interp(opts), trace_typer=trace_typer(opts))
+        interpret(data, trace=trace_interp(opts), trace_typer=trace_typer(opts), trace_lexer=trace_lexer(opts))
     except (ParseError, NotNameError, NotTypeError) as e:
         print(e.nice_error_message(source=data, filename=opts.file.name))
         if do_raise:

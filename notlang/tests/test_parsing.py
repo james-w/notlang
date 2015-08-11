@@ -7,7 +7,7 @@ from ..parsing import parse as _parse
 
 def parse(code):
     try:
-        return _parse(code)
+        return _parse(code, trace_lexer=True)
     except ParseError as e:
         print e.nice_error_message(source=code)
         raise
