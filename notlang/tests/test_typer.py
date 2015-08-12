@@ -25,14 +25,14 @@ class SatisfyConstraintsTests(TestCase):
             [typer.Constraint(typer.NONE, typer.SUPERTYPE_OF, typer.INT, [self.spos])])
 
     def test_not_equal_across_two(self):
-        vartype = typer.TypeVariable("a")
+        vartype = typer.TypeExpr("a")
         self.assertRaises(typer.NotTypeError, self.satisfy_constraints,
             [typer.Constraint(vartype, typer.SUPERTYPE_OF, typer.INT, [self.spos]),
              typer.Constraint(vartype, typer.SUPERTYPE_OF, typer.NONE, [self.spos])])
 
     def test_not_equal_across_three(self):
-        vartype1 = typer.TypeVariable("a")
-        vartype2 = typer.TypeVariable("b")
+        vartype1 = typer.TypeExpr("a")
+        vartype2 = typer.TypeExpr("b")
         self.assertRaises(typer.NotTypeError, self.satisfy_constraints,
             [typer.Constraint(vartype1, typer.SUPERTYPE_OF, typer.INT, [self.spos]),
              typer.Constraint(vartype2, typer.SUPERTYPE_OF, vartype1, [self.spos]),
@@ -144,8 +144,8 @@ class SatisfyConstraintsTests(TestCase):
         self.assertEqual({}, substitution)
 
     def test_getattr_no_attr(self):
-        a = typer.AttributeAccess(typer.INT, 'a')
-        b = typer.BOOL
+        a = typer.BOOL
+        b = typer.AttributeAccess(typer.INT, 'a')
         constraint_pos = [SourcePos(2, 2, 2)]
         substitution = {}
         self.assertRaises(
@@ -385,6 +385,35 @@ foo = Thing().foo()
 """)
         self.assertThat(ftype, Is(typer.INT))
 
+    def test_enum(self):
+        ftype = self.get_type('Answer', """
+Answer = new Enum(Y, N):
+    pass
+
+""")
+        self.assertThat(ftype, testing.IsType('Answer'))
+
+    def test_enum_value(self):
+        # Assign both values to the same var to be sure
+        # that they are considered the same type.
+        ftype = self.get_type('y', """
+Answer = new Enum(Y, N):
+    pass
+
+y = Answer.Y
+y = Answer.N
+
+""")
+        # This should probably have been elevated to 'Answer'
+        # as the type, but it doesn't work. That
+        # probably also means that some invalid programs
+        # may type check, because widening of the type isn't
+        # accounted for later.
+        # The problem is that by the time we decide whether
+        # two concrete types can be unified, we no longer
+        # have info about the expressions
+        self.assertThat(ftype, testing.IsType('Answer.Y'))
+
 
 class InstantiateTests(TestCase):
 
@@ -579,6 +608,12 @@ class UnifyTypeTests(TestCase):
         self.assertIs(None, typer.unify_types(typer.BOOL, typer.ANY, typer.SUPERTYPE_OF))
         self.assertIs(typer.ANY, typer.unify_types(typer.INT, typer.ANY, typer.SUBTYPE_OF))
         self.assertIs(None, typer.unify_types(typer.ANY, typer.BOOL, typer.SUBTYPE_OF))
+
+    def test_subtype(self):
+        t1 = typer.Type('a')
+        t2 = typer.Type('b', bases=(t1,))
+        self.assertIs(t1, typer.unify_types(t1, t2, typer.SUPERTYPE_OF))
+        self.assertIs(t1, typer.unify_types(t1, t2, typer.SUBTYPE_OF))
 
 
 class FirstPassTests(TestCase):

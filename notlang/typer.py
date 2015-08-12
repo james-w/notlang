@@ -5,11 +5,14 @@ from .ast import ASTVisitor, NewType
 
 class Type(object):
 
-    def __init__(self, name, attrs=None):
+    def __init__(self, name, attrs=None, bases=None):
         self.name = name
         if attrs is None:
             attrs = {}
         self.attrs = attrs
+        if bases is None:
+            bases = ()
+        self.bases = bases
 
     def __str__(self):
         return self.name
@@ -17,7 +20,8 @@ class Type(object):
     def __eq__(self, other):
         return (self.__class__ == other.__class__
                 and self.name == other.name
-                and self.attrs == other.attrs)
+                and self.attrs == other.attrs
+                and self.bases == other.bases)
 
     def __ne__(self, other):
         return not(self.__eq__(other))
@@ -376,11 +380,15 @@ class ThirdPass(ASTVisitor):
         child_process = self.get_child_only_process(name)
         env = self.env.subenv(name)
         attrs = {}
+        subtypes = []
         names = self.name_graph.children[name]
         for n in names.functions.union(names.types):
             attrs[n] = env.register(n, inherit=True)
         for n in names.assignments:
             attrs[n] = env.register(n, inherit=False)
+        if node.type_type == 'Enum':
+            for val in node.options:
+                attrs[val] = env.register('{}.{}'.format(name, val), inherit=True)
         if self.should_handle_direct(name):
             new_t = Type(name, attrs=attrs)
             if node.type_params:
@@ -389,13 +397,28 @@ class ThirdPass(ASTVisitor):
                     t_params.append(TypeVariable(param))
                 new_t = ParameterisedType(t_params)
             self.env.register_type(name, new_t)
+            if node.type_type == 'Enum':
+                for val in node.options:
+                    opt_name = '{}.{}'.format(name, val)
+                    opt_type = Type(opt_name, bases=(new_t,))
+                    env.register_type(opt_name, opt_type)
+                    subtypes.append(opt_type)
         else:
             ftype = self.env.lookup(name, node.sourcepos)
             new_t = ftype.rtype
         child = ThirdPass(env, name in self.only_process, self.name_graph.children[name], only_process=child_process, self_type=new_t)
         constraints, _ = child.dispatch(node.children[0])
         if self.should_handle_direct(name):
-            ftype = FunctionType([], new_t)
+            if node.type_type == 'Enum':
+                ftype = new_t
+                for subtype in subtypes:
+                    constraints.append(Constraint(
+                        instantiate(env.lookup(subtype.name, node.sourcepos)),
+                        SUPERTYPE_OF,
+                        subtype,
+                        [node.sourcepos]))
+            else:
+                ftype = FunctionType([], new_t)
             constraints.append(Constraint(
                 instantiate(self.env.lookup(name, node.sourcepos)),
                 SUPERTYPE_OF,
@@ -653,8 +676,16 @@ def unify_types(a, b, constraint):
         return ANY
     if constraint == SUBTYPE_OF and b is ANY:
         return ANY
-    if a == b:
-        return a
+    # XXX: ignores SUBTYPE_OF/SUPERTYPE_OF
+    # it's not clear whether we need a third constraint that
+    # just means that they can be unified, or whether
+    # this is the wrong approach.
+    a_bases = (a,) + a.bases
+    b_bases = (b,) + b.bases
+    for a_base in a_bases:
+        for b_base in b_bases:
+            if a_base == b_base:
+                return a_base
 
 
 def occurs(lhs, rhs):

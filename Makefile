@@ -4,6 +4,11 @@ MAIN = target$(NAME).py
 TARGET = $(patsubst %.py,%-c,$(MAIN))
 
 TEST_FILTER ?= ""
+ifdef TEST_FAILFAST
+	TEST_FAILFAST = "1"
+else
+	TEST_FAILFAST = "100"
+endif
 
 build: deps $(TARGET)
 
@@ -27,7 +32,7 @@ clean:
 	find $(BASEDIR) -name \*.pyc -delete
 
 test:
-	PYTHONPATH=pypy ./virtualenv/bin/py.test $(NAME) -k $(TEST_FILTER)
+	PYTHONPATH=pypy ./virtualenv/bin/py.test $(NAME) -k $(TEST_FILTER) --maxfail=$(TEST_FAILFAST)
 
 check: test
 
