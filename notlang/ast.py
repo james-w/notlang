@@ -165,12 +165,15 @@ class Return(NonTerminal):
 
 class NewType(NonTerminal):
 
-    def __init__(self, block, sourcepos, type_params=None):
+    def __init__(self, block, sourcepos, type_params=None, options=None):
         self.children = [block]
         self.sourcepos = sourcepos
         if type_params is None:
             type_params = []
         self.type_params = type_params
+        if options is None:
+            options = []
+        self.options = options
 
 
 class Attribute(NonTerminal):

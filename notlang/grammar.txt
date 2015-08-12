@@ -30,9 +30,14 @@ testlist: comparison;
 
 newlines: NEWLINE+;
 
-new_decl: "new" ["Type"] type_params? [":" newlines] suite;
+new_decl: "new" >type_type< type_params? type_options? [":" newlines] suite;
+
+type_type: "Type" | "Enum";
 
 type_params: [TYPE_PARAM_START] IDENTIFIER [TYPE_PARAM_END];
+type_options: "(" type_options_list? [")"];
+type_options_list: IDENTIFIER type_options_list_trailer*;
+type_options_list_trailer: [","] <IDENTIFIER>;
 
 comparison: expr comparison_trailer*;
 

@@ -147,6 +147,9 @@ class BasicParsingTests(TestCase):
     def test_new_decl_with_blank_line(self):
         self.assert_parses_ok("Foo = new Type:\n\n    pass\n\n")
 
+    def test_new_enum(self):
+        self.assert_parses_ok("A = new Enum(B, C):\n    pass\n\n")
+
 
 class ASTTests(TestCase):
 
@@ -400,10 +403,47 @@ class ASTTests(TestCase):
         t = ass.children[0]
         self.assertIsInstance(t, ast.NewType)
         self.assertEqual(1, len(t.children))
+        self.assertEqual([], t.options)
         self.assertEqual(["b"], t.type_params)
         self.assertEqual(5, t.sourcepos.i)
         self.assertIsInstance(t.children[0], ast.Block)
         self.assertIsInstance(t.children[0].children[0].children[0], ast.Pass)
+
+    def test_NewType_with_options(self):
+        node = parse(" a = new Type(A):\n    pass\n\n")
+        self.assertIsInstance(node, ast.Block)
+        ass = node.children[0].children[0]
+        self.assertIsInstance(ass, ast.Assignment)
+        t = ass.children[0]
+        self.assertIsInstance(t, ast.NewType)
+        self.assertEqual(1, len(t.children))
+        self.assertEqual(["A"], t.options)
+        self.assertEqual([], t.type_params)
+        self.assertEqual(5, t.sourcepos.i)
+
+    def test_NewType_with_multiple_options(self):
+        node = parse(" a = new Type(A, B):\n    pass\n\n")
+        self.assertIsInstance(node, ast.Block)
+        ass = node.children[0].children[0]
+        self.assertIsInstance(ass, ast.Assignment)
+        t = ass.children[0]
+        self.assertIsInstance(t, ast.NewType)
+        self.assertEqual(1, len(t.children))
+        self.assertEqual(["A", "B"], t.options)
+        self.assertEqual([], t.type_params)
+        self.assertEqual(5, t.sourcepos.i)
+
+    def test_NewType_with_params_and_options(self):
+        node = parse(" a = new Type<B>(A):\n    pass\n\n")
+        self.assertIsInstance(node, ast.Block)
+        ass = node.children[0].children[0]
+        self.assertIsInstance(ass, ast.Assignment)
+        t = ass.children[0]
+        self.assertIsInstance(t, ast.NewType)
+        self.assertEqual(1, len(t.children))
+        self.assertEqual(["A"], t.options)
+        self.assertEqual(["B"], t.type_params)
+        self.assertEqual(5, t.sourcepos.i)
 
     def test_Attribute(self):
         node = parse(" a.b\n")
