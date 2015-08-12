@@ -116,25 +116,15 @@ what is done with the value.
 
 How do you define a type such as this?
 
-  Maybe = new Type:
-      Just = new Case:
-          def __init__(self, value):
-              self.value = value
+Maybe = new Enum<A>(None, Just(A)):
 
-      None = new Case:
-          pass
+    def is_none(self):
+        case self:
+            None:
+                return True
+            Just a:
+                return False
 
-case then only applies to such types?
-
-You would construct this like
-
-  Maybe.None()
-  Maybe.Just(value)
-
-Maybe define two types None() and Just(), and have a Union
-constructor?
-
-Maybe = new Union(None, Just)
 
 Type checking attribute access
 ------------------------------
