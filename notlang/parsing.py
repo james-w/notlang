@@ -183,7 +183,7 @@ class Transformer(RPythonVisitor):
                 argtypes=argtypes, type_params=type_params)
 
     def visit_new_decl(self, node):
-        type_type = node.children[1]
+        type_type = node.children[1].additional_info
         type_params = []
         options = []
         block_node = node.children[-1]
@@ -195,8 +195,10 @@ class Transformer(RPythonVisitor):
                 type_params = [node.children[2].children[0].additional_info]
             else:
                 options = [c.additional_info for c in node.children[2].children[1].children]
+        if type_type == 'Enum' and not options:
+            raise ParseError(node.getsourcepos(), ErrorInformation(node.getsourcepos().i, ["options for Enum"]))
         block = self.dispatch(block_node)
-        return ast.NewType(block, node.getsourcepos(), type_params=type_params, options=options)
+        return ast.NewType(block, type_type, node.getsourcepos(), type_params=type_params, options=options)
 
     def visit_pass(self, node):
         return ast.Pass(node.getsourcepos())

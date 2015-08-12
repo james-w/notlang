@@ -165,8 +165,9 @@ class Return(NonTerminal):
 
 class NewType(NonTerminal):
 
-    def __init__(self, block, sourcepos, type_params=None, options=None):
+    def __init__(self, block, type_type, sourcepos, type_params=None, options=None):
         self.children = [block]
+        self.type_type = type_type
         self.sourcepos = sourcepos
         if type_params is None:
             type_params = []

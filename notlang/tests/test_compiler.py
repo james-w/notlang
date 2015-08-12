@@ -185,7 +185,7 @@ class TestCompiler(TestCase):
         attr = ast.Variable(attrname, self.spos)
         right = ast.ConstantInt(attrval, self.spos)
         block = ast.Assignment(attr, right, self.spos)
-        t = ast.NewType(block, self.spos)
+        t = ast.NewType(block, "Type", self.spos)
         node = ast.Assignment(var, t, self.spos)
         ctx = compile(node)
         self.assertEqual(2, len(ctx.constants))

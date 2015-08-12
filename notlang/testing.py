@@ -208,7 +208,7 @@ class ASTFactory(object):
     def newtype(self, block=None):
         if block is None:
             block = self.pass_()
-        return ast.NewType(block, self.spos)
+        return ast.NewType(block, "Type", self.spos)
 
     def funcdef(self, name=None, body=None, args=None):
         if name is None:

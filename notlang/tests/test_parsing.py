@@ -383,6 +383,7 @@ class ASTTests(TestCase):
         self.assertIsInstance(ass, ast.Assignment)
         t = ass.children[0]
         self.assertIsInstance(t, ast.NewType)
+        self.assertEqual("Type", t.type_type)
         self.assertEqual(5, t.sourcepos.i)
 
     def test_NewType_with_params(self):
@@ -444,6 +445,20 @@ class ASTTests(TestCase):
         self.assertEqual(["A"], t.options)
         self.assertEqual(["B"], t.type_params)
         self.assertEqual(5, t.sourcepos.i)
+
+    def test_Enum(self):
+        node = parse(" a = new Enum(A):\n    pass\n\n")
+        self.assertIsInstance(node, ast.Block)
+        ass = node.children[0].children[0]
+        self.assertIsInstance(ass, ast.Assignment)
+        t = ass.children[0]
+        self.assertIsInstance(t, ast.NewType)
+        self.assertEqual("Enum", t.type_type)
+
+    def test_Enum_without_options(self):
+        err = self.assertRaises(ParseError, parse, " a = new Enum:\n    pass\n\n")
+        self.assertEqual("options for Enum", err.errorinformation.failure_reasons[0])
+        self.assertEqual(5, err.source_pos.i)
 
     def test_Attribute(self):
         node = parse(" a.b\n")
