@@ -149,6 +149,14 @@ class CodeGenTests(TestCase):
         self.assertThat(ctx.data,
             BytecodeMatches([bytecode.DUP_TOP, 0]))
 
+    def test_rot_two(self):
+        ctx = CompilerContext()
+        codegen.rot_two(ctx)
+        self.assertEqual([], ctx.constants)
+        self.assertEqual([], ctx.names)
+        self.assertThat(ctx.data,
+            BytecodeMatches([bytecode.ROT_TWO, 0]))
+
     def test_built_tuple(self):
         ctx = CompilerContext()
         codegen.build_tuple(ctx, 2)
@@ -156,3 +164,12 @@ class CodeGenTests(TestCase):
         self.assertEqual([], ctx.names)
         self.assertThat(ctx.data,
             BytecodeMatches([bytecode.BUILD_TUPLE, 2]))
+
+    def test_set_attr(self):
+        ctx = CompilerContext()
+        name = 'a'
+        codegen.set_attr(ctx, name)
+        self.assertEqual([], ctx.constants)
+        self.assertEqual([name], ctx.names)
+        self.assertThat(ctx.data,
+            BytecodeMatches([bytecode.SET_ATTR, 0]))

@@ -16,6 +16,12 @@ def load_attr(ctx, name):
     ctx.emit(bytecode.LOAD_ATTR, ctx.register_var(name))
 
 
+def set_attr(ctx, name):
+    # FIXME: Should probably use a different list than the vars,
+    # so as not to allocate storage space for these names
+    ctx.emit(bytecode.SET_ATTR, ctx.register_var(name))
+
+
 def load_constant_int(ctx, val):
     vnum = ctx.register_constant(objectspace.W_Int(val))
     ctx.emit(bytecode.LOAD_CONSTANT, vnum)
@@ -112,6 +118,10 @@ def load_locals(ctx):
 
 def dup_top(ctx):
     ctx.emit(bytecode.DUP_TOP)
+
+
+def rot_two(ctx):
+    ctx.emit(bytecode.ROT_TWO)
 
 
 def build_tuple(ctx, count):

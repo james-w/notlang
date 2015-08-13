@@ -147,6 +147,11 @@ class Frame(object):
                     if val is not None:
                         dictval[self.names[i]] = val
                 self.push(W_Dict(dictval))
+            elif c == bytecode.SET_ATTR:
+                attrname = self.names[arg]
+                val = self.pop()
+                obj = self.pop()
+                setattr(obj, attrname, val)
             elif c == bytecode.CALL_FUNCTION:
                 fargs = self.popmany(arg)
                 fobj = self.pop()
@@ -185,6 +190,11 @@ class Frame(object):
                 val = self.pop()
                 self.push(val)
                 self.push(val)
+            elif c == bytecode.ROT_TWO:
+                val1 = self.pop()
+                val2 = self.pop()
+                self.push(val1)
+                self.push(val2)
             elif c == bytecode.BUILD_TUPLE:
                 fargs = self.popmany(arg)
                 self.push(W_Tuple(fargs))

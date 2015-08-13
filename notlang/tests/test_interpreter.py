@@ -286,3 +286,16 @@ class TupleTests(TestCase):
         ret = interpret(ctx.create_bytecode())
         self.assertIsInstance(ret, objectspace.W_Tuple)
         self.assertEqual([2, 1], map(attrgetter('intval'), ret.val))
+
+
+class StackTests(TestCase):
+
+    def test_rot_two(self):
+        ctx = compilercontext.CompilerContext()
+        codegen.load_constant_int(ctx, 1)
+        codegen.load_constant_int(ctx, 2)
+        codegen.rot_two(ctx)
+        codegen.do_return(ctx)
+        ret = interpret(ctx.create_bytecode())
+        self.assertIsInstance(ret, objectspace.W_Int)
+        self.assertEqual(1, ret.intval)
