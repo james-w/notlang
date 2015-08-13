@@ -1,4 +1,3 @@
-from pyrsistent import pvector
 from . import bytecode, compilercontext, objectspace
 
 
@@ -9,6 +8,11 @@ def load_var(ctx, name):
         op = bytecode.LOAD_GLOBAL
     vnum = ctx.register_var(name)
     ctx.emit(op, vnum)
+
+
+def load_global(ctx, name):
+    vnum = ctx.register_var(name)
+    ctx.emit(bytecode.LOAD_GLOBAL, vnum)
 
 
 def load_attr(ctx, name):
@@ -126,12 +130,13 @@ def enum(ctx, name, options, code_cb):
         dup_top(ctx)
         # dup the base type for use in the bases
         dup_top(ctx)
-        # XXX: name of base isn't assigned yet
         ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(objectspace.W_String(name)))
         rot_two(ctx)
         build_tuple(ctx, 1)
         ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(objectspace.W_Dict({})))
         ctx.emit(bytecode.MAKE_TYPE)
+        # make a singleton
+        ctx.emit(bytecode.CALL_FUNCTION, 0)
         set_attr(ctx, option)
 
 
@@ -149,3 +154,7 @@ def rot_two(ctx):
 
 def build_tuple(ctx, count):
     ctx.emit(bytecode.BUILD_TUPLE, count)
+
+
+def is_(ctx):
+    ctx.emit(bytecode.BINARY_IS)

@@ -175,3 +175,11 @@ class CodeGenTests(TestCase):
         self.assertEqual([name], ctx.names)
         self.assertThat(ctx.data,
             BytecodeMatches([bytecode.SET_ATTR, 0]))
+
+    def test_is(self):
+        ctx = CompilerContext()
+        codegen.is_(ctx)
+        self.assertEqual([], ctx.constants)
+        self.assertEqual([], ctx.names)
+        self.assertThat(ctx.data,
+            BytecodeMatches([bytecode.BINARY_IS, 0]))

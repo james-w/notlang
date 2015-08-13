@@ -19,20 +19,21 @@ register_code('BINARY_MULT', 10)
 register_code('BINARY_EQ', 11)
 register_code('BINARY_LT', 12)
 register_code('BINARY_GT', 13)
-register_code('JUMP_IF_FALSE', 14)
-register_code('JUMP_FORWARD', 15)
-register_code('JUMP_BACK', 16)
-register_code('CALL_FUNCTION', 17)
-register_code('MAKE_FUNCTION', 18)
-register_code('MAKE_TYPE', 19)
-register_code('RETURN', 20)
-register_code('PRINT', 21)
-register_code('DUP_TOP', 22)
-register_code('ROT_TWO', 23)
-register_code('BUILD_TUPLE', 24)
+register_code('BINARY_IS', 14)
+register_code('JUMP_IF_FALSE', 15)
+register_code('JUMP_FORWARD', 16)
+register_code('JUMP_BACK', 17)
+register_code('CALL_FUNCTION', 18)
+register_code('MAKE_FUNCTION', 19)
+register_code('MAKE_TYPE', 20)
+register_code('RETURN', 21)
+register_code('PRINT', 22)
+register_code('DUP_TOP', 23)
+register_code('ROT_TWO', 24)
+register_code('BUILD_TUPLE', 25)
 
 BINOP = {'+': BINARY_ADD, '-': BINARY_SUB, '*': BINARY_MULT, '==': BINARY_EQ, '<': BINARY_LT, '>': BINARY_GT}
-unary_ops = [BINARY_ADD, BINARY_SUB, BINARY_MULT, BINARY_EQ, BINARY_LT, BINARY_GT, RETURN, PRINT, LOAD_LOCALS, MAKE_TYPE]
+unary_ops = [LOAD_LOCALS, BINARY_ADD, BINARY_SUB, BINARY_MULT, BINARY_EQ, BINARY_LT, BINARY_GT, BINARY_IS, RETURN, PRINT, LOAD_LOCALS, MAKE_FUNCTION, MAKE_TYPE, DUP_TOP, ROT_TWO]
 STACK_CHANGE = {
     LOAD_CONSTANT: 1,
     LOAD_VAR: 1,
@@ -47,6 +48,7 @@ STACK_CHANGE = {
     BINARY_EQ: -1,
     BINARY_LT: -1,
     BINARY_GT: -1,
+    BINARY_IS: -1,
     JUMP_IF_FALSE: -1,
     JUMP_FORWARD: 0,
     JUMP_BACK: 0,

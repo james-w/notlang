@@ -122,6 +122,24 @@ class BinaryOperationTests(TestCase):
         ret = interpret(ctx.create_bytecode())
         self.assertEqual(0, ret.intval)
 
+    def test_is_true(self):
+        ctx = compilercontext.CompilerContext()
+        codegen.load_constant_int(ctx, 99)
+        codegen.dup_top(ctx)
+        codegen.is_(ctx)
+        codegen.do_return(ctx)
+        ret = interpret(ctx.create_bytecode())
+        self.assertEqual(1, ret.intval)
+
+    def test_is_false(self):
+        ctx = compilercontext.CompilerContext()
+        codegen.load_constant_int(ctx, 99)
+        codegen.load_constant_int(ctx, 1)
+        codegen.is_(ctx)
+        codegen.do_return(ctx)
+        ret = interpret(ctx.create_bytecode())
+        self.assertEqual(0, ret.intval)
+
 
 class JumpTests(TestCase):
 

@@ -4,7 +4,7 @@ from rpython.rlib import jit
 from rpython.rlib.debug import make_sure_not_resized
 
 from . import bytecode, compiler
-from .objectspace import W_Code, W_Dict, W_Func, W_List, W_Tuple, W_Type
+from .objectspace import W_Code, W_Dict, W_Func, W_List, W_Tuple, W_Type, W_Int
 from .parsing import parse
 
 
@@ -120,6 +120,10 @@ class Frame(object):
                 right = self.pop()
                 left = self.pop()
                 self.push(left.eq(right))
+            elif c == bytecode.BINARY_IS:
+                right = self.pop()
+                left = self.pop()
+                self.push(W_Int(int(left is right)))
             elif c == bytecode.ASSIGN:
                 self.vars[arg] = self.pop()
             elif c == bytecode.LOAD_VAR:
