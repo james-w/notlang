@@ -107,6 +107,17 @@ They can be used with a case statement:
         Thing.B:
             pass
 
+Enums can have methods too:
+
+    Thing = new Enum(A, B):
+
+         def is_a(self):
+             case self:
+                  Thing.A:
+                       return 1
+                  Thing.B:
+                       return 0
+
 ### Builtins
 
 #### print

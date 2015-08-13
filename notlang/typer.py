@@ -386,6 +386,7 @@ class ThirdPass(ASTVisitor):
         child_process = self.get_child_only_process(name)
         env = self.env.subenv(name)
         attrs = {}
+        enum_subtypes = {}
         subtypes = []
         names = self.name_graph.children[name]
         for n in names.functions.union(names.types):
@@ -394,9 +395,11 @@ class ThirdPass(ASTVisitor):
             attrs[n] = env.register(n, inherit=False)
         if node.type_type == 'Enum':
             for val in node.options:
-                attrs[val] = env.register('{}.{}'.format(name, val), inherit=True)
+                enum_subtypes[val] = env.register('{}.{}'.format(name, val), inherit=True)
         if self.should_handle_direct(name):
-            new_t = Type(name, attrs=attrs, bases=(METATYPES.get(node.type_type),))
+            full_attrs = attrs.copy()
+            full_attrs.update(enum_subtypes)
+            new_t = Type(name, attrs=full_attrs, bases=(METATYPES.get(node.type_type),))
             if node.type_params:
                 t_params = [new_t]
                 for param in node.type_params:
@@ -406,12 +409,15 @@ class ThirdPass(ASTVisitor):
             if node.type_type == 'Enum':
                 for val in node.options:
                     opt_name = '{}.{}'.format(name, val)
-                    opt_type = Type(opt_name, bases=(new_t, METATYPES.get(node.type_type)))
+                    opt_type = Type(opt_name, bases=(new_t, METATYPES.get(node.type_type)), attrs=attrs)
                     env.register_type(opt_name, opt_type)
                     subtypes.append(opt_type)
         else:
             ftype = self.env.lookup(name, node.sourcepos)
-            new_t = ftype.rtype
+            if node.type_type == 'Enum':
+                new_t = ftype
+            else:
+                new_t = ftype.rtype
         child = ThirdPass(env, name in self.only_process, self.name_graph.children[name], only_process=child_process, self_type=new_t)
         constraints, _ = child.dispatch(node.children[0])
         if self.should_handle_direct(name):

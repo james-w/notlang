@@ -62,12 +62,14 @@ l = List().append(1)
 print(l.first())
 
 Answer = new Enum(Y, N):
-    pass
+
+    def is_yes(self):
+        case self:
+            Answer.Y:
+                return 1
+            Answer.N:
+                return 0
+
 
 y = Answer.Y
-
-case y:
-    Answer.Y:
-        print(42)
-    Answer.N:
-        print(2)
+print(y.is_yes())
