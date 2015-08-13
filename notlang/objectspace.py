@@ -190,3 +190,12 @@ class W_List(W_Type):
 
     def first(self, space, args, globals, trace=False):
         return self.listval[0]
+
+
+class W_Tuple(W_Root):
+
+    __slots__ = ['val']
+    _immutable_fields_ = ['val']
+
+    def __init__(self, val):
+        self.val = val

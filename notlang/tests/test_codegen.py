@@ -148,3 +148,11 @@ class CodeGenTests(TestCase):
         self.assertEqual([], ctx.names)
         self.assertThat(ctx.data,
             BytecodeMatches([bytecode.DUP_TOP, 0]))
+
+    def test_built_tuple(self):
+        ctx = CompilerContext()
+        codegen.build_tuple(ctx, 2)
+        self.assertEqual([], ctx.constants)
+        self.assertEqual([], ctx.names)
+        self.assertThat(ctx.data,
+            BytecodeMatches([bytecode.BUILD_TUPLE, 2]))

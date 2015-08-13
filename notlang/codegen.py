@@ -112,3 +112,7 @@ def load_locals(ctx):
 
 def dup_top(ctx):
     ctx.emit(bytecode.DUP_TOP)
+
+
+def build_tuple(ctx, count):
+    ctx.emit(bytecode.BUILD_TUPLE, count)

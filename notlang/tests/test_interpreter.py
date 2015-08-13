@@ -1,3 +1,4 @@
+from operator import attrgetter
 from testtools import TestCase
 
 from .. import bytecode, codegen, compilercontext, objectspace, interpreter
@@ -268,3 +269,20 @@ class LocalsTests(TestCase):
         self.assertIsInstance(ret, objectspace.W_Dict)
         self.assertEqual(1, len(ret.dictval))
         self.assertEqual(1, ret.dictval[varname1].intval)
+
+
+
+class TupleTests(TestCase):
+
+    def test_build_tuple(self):
+        varname1 = "foo"
+        varname2 = "bar"
+        ctx = compilercontext.CompilerContext()
+        ctx.locals = [varname1, varname2]
+        codegen.load_constant_int(ctx, 1)
+        codegen.load_constant_int(ctx, 2)
+        codegen.build_tuple(ctx, 2)
+        codegen.do_return(ctx)
+        ret = interpret(ctx.create_bytecode())
+        self.assertIsInstance(ret, objectspace.W_Tuple)
+        self.assertEqual([2, 1], map(attrgetter('intval'), ret.val))

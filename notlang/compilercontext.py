@@ -8,6 +8,8 @@ def get_stack_change(inst, arg):
         raise AssertionError(bytecode.reverse_map[inst] + " not in STACK_CHANGE")
     if change == 999:
         change = -1*arg
+    if change == 998:
+        change = -1*arg+1
     return change
 
 

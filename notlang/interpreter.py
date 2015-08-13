@@ -4,7 +4,7 @@ from rpython.rlib import jit
 from rpython.rlib.debug import make_sure_not_resized
 
 from . import bytecode, compiler
-from .objectspace import W_Code, W_Dict, W_Func, W_Type, W_List
+from .objectspace import W_Code, W_Dict, W_Func, W_Type, W_List, W_Tuple
 from .parsing import parse
 
 
@@ -185,6 +185,9 @@ class Frame(object):
                 val = self.pop()
                 self.push(val)
                 self.push(val)
+            elif c == bytecode.BUILD_TUPLE:
+                fargs = self.popmany(arg)
+                self.push(W_Tuple(fargs))
             else:
                 assert False, "Unknown opcode: %d" % c
 
