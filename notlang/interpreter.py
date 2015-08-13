@@ -4,7 +4,7 @@ from rpython.rlib import jit
 from rpython.rlib.debug import make_sure_not_resized
 
 from . import bytecode, compiler
-from .objectspace import W_Code, W_Dict, W_Func, W_Type, W_List, W_Tuple
+from .objectspace import W_Code, W_Dict, W_Func, W_List, W_Tuple, W_Type
 from .parsing import parse
 
 
@@ -19,8 +19,8 @@ driver = jit.JitDriver(greens = ['pc', 'code'],
                        get_printable_location=printable_loc)
 
 
-def make_type(name, attrs):
-    return type(name, (W_Type,), attrs.dictval)
+def make_type(name, bases, attrs):
+    return type(name, bases.val, attrs.dictval)
 
 
 class Space(object):
@@ -173,8 +173,9 @@ class Frame(object):
                 self.push(W_Func(code_obj))
             elif c == bytecode.MAKE_TYPE:
                 attrs = self.pop()
+                bases = self.pop()
                 name = self.pop().strval
-                self.push(make_type(name, attrs))
+                self.push(make_type(name, bases, attrs))
             elif c == bytecode.PRINT:
                 print self.pop().str()
             elif c == bytecode.JUMP_IF_FALSE:
@@ -209,5 +210,5 @@ def get_bytecode(source, trace_typer=False, trace_lexer=False):
 def interpret(source, trace=False, trace_typer=False, trace_lexer=False):
     prog = get_bytecode(source, trace_typer=trace_typer, trace_lexer=trace_lexer)
     space = Space()
-    globals = dict(List=W_List)
+    globals = dict(List=W_List, Type=W_Type, Enum=W_Type)
     return space.call_function(prog, [], globals, globals, trace=trace)

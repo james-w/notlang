@@ -1,3 +1,4 @@
+from pyrsistent import pvector
 from . import bytecode, compilercontext, objectspace
 
 
@@ -98,8 +99,11 @@ def load_none(ctx):
     return cvar
 
 
-def new_type(ctx, name, code_cb):
+def new_type(ctx, name, bases, code_cb):
     ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(objectspace.W_String(name)))
+    for base_name in bases:
+        load_var(ctx, base_name)
+    build_tuple(ctx, len(bases))
     cctx = compilercontext.CompilerContext()
     code_cb(cctx)
     load_locals(cctx)
@@ -110,6 +114,25 @@ def new_type(ctx, name, code_cb):
     ctx.emit(bytecode.MAKE_FUNCTION)
     ctx.emit(bytecode.CALL_FUNCTION, 0)
     ctx.emit(bytecode.MAKE_TYPE)
+
+
+def enum(ctx, name, options, code_cb):
+    # Make the base type
+    new_type(ctx, name, ["Enum"], code_cb)
+    for option in options:
+        # dup the base type so we can setattr on it
+        # and leave 1 on the top for the final
+        # assignment to its name
+        dup_top(ctx)
+        # dup the base type for use in the bases
+        dup_top(ctx)
+        # XXX: name of base isn't assigned yet
+        ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(objectspace.W_String(name)))
+        rot_two(ctx)
+        build_tuple(ctx, 1)
+        ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(objectspace.W_Dict({})))
+        ctx.emit(bytecode.MAKE_TYPE)
+        set_attr(ctx, option)
 
 
 def load_locals(ctx):

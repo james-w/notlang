@@ -6,7 +6,8 @@ from .. import bytecode, codegen, compilercontext, objectspace, interpreter
 
 def interpret(bcode):
     space = interpreter.Space()
-    return space.call_function(bcode, [], {}, {})
+    globals = dict(Type=objectspace.W_Type)
+    return space.call_function(bcode, [], globals, globals)
 
 
 def make_simple_function(ctx, name):
@@ -236,12 +237,13 @@ class TypeTests(TestCase):
         cname = "foo"
         attrname = "bar"
         varname = "a"
+        base_type = "Type"
         ctx = compilercontext.CompilerContext()
         ctx.locals = [cname, varname]
         def code_cb(ctx):
             codegen.load_constant_int(ctx, 1)
             codegen.assignment(ctx, attrname)
-        codegen.new_type(ctx, cname, code_cb)
+        codegen.new_type(ctx, cname, [base_type], code_cb)
         codegen.assignment(ctx, cname)
         codegen.load_var(ctx, cname)
         codegen.function_call(ctx, 0, lambda x: None)

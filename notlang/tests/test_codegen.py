@@ -118,13 +118,15 @@ class CodeGenTests(TestCase):
     def test_new_type(self):
         tname = "foo"
         ctx = CompilerContext()
-        codegen.new_type(ctx, tname, lambda x: None)
+        codegen.new_type(ctx, tname, ["Type"], lambda x: None)
         self.assertEqual(2, len(ctx.constants))
         self.assertIsInstance(ctx.constants[0], objectspace.W_String)
         self.assertEqual(tname, ctx.constants[0].strval)
         self.assertIsInstance(ctx.constants[1], objectspace.W_Code)
         self.assertThat(ctx.data,
             BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
+                             bytecode.LOAD_GLOBAL, 0,
+                             bytecode.BUILD_TUPLE, 1,
                              bytecode.LOAD_CONSTANT, 1,
                              bytecode.MAKE_FUNCTION, 0,
                              bytecode.CALL_FUNCTION, 0,

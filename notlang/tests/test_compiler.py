@@ -192,14 +192,46 @@ class TestCompiler(TestCase):
         self.assertIsInstance(ctx.constants[0], objectspace.W_String)
         self.assertEqual('a', ctx.constants[0].strval)
         self.assertIsInstance(ctx.constants[1], objectspace.W_Code)
-        self.assertEqual(['a'], ctx.names)
+        self.assertEqual(['Type', 'a'], ctx.names)
         self.assertThat(ctx.data,
             BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
+                             bytecode.LOAD_GLOBAL, 0,
+                             bytecode.BUILD_TUPLE, 1,
                              bytecode.LOAD_CONSTANT, 1,
                              bytecode.MAKE_FUNCTION, 0,
                              bytecode.CALL_FUNCTION, 0,
                              bytecode.MAKE_TYPE, 0,
-                             bytecode.ASSIGN, 0]))
+                             bytecode.ASSIGN, 1]))
+
+    def test_enum(self):
+        var = ast.Variable("a", self.spos)
+        block = ast.Pass(self.spos)
+        options = ["A"]
+        t = ast.NewType(block, "Enum", self.spos, options=options)
+        node = ast.Assignment(var, t, self.spos)
+        ctx = compile(node)
+        self.assertEqual(4, len(ctx.constants))
+        self.assertIsInstance(ctx.constants[0], objectspace.W_String)
+        self.assertEqual('a', ctx.constants[0].strval)
+        self.assertIsInstance(ctx.constants[1], objectspace.W_Code)
+        self.assertEqual(['Enum', 'A', 'a'], ctx.names)
+        self.assertThat(ctx.data,
+            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
+                             bytecode.LOAD_GLOBAL, 0,
+                             bytecode.BUILD_TUPLE, 1,
+                             bytecode.LOAD_CONSTANT, 1,
+                             bytecode.MAKE_FUNCTION, 0,
+                             bytecode.CALL_FUNCTION, 0,
+                             bytecode.MAKE_TYPE, 0,
+                             bytecode.DUP_TOP, 0,
+                             bytecode.DUP_TOP, 0,
+                             bytecode.LOAD_CONSTANT, 2,
+                             bytecode.ROT_TWO, 0,
+                             bytecode.BUILD_TUPLE, 1,
+                             bytecode.LOAD_CONSTANT, 3,
+                             bytecode.MAKE_TYPE, 0,
+                             bytecode.SET_ATTR, 1,
+                             bytecode.ASSIGN, 2]))
 
     def test_Pass(self):
         node = ast.Pass(self.spos)

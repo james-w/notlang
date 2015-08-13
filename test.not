@@ -60,3 +60,9 @@ print(c)
 
 l = List().append(1)
 print(l.first())
+
+Answer = new Enum(Y, N):
+    pass
+
+y = Answer.Y
+

@@ -25,7 +25,11 @@ class Compiler(ast.ASTVisitor):
 
     def visit_Assignment(self, node):
         if isinstance(node.children[0], ast.NewType):
-            codegen.new_type(self.ctx, node.var.varname, CallbackHelper(node).type_code_cb)
+            if node.children[0].type_type == 'Enum':
+                codegen.enum(self.ctx, node.var.varname, node.children[0].options,
+                             CallbackHelper(node).type_code_cb)
+            else:
+                codegen.new_type(self.ctx, node.var.varname, [node.children[0].type_type], CallbackHelper(node).type_code_cb)
         else:
             self.general_nonterminal_visit(node)
         codegen.assignment(self.ctx, node.var.varname)

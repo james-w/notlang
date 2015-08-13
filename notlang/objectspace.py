@@ -158,6 +158,9 @@ class W_Dict(W_Root):
     def __init__(self, dictval):
         self.dictval = dictval
 
+    def repr(self):
+        return str(self.dictval)
+
 
 class W_String(W_Root):
 
