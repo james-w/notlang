@@ -13,9 +13,9 @@ newline_or_statement: [NEWLINE] | statement;
 
 statement: simple_statement | compound_statement;
 
-simple_statement: small_statement [NEWLINE];
+simple_statement: small_statement [newlines];
 
-compound_statement: conditional | while_loop | funcdef;
+compound_statement: conditional | while_loop | funcdef | case;
 
 small_statement: assignment | return_statement | pass;
 
@@ -62,12 +62,16 @@ arglist_trailer: [","] <argument>;
 
 argument: comparison;
 
-conditional: "if" comparison [":"] [NEWLINE] suite else_block?;
-else_block: ["else" ":" NEWLINE] suite;
+conditional: "if" comparison [":"] [newlines] suite else_block?;
+else_block: ["else" ":" newlines] suite;
 
-while_loop: "while" comparison [":"] [NEWLINE] suite;
+while_loop: "while" comparison [":"] [newlines] suite;
 
-funcdef: "def" IDENTIFIER type_params? parameters rtype_decl? [":"] [NEWLINE] suite;
+funcdef: "def" IDENTIFIER type_params? parameters rtype_decl? [":"] [newlines] suite;
+
+case: "case" expr [":" newlines] case_block;
+case_block: [INDENT] case_case+ [DEDENT];
+case_case: expr [":" newlines] suite;
 
 parameters: ["("] defargs? [")"];
 

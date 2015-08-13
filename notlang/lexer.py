@@ -45,12 +45,15 @@ class AbstractIndentTrackingLexingDFARunner(deterministic.DFARunner):
             if self.check_indent:
                 self.check_indent = False
                 indent = 0
+                newlines = 0
                 for char in self.text[start:]:
                     if char == ' ':
                         indent += 1
+                    elif indent == 0 and char == '\n':
+                        newlines += 1
                     else:
                         break
-                if indent > self.indents[-1]:
+                if indent > self.indents[-1] and newlines == 0:
                     self.indents.append(indent)
                     return self.make_token(start, -2, "")
                 elif indent < self.indents[-1]:

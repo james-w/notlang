@@ -150,6 +150,12 @@ class BasicParsingTests(TestCase):
     def test_new_enum(self):
         self.assert_parses_ok("A = new Enum(B, C):\n    pass\n\n")
 
+    def test_case(self):
+        self.assert_parses_ok("case a:\n\n    A:\n\n        pass\n\n")
+
+    def test_case_with_two_cases(self):
+        self.assert_parses_ok("case a:\n\n    A:\n\n        pass\n    B:\n        pass\n\n")
+
 
 class ASTTests(TestCase):
 
@@ -498,3 +504,19 @@ class ASTTests(TestCase):
         self.assertIsInstance(attr.children[0], ast.Function)
         self.assertIsInstance(attr.children[0].fname, ast.Variable)
         self.assertEqual('a', attr.children[0].fname.varname)
+
+    def test_case(self):
+        node = parse(" case a:\n    B:\n        pass\n    C:\n       pass\n")
+        self.assertIsInstance(node, ast.Block)
+        case = node.children[0].children[0]
+        self.assertIsInstance(case, ast.Case)
+        self.assertIsInstance(case.target, ast.Variable)
+        self.assertEqual('a', case.target.varname)
+        self.assertEqual(1, case.sourcepos.i)
+        self.assertEqual(2, len(case.cases))
+        self.assertIsInstance(case.cases[0], ast.CaseCase)
+        self.assertIsInstance(case.cases[0].label, ast.Variable)
+        self.assertEqual("B", case.cases[0].label.varname)
+        self.assertIsInstance(case.cases[0].block, ast.Block)
+        self.assertEqual(13, case.cases[0].sourcepos.i)
+        self.assertEqual("C", case.cases[1].label.varname)

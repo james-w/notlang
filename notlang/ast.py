@@ -177,6 +177,36 @@ class NewType(NonTerminal):
         self.options = options
 
 
+class Case(NonTerminal):
+
+    def __init__(self, target, cases, sourcepos):
+        self.children = [target] + cases
+        self.sourcepos = sourcepos
+
+    @property
+    def target(self):
+        return self.children[0]
+
+    @property
+    def cases(self):
+        return self.children[1:]
+
+
+class CaseCase(NonTerminal):
+
+    def __init__(self, label, block, sourcepos):
+        self.children = [label, block]
+        self.sourcepos = sourcepos
+
+    @property
+    def label(self):
+        return self.children[0]
+
+    @property
+    def block(self):
+        return self.children[1]
+
+
 class Attribute(NonTerminal):
 
     def __init__(self, target, name, sourcepos):

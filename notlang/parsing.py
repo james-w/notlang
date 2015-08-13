@@ -200,6 +200,14 @@ class Transformer(RPythonVisitor):
         block = self.dispatch(block_node)
         return ast.NewType(block, type_type, node.getsourcepos(), type_params=type_params, options=options)
 
+    def visit_case(self, node):
+        target = self.dispatch(node.children[1])
+        cases = []
+        for case in node.children[2].children:
+            case_node = ast.CaseCase(self.dispatch(case.children[0]), self.dispatch(case.children[1]), case.children[0].getsourcepos())
+            cases.append(case_node)
+        return ast.Case(target, cases, node.getsourcepos())
+
     def visit_pass(self, node):
         return ast.Pass(node.getsourcepos())
 

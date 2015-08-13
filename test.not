@@ -66,3 +66,8 @@ Answer = new Enum(Y, N):
 
 y = Answer.Y
 
+case y:
+    Answer.Y:
+        print(42)
+    Answer.N:
+        print(2)

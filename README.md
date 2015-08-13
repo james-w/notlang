@@ -87,6 +87,26 @@ constructor. You probably can't assign to instance variables.
     d.age
     d.age_fn()
 
+### Enums
+
+You can define an enumerated type like this:
+
+    Thing = new Enum(A, B):
+        pass
+
+
+And access one of the values like:
+
+    Thing.A
+
+They can be used with a case statement:
+
+    case x:
+        Thing.A:
+            pass
+        Thing.B:
+            pass
+
 ### Builtins
 
 #### print

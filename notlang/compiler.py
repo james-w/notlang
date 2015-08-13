@@ -55,6 +55,10 @@ class Compiler(ast.ASTVisitor):
     def visit_FuncDef(self, node):
         codegen.make_function(self.ctx, node.name, CallbackHelper(node).funcdef_code_cb, node.args)
 
+    def visit_Case(self, node):
+        helper = CallbackHelper(node.cases[0], cases=node.cases, case_parent=node)
+        helper.case_no_match_cb(self.ctx)
+
     def visit_Return(self, node):
         if node.children:
             self.dispatch(node.children[0])
@@ -69,8 +73,10 @@ class Compiler(ast.ASTVisitor):
 
 class CallbackHelper(object):
 
-    def __init__(self, node):
+    def __init__(self, node, cases=None, case_parent=None):
         self.node = node
+        self.cases = cases
+        self.case_parent = case_parent
 
     def funcdef_code_cb(self, ctx):
         for local in ast.GatherAssignedNames().dispatch(self.node.children[0]):
@@ -97,6 +103,18 @@ class CallbackHelper(object):
 
     def type_code_cb(self, ctx):
         Compiler(ctx).dispatch(self.node.children[0])
+
+    def case_match_cb(self, ctx):
+        Compiler(ctx).dispatch(self.node.block)
+
+    def case_no_match_cb(self, ctx):
+        if self.cases:
+            case = self.cases[0]
+            Compiler(ctx).dispatch(case.label)
+            Compiler(ctx).dispatch(self.case_parent.target)
+            codegen.is_(ctx)
+            helper = CallbackHelper(case, cases=self.cases[1:], case_parent=self.case_parent)
+            codegen.conditional(ctx, helper.case_match_cb, helper.case_no_match_cb)
 
 
 def dump_instr(index, inst, arg, context=None):

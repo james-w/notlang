@@ -228,3 +228,17 @@ class ASTFactory(object):
         if child is None:
             child = self.pass_()
         return ast.Stmt(child, self.spos)
+
+    def case(self, target=None, cases=None):
+        if target is None:
+            target = self.variable()
+        if cases is None:
+            cases = [self.case_case()]
+        return ast.Case(target, cases, self.spos)
+
+    def case_case(self, label=None, block=None):
+        if label is None:
+            label = self.variable()
+        if block is None:
+            block = self.block(children=[self.pass_()])
+        return ast.CaseCase(label, block, self.spos)

@@ -141,6 +141,12 @@ BASE_TYPES = {
 }
 
 
+METATYPES = {
+    'Type': Type('Type'),
+    'Enum': Type('Enum'),
+}
+
+
 def type_from_decl(type_str, vartypes, types):
     if type_str in vartypes:
         return vartypes[type_str]
@@ -390,7 +396,7 @@ class ThirdPass(ASTVisitor):
             for val in node.options:
                 attrs[val] = env.register('{}.{}'.format(name, val), inherit=True)
         if self.should_handle_direct(name):
-            new_t = Type(name, attrs=attrs)
+            new_t = Type(name, attrs=attrs, bases=(METATYPES.get(node.type_type),))
             if node.type_params:
                 t_params = [new_t]
                 for param in node.type_params:
@@ -400,7 +406,7 @@ class ThirdPass(ASTVisitor):
             if node.type_type == 'Enum':
                 for val in node.options:
                     opt_name = '{}.{}'.format(name, val)
-                    opt_type = Type(opt_name, bases=(new_t,))
+                    opt_type = Type(opt_name, bases=(new_t, METATYPES.get(node.type_type)))
                     env.register_type(opt_name, opt_type)
                     subtypes.append(opt_type)
         else:
@@ -483,6 +489,20 @@ class ThirdPass(ASTVisitor):
             constraints.append(Constraint(
                 rtype, SUBTYPE_OF, ParameterisedType(ptypes), [node.sourcepos]))
         return constraints, rtype
+
+    def visit_Case(self, node):
+        if not self.active:
+            return [], None
+        constraints, ttype = self.dispatch(node.target)
+        constraints.append(Constraint(
+            ttype, SUBTYPE_OF, METATYPES.get('Enum'), [node.sourcepos]))
+        for case in node.cases:
+            self.dispatch(case.block)
+            new_constraints, ltype = self.dispatch(case.label)
+            constraints.extend(new_constraints)
+            constraints.append(Constraint(
+                ttype, SUPERTYPE_OF, ltype, [node.sourcepos]))
+        return constraints, None
 
     def visit_BinOp(self, node):
         if not self.active:

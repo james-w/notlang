@@ -851,3 +851,27 @@ class ThirdPassTests(TestCase):
                 Is(child_env.rtype)),
             [Is(self.factory.spos)],
             ))
+
+    def test_Case(self):
+        target = "a"
+        label = "A"
+        node = self.factory.case(
+            target=self.factory.variable(name=target),
+            cases=[self.factory.case_case(label=self.factory.variable(name=label))])
+        checker = self.get_third_pass(True)
+        ttype = checker.env.register(target)
+        ltype = checker.env.register(label)
+        constraints, t = checker.dispatch(node)
+        self.assertThat(len(constraints), Equals(2))
+        self.assertThat(constraints[0], testing.ConstraintMatches(
+            Is(ttype),
+            typer.SUBTYPE_OF,
+            Is(typer.METATYPES['Enum']),
+            [Is(self.factory.spos)],
+            ))
+        self.assertThat(constraints[1], testing.ConstraintMatches(
+            Is(ttype),
+            typer.SUPERTYPE_OF,
+            Is(ltype),
+            [Is(self.factory.spos)],
+            ))

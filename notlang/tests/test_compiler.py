@@ -1,3 +1,5 @@
+from operator import attrgetter
+
 from testtools import TestCase
 from rpython.rlib.parsing.lexer import SourcePos
 
@@ -230,6 +232,7 @@ class TestCompiler(TestCase):
                              bytecode.BUILD_TUPLE, 1,
                              bytecode.LOAD_CONSTANT, 3,
                              bytecode.MAKE_TYPE, 0,
+                             bytecode.CALL_FUNCTION, 0,
                              bytecode.SET_ATTR, 1,
                              bytecode.ASSIGN, 2]))
 
@@ -241,3 +244,29 @@ class TestCompiler(TestCase):
         self.assertEqual([], ctx.data)
 
     # TODO: tests for Attribute
+
+    def test_Case(self):
+        var = ast.Variable("a", self.spos)
+        cases = [
+            ast.CaseCase(ast.Variable("B", self.spos), ast.ConstantInt(1, self.spos), self.spos),
+            ast.CaseCase(ast.Variable("C", self.spos), ast.ConstantInt(2, self.spos), self.spos),
+        ]
+        node = ast.Case(var, cases, self.spos)
+        ctx = compile(node)
+        self.assertEqual([1, 2], map(attrgetter('intval'), ctx.constants))
+        self.assertEqual(["B", "a", "C"], ctx.names)
+        self.assertThat(ctx.data,
+            BytecodeMatches([
+                bytecode.LOAD_GLOBAL, 0,
+                bytecode.LOAD_GLOBAL, 1,
+                bytecode.BINARY_IS, 0,
+                bytecode.JUMP_IF_FALSE, 4,
+                bytecode.LOAD_CONSTANT, 0,
+                bytecode.JUMP_FORWARD, 12,
+                bytecode.LOAD_GLOBAL, 2,
+                bytecode.LOAD_GLOBAL, 1,
+                bytecode.BINARY_IS, 0,
+                bytecode.JUMP_IF_FALSE, 4,
+                bytecode.LOAD_CONSTANT, 1,
+                bytecode.JUMP_FORWARD, 0,
+                ]))
