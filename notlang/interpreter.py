@@ -181,6 +181,10 @@ class Frame(object):
                 driver.can_enter_jit(pc=pc, code=code, frame=self)
             elif c == bytecode.JUMP_FORWARD:
                 pc += arg
+            elif c == bytecode.DUP_TOP:
+                val = self.pop()
+                self.push(val)
+                self.push(val)
             else:
                 assert False, "Unknown opcode: %d" % c
 

@@ -26,6 +26,7 @@ register_code('MAKE_FUNCTION', 17)
 register_code('MAKE_TYPE', 18)
 register_code('RETURN', 19)
 register_code('PRINT', 20)
+register_code('DUP_TOP', 21)
 
 BINOP = {'+': BINARY_ADD, '-': BINARY_SUB, '*': BINARY_MULT, '==': BINARY_EQ, '<': BINARY_LT, '>': BINARY_GT}
 unary_ops = [BINARY_ADD, BINARY_SUB, BINARY_MULT, BINARY_EQ, BINARY_LT, BINARY_GT, RETURN, PRINT, LOAD_LOCALS, MAKE_TYPE]
@@ -50,4 +51,5 @@ STACK_CHANGE = {
     MAKE_TYPE: 0,
     RETURN: -1,
     PRINT: -1,
+    DUP_TOP: 1,
 }
