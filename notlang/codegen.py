@@ -108,3 +108,7 @@ def new_type(ctx, name, code_cb):
 
 def load_locals(ctx):
     ctx.emit(bytecode.LOAD_LOCALS)
+
+
+def dup_top(ctx):
+    ctx.emit(bytecode.DUP_TOP)

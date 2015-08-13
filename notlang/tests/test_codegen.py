@@ -139,4 +139,12 @@ class CodeGenTests(TestCase):
         self.assertEqual([], ctx.constants)
         self.assertEqual([], ctx.names)
         self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_LOCALS, 0])) 
+            BytecodeMatches([bytecode.LOAD_LOCALS, 0]))
+
+    def test_dup_top(self):
+        ctx = CompilerContext()
+        codegen.dup_top(ctx)
+        self.assertEqual([], ctx.constants)
+        self.assertEqual([], ctx.names)
+        self.assertThat(ctx.data,
+            BytecodeMatches([bytecode.DUP_TOP, 0]))
