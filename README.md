@@ -57,7 +57,7 @@ You can write an if statement, with then and else blocks:
 
 There's only while loops currently
 
-    while  a > 0:
+    while a > 0:
        a = a - 1
 
 ### Functions
