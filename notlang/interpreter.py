@@ -214,5 +214,5 @@ def get_bytecode(source, trace_typer=False, trace_lexer=False):
 def interpret(source, trace=False, trace_typer=False, trace_lexer=False):
     prog = get_bytecode(source, trace_typer=trace_typer, trace_lexer=trace_lexer)
     space = Space()
-    globals = dict(List=W_List, Type=W_Type, Enum=W_Type)
+    globals = dict(List=W_List, Type=W_Type, Enum=W_Type, Tuple=W_Tuple)
     return space.call_function(prog, [], globals, globals, trace=trace)

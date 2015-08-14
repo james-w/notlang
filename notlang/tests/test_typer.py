@@ -414,6 +414,15 @@ y = Answer.N
         # have info about the expressions
         self.assertThat(ftype, testing.IsType('Answer.Y'))
 
+    def test_tuple(self):
+        ftype = self.get_type('f', """
+Thing = new Tuple(int, int):
+    pass
+
+f = Thing(1, 1)
+""")
+        self.assertThat(ftype, testing.IsType('Thing'))
+
 
 class InstantiateTests(TestCase):
 
@@ -703,6 +712,20 @@ class SecondPassTests(TestCase):
         self.assertEqual(set(), pass2.calls)
         self.assertEqual({fname: set([fname + '.' + othername])}, pass2.callgraph)
 
+    def test_Tuple_references_types(self):
+        tname = "foo"
+        othername = "bar"
+        pass1 = typer.FirstPass()
+        pass1.children[tname] = typer.FirstPass()
+        pass1.children[tname].functions = {}
+        pass2 = typer.SecondPass(None, {}, pass1)
+        node = self.factory.assignment(
+            target=self.factory.variable(tname),
+            source=self.factory.tuple(types=[othername]))
+        pass2.dispatch(node)
+        self.assertEqual(set(), pass2.calls)
+        self.assertEqual({tname: set([othername])}, pass2.callgraph)
+
 
 class GetAllFunctionsTests(TestCase):
 
@@ -875,3 +898,27 @@ class ThirdPassTests(TestCase):
             Is(ltype),
             [Is(self.factory.spos)],
             ))
+
+    def test_Tuple(self):
+        tname = "A"
+        aname = "B"
+        atype = typer.Type(aname)
+        node = self.factory.assignment(
+            target=self.factory.variable(tname),
+            source=self.factory.tuple(types=[aname]))
+        name_graph = typer.FirstPass()
+        name_graph.dispatch(node)
+        checker = self.get_third_pass(True, only_handle=[tname], name_graph=name_graph)
+        checker.env.register_type(aname, atype)
+        placeholder_type = checker.env.register(tname)
+        constraints, t = checker.dispatch(node)
+        self.assertThat(len(constraints), Equals(1))
+        self.assertThat(t, testing.IsFunctionType([Is(atype)], Is(checker.env.get_type(tname))))
+        self.assertThat(constraints[0], testing.ConstraintMatches(
+            Is(placeholder_type),
+            typer.SUPERTYPE_OF,
+            Is(t),
+            [Is(self.factory.spos)],
+            ))
+        self.assertIn('first', t.rtype.attrs)
+        self.assertThat(t.rtype.attrs['first'], testing.IsFunctionType([], Is(atype)))

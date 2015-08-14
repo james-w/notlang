@@ -73,3 +73,10 @@ Answer = new Enum(Y, N):
 
 y = Answer.Y
 print(y.is_yes())
+
+
+Toople = new Tuple(Dog, Answer):
+    pass
+
+t = Toople(dog, Answer.Y)
+print(t.second().is_yes())

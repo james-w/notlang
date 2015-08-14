@@ -179,9 +179,7 @@ class W_List(W_Type):
     __slots__ = ['listval']
     _immutable_fields_ = ['listval']
 
-    def __init__(self, listval=None):
-        if listval is None:
-            listval = pvector([])
+    def __init__(self, listval):
         self.listval = listval
 
     def repr(self):
@@ -194,6 +192,10 @@ class W_List(W_Type):
     def first(self, space, args, globals, trace=False):
         return self.listval[0]
 
+    @classmethod
+    def call(cls, space, args, globals, trace=False):
+        return cls(pvector([]))
+
 
 class W_Tuple(W_Root):
 
@@ -202,3 +204,13 @@ class W_Tuple(W_Root):
 
     def __init__(self, val):
         self.val = val
+
+    def first(self, space, args, globals, trace=False):
+        return self.val[0]
+
+    def second(self, space, args, globals, trace=False):
+        return self.val[1]
+
+    @classmethod
+    def call(cls, space, args, globals, trace=False):
+        return cls(tuple(args))

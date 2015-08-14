@@ -32,7 +32,7 @@ newlines: NEWLINE+;
 
 new_decl: "new" >type_type< type_params? type_options? [":" newlines] suite;
 
-type_type: "Type" | "Enum";
+type_type: "Type" | "Enum" | "Tuple";
 
 type_params: [TYPE_PARAM_START] IDENTIFIER [TYPE_PARAM_END];
 type_options: "(" type_options_list? [")"];

@@ -195,8 +195,8 @@ class Transformer(RPythonVisitor):
                 type_params = [node.children[2].children[0].additional_info]
             else:
                 options = [c.additional_info for c in node.children[2].children[1].children]
-        if type_type == 'Enum' and not options:
-            raise ParseError(node.getsourcepos(), ErrorInformation(node.getsourcepos().i, ["options for Enum"]))
+        if type_type in ('Enum', 'Tuple') and not options:
+            raise ParseError(node.getsourcepos(), ErrorInformation(node.getsourcepos().i, ["options for {}".format(type_type)]))
         block = self.dispatch(block_node)
         return ast.NewType(block, type_type, node.getsourcepos(), type_params=type_params, options=options)
 

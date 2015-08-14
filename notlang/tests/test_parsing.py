@@ -156,6 +156,9 @@ class BasicParsingTests(TestCase):
     def test_case_with_two_cases(self):
         self.assert_parses_ok("case a:\n\n    A:\n\n        pass\n    B:\n        pass\n\n")
 
+    def test_tuple(self):
+        self.assert_parses_ok("a = new Tuple(B, C):\n    pass\n\n")
+
 
 class ASTTests(TestCase):
 
@@ -464,6 +467,11 @@ class ASTTests(TestCase):
     def test_Enum_without_options(self):
         err = self.assertRaises(ParseError, parse, " a = new Enum:\n    pass\n\n")
         self.assertEqual("options for Enum", err.errorinformation.failure_reasons[0])
+        self.assertEqual(5, err.source_pos.i)
+
+    def test_Tuple_without_options(self):
+        err = self.assertRaises(ParseError, parse, " a = new Tuple:\n    pass\n\n")
+        self.assertEqual("options for Tuple", err.errorinformation.failure_reasons[0])
         self.assertEqual(5, err.source_pos.i)
 
     def test_Attribute(self):

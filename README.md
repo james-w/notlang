@@ -70,6 +70,18 @@ You can create a function, it can take arguments and return things.
 Note that currently there are no closures, you can't reference locals
 from the parent scope, only their functions.
 
+### Tuples
+
+You can create a tuple, which is a fixed size struct of varied types.
+
+    Point = new Tuple(int, int):
+        pass
+
+    p = Point(1, 1)
+    p.first()
+    p.second()
+
+
 ### Types
 
 You can create your own types and instantiate them. You can't do
@@ -184,5 +196,5 @@ places:
 
    - Python for the syntax, interpreter
    - PyPy for the JIT
-   - Haskell for the type system
+   - Haskell/Rust for the type system
    - http://eev.ee/blog/2015/02/28/sylph-the-programming-language-i-want for lots of interesting ideas.

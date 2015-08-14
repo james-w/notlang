@@ -242,3 +242,10 @@ class ASTFactory(object):
         if block is None:
             block = self.block(children=[self.pass_()])
         return ast.CaseCase(label, block, self.spos)
+
+    def tuple(self, types=None, block=None):
+        if types is None:
+            types = [self.variable()]
+        if block is None:
+            block = self.block()
+        return ast.NewType(block, "Tuple", self.spos, options=types)
