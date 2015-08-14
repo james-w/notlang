@@ -29,10 +29,10 @@ def make_parse_function(regexs, rules, eof=False):
     else:
         ignore = []
     check_for_missing_names(names, regexs, rules)
+    lexer = mod_lexer.IndentTrackingLexer(list(regexs), list(names), ignore=ignore)
     parser = PackratParser(rules, rules[0].nonterminal)
     def parse(s, trace_lexer=False):
-        lexer = mod_lexer.IndentTrackingLexer(list(regexs), list(names), ignore=ignore, trace=trace_lexer)
-        tokens = lexer.tokenize(s, eof=eof)
+        tokens = lexer.tokenize(s, eof=eof, trace=trace_lexer)
         s = parser.parse(tokens)
         if not we_are_translated():
             try:

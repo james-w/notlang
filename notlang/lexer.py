@@ -6,7 +6,7 @@ class AbstractIndentTrackingLexingDFARunner(deterministic.DFARunner):
 
     i = 0
 
-    def __init__(self, matcher, automaton, text, eof=False, trace=False):
+    def __init__(self, matcher, automaton, text, eof=False):
         self.automaton = automaton
         self.state = 0
         self.text = text
@@ -18,11 +18,10 @@ class AbstractIndentTrackingLexingDFARunner(deterministic.DFARunner):
         self.columnno = 0
         self.check_indent = False
         self.indents = [0]
-        self.trace = trace
 
-    def find_next_token(self):
+    def find_next_token(self, trace=False):
         token = self._find_next_token()
-        if self.trace:
+        if trace:
             print("lexer: " + str(token))
         return token
 
@@ -115,7 +114,7 @@ class AbstractIndentTrackingLexingDFARunner(deterministic.DFARunner):
 class IndentTrackingLexingDFARunner(AbstractIndentTrackingLexingDFARunner):
 
     def __init__(self, matcher, automaton, text, ignore, eof=False,
-                 token_class=None, trace=False):
+                 token_class=None):
 
         if not token_class:
             self.token_class = Token
@@ -125,7 +124,7 @@ class IndentTrackingLexingDFARunner(AbstractIndentTrackingLexingDFARunner):
             self.token_class = token_class
             self.token_position_class = token_class.source_position_class
 
-        AbstractIndentTrackingLexingDFARunner.__init__(self, matcher, automaton, text, eof, trace=trace)
+        AbstractIndentTrackingLexingDFARunner.__init__(self, matcher, automaton, text, eof)
         self.ignore = ignore
 
     def ignore_token(self, state):
@@ -155,11 +154,10 @@ def dict_from_keys(keys, value=None):
 class IndentTrackingLexer(Lexer):
     """A white-space aware parser that injects INDENT/DEDENT tokens."""
 
-    def __init__(self, token_regexs, names, ignore=None, trace=False):
+    def __init__(self, token_regexs, names, ignore=None):
         self.token_regexs = token_regexs
         self.names = names
         self.rex = regex.LexingOrExpression(self.token_regexs, self.names)
-        self.trace = trace
         automaton = self.rex.make_automaton()
         self.automaton = automaton.make_deterministic(self.names)
         self.automaton.optimize() # XXX not sure whether this is a good idea
@@ -172,8 +170,16 @@ class IndentTrackingLexer(Lexer):
 
     def get_runner(self, text, eof=False, token_class=None):
         return IndentTrackingLexingDFARunner(self.matcher, self.automaton, text,
-                                             self.ignore, eof, token_class=token_class,
-                                             trace=self.trace)
+                                             self.ignore, eof, token_class=token_class)
 
-
-
+    def tokenize(self, text, eof=False, trace=False):
+        """Return a list of Token's from text."""
+        r = self.get_runner(text, eof)
+        result = []
+        while 1:
+            try:
+                tok = r.find_next_token(trace=trace)
+                result.append(tok)
+            except StopIteration:
+                break
+        return result
