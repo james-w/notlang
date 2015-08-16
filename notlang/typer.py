@@ -1,6 +1,7 @@
+import sys
 
 from . import graph
-from .ast import ASTVisitor, NewType
+from .ast import ASTVisitor, NewType, Attribute, Variable
 
 
 class Type(object):
@@ -890,7 +891,7 @@ def instantiate(ftype):
         elif isinstance(ftype, ParameterisedType):
             new_types = []
             base = ftype.types[0]
-            new_base = Type(base.name)
+            new_base = Type(base.name, bases=base.bases)
             for arg in ftype.types[1:]:
                 new_types.append(do_instantiate(arg, subs))
             newt = ParameterisedType([new_base] + new_types)
@@ -923,7 +924,7 @@ def typecheck(node, trace=False):
     all_functions = get_all_functions(pass1)
     sets = graph.get_disjoint_sets(pass2.callgraph, all_functions)
     if trace:
-        print("Type-context sets: {}".format(str(sets)))
+        _trace("Type-context sets: {}".format(str(sets)))
     handled = set()
     base_env = TypeEnv('main')
     for name, ftype in FUNCTIONS.items():
@@ -933,7 +934,7 @@ def typecheck(node, trace=False):
     subst = {}
     for s in sets:
         if trace:
-            print("Processing type-context(s) {}".format(s))
+            _trace("Processing type-context(s) {}".format(s))
         handled.update(s)
         ftypes = {}
         for name in s:
@@ -942,20 +943,24 @@ def typecheck(node, trace=False):
         pass3 = ThirdPass(base_env, False, pass1, only_process=s)
         constraints, t = pass3.dispatch(node)
         if trace:
-            print("Gathered constraints: {}".format(map(str, constraints)))
+            _trace("Gathered constraints: {}".format(map(str, constraints)))
         subst = satisfy_constraints(constraints, initial_subtitution=subst)
         for name, ftype in ftypes.items():
             ftype = generalise(get_substituted(ftype, subst))
             base_env.env[name] = (ftype, True)
             if trace:
-                print("{} has type {}".format(name, ftype))
+                _trace("{} has type {}".format(name, ftype))
     if trace:
-        print("Processing remainder")
+        _trace("Processing remainder")
     pass3 = ThirdPass(base_env, True, pass1, skip=handled)
     constraints, t = pass3.dispatch(node)
     if trace:
-        print("Constraints: {}".format(map(str, constraints)))
+        _trace("Constraints: {}".format(map(str, constraints)))
     subst = satisfy_constraints(constraints, initial_subtitution=subst)
     if trace:
-        print("Substitution: {}".format(subst))
+        _trace("Substitution: {}".format(subst))
     return base_env, subst
+
+
+def _trace(message):
+    sys.stderr.write(message + "\n")

@@ -8,7 +8,7 @@ from testtools.matchers import (
     MatchesListwise,
 )
 
-from . import ast, bytecode, typer
+from . import ast, bytecode, objectspace, typer
 
 
 class BytecodeMatches(object):
@@ -121,6 +121,23 @@ class IsFunctionType(object):
         return self.matcher.match(actual)
 
 
+class IsW_Int(object):
+
+    def __init__(self, value):
+        def get_val(a):
+            return getattr(a, 'intval', None)
+        self.matcher = MatchesAll(
+            IsInstance(objectspace.W_Int),
+            AfterPreprocessing(get_val, Equals(value)),
+        )
+
+    def __str__(self):
+        return str(self.matcher)
+
+    def match(self, actual):
+        return self.matcher.match(actual)
+
+
 class IsAttributeAccess(object):
 
     def __init__(self, type, name):
@@ -179,8 +196,10 @@ class ASTFactory(object):
             name = self.testcase.getUniqueString()
         return ast.Variable(name, self.spos)
 
-    def int(self):
-        return ast.ConstantInt(self.testcase.getUniqueInteger(), self.spos)
+    def int(self, value=None):
+        if value is None:
+            value = self.testcase.getUniqueInteger()
+        return ast.ConstantInt(value, self.spos)
 
     def assignment(self, target=None, source=None):
         if target is None:
@@ -192,23 +211,40 @@ class ASTFactory(object):
     def pass_(self):
         return ast.Pass(self.spos)
 
-    def conditional(self, true_block=None, false_block=None):
+    def conditional(self, condition=None, true_block=None, false_block=None):
+        if condition is None:
+            condition = self.int()
         if true_block is None:
             true_block = self.pass_()
-        return ast.Conditional(self.int(), true_block, false_block, self.spos)
+        return ast.Conditional(condition, true_block, false_block, self.spos)
 
-    def while_(self, block=None):
+    def while_(self, condition=None, block=None):
         if block is None:
             block = self.pass_()
-        return ast.While(self.int(), block, self.spos)
+        if condition is None:
+            condition = self.int()
+        return ast.While(condition, block, self.spos)
 
-    def binop(self):
-        return ast.BinOp('+', self.int(), self.int(), self.spos)
+    def binop(self, op=None, a=None, b=None):
+        if op is None:
+            op = '+'
+        if a is None:
+            a = self.int()
+        if b is None:
+            b = self.int()
+        return ast.BinOp(op, a, b, self.spos)
 
-    def newtype(self, block=None):
+    def newtype(self, block=None, options=None, type_type='Type'):
         if block is None:
             block = self.pass_()
-        return ast.NewType(block, "Type", self.spos)
+        if options is None:
+            options = []
+        return ast.NewType(block, type_type, self.spos, options=options)
+
+    def enum(self, block=None, options=None):
+        if options is None:
+            options = [self.type_option()]
+        return self.newtype(block=block, options=options, type_type='Enum')
 
     def funcdef(self, name=None, body=None, args=None):
         if name is None:
@@ -218,6 +254,13 @@ class ASTFactory(object):
         if args is None:
             args = []
         return ast.FuncDef(name, args, body, self.spos)
+
+    def function_call(self, function=None, args=None):
+        if function is None:
+            function = self.variable()
+        if args is None:
+            args = []
+        return ast.Function(function, args, self.spos)
 
     def block(self, children=None):
         if children is None:
@@ -249,3 +292,6 @@ class ASTFactory(object):
         if block is None:
             block = self.block()
         return ast.NewType(block, "Tuple", self.spos, options=types)
+
+    def return_(self, arg=None):
+        return ast.Return(arg, self.spos)
