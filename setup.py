@@ -7,6 +7,7 @@ setup(
         'pyrsistent',
         'pytest',
         'testtools',
+        'gorun',
     ],
     packages=['notlang'],
 )

@@ -2,6 +2,8 @@ NAME = notlang
 BASEDIR = $(NAME)
 MAIN = target$(NAME).py
 TARGET = $(patsubst %.py,%-c,$(MAIN))
+VIRTUALENV = virtualenv
+VIRTUALENV_BIN = $(VIRTUALENV)/bin
 
 TEST_FILTER ?= ""
 ifdef TEST_FAILFAST
@@ -13,30 +15,33 @@ endif
 build: deps $(TARGET)
 
 $(TARGET): $(MAIN) $(BASEDIR)/*.py $(BASEDIR)/grammar.txt
-	PYTHONPATH=pypy virtualenv/bin/python ./pypy/rpython/translator/goal/translate.py --opt=jit $(MAIN)
+	PYTHONPATH=pypy $(VIRTUALENV_BIN)/python ./pypy/rpython/translator/goal/translate.py --opt=jit $(MAIN)
 
 package-deps:
 	sudo apt-get install $$(xargs < package-deps.txt)
 
-deps: virtualenv pypy
-	virtualenv/bin/python setup.py develop
+deps: $(VIRTUALENV) pypy
+	$(VIRTUALENV_BIN)/python setup.py develop
 
 pypy:
 	hg clone https://bitbucket.org/pypy/pypy
 
-virtualenv:
-	virtualenv virtualenv --python /usr/bin/pypy
+$(VIRTUALENV):
+	virtualenv $(VIRTUALENV) --python /usr/bin/pypy
 
 clean:
 	[ ! -f $(TARGET) ] || rm $(TARGET)
 	find $(BASEDIR) -name \*.pyc -delete
 
 test:
-	PYTHONPATH=pypy ./virtualenv/bin/py.test $(NAME) -k $(TEST_FILTER) --maxfail=$(TEST_FAILFAST)
+	PYTHONPATH=pypy $(VIRTUALENV_BIN)/py.test $(NAME) -k $(TEST_FILTER) --maxfail=$(TEST_FAILFAST)
 
 profile_tests:
-	PYTHONPATH=pypy ./virtualenv/bin/python -m cProfile -o profile ./virtualenv/bin/py.test $(NAME) -k $(TEST_FILTER)
+	PYTHONPATH=pypy $(VIRTUALENV_BIN)/python -m cProfile -o profile $(VIRTUALENV_BIN)/py.test $(NAME) -k $(TEST_FILTER)
 	python -c "import pstats; p = pstats.Stats('profile'); p.strip_dirs(); p.sort_stats('cumtime'); p.print_stats(50); p.sort_stats('tottime'); p.print_stats(50)"
+
+autotest:
+	$(VIRTUALENV_BIN)/gorun.py
 
 check: test
 
