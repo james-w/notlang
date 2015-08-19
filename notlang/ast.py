@@ -27,6 +27,10 @@ class Block(NonTerminal):
         self.children = stmts
         self.sourcepos = sourcepos
 
+    @property
+    def statements(self):
+        return self.children
+
 
 class Stmt(NonTerminal):
     """ A single statement
@@ -34,6 +38,10 @@ class Stmt(NonTerminal):
     def __init__(self, expr, sourcepos):
         self.children = [expr]
         self.sourcepos = sourcepos
+
+    @property
+    def expr(self):
+        return self.children[0]
 
 
 class Pass(Node):
@@ -75,6 +83,14 @@ class Assignment(NonTerminal):
 
     def get_extra_dot_info(self):
         return self.var.varname
+
+    @property
+    def source(self):
+        return self.children[0]
+
+    @property
+    def target(self):
+        return self.var
 
 
 class Function(NonTerminal):
@@ -126,12 +142,32 @@ class Conditional(NonTerminal):
         self.children = [condition, true_block, false_block]
         self.sourcepos = sourcepos
 
+    @property
+    def condition(self):
+        return self.children[0]
+
+    @property
+    def true_block(self):
+        return self.children[1]
+
+    @property
+    def false_block(self):
+        return self.children[2]
+
 
 class While(NonTerminal):
 
     def __init__(self, condition, block, sourcepos):
         self.children = [condition, block]
         self.sourcepos = sourcepos
+
+    @property
+    def condition(self):
+        return self.children[0]
+
+    @property
+    def block(self):
+        return self.children[1]
 
 
 class FuncDef(NonTerminal):
@@ -153,6 +189,10 @@ class FuncDef(NonTerminal):
         rtype = self.rtype or "ANY"
         return self.name + " ( " + ", ".join(self.args) + " -> " + rtype + ")"
 
+    @property
+    def code(self):
+        return self.children[0]
+
 
 class Return(NonTerminal):
 
@@ -161,6 +201,12 @@ class Return(NonTerminal):
         if arg:
             self.children = [arg]
         self.sourcepos = sourcepos
+
+    @property
+    def arg(self):
+        if self.children:
+            return self.children[0]
+        return None
 
 
 class NewType(NonTerminal):
@@ -175,6 +221,10 @@ class NewType(NonTerminal):
         if options is None:
             options = []
         self.options = options
+
+    @property
+    def block(self):
+        return self.children[0]
 
 
 class Case(NonTerminal):
@@ -216,6 +266,10 @@ class Attribute(NonTerminal):
 
     def get_extra_dot_info(self):
         return self.name
+
+    @property
+    def target(self):
+        return self.children[0]
 
 
 class VisitError(Exception):

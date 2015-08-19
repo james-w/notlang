@@ -10,7 +10,7 @@ class Compiler(ast.ASTVisitor):
         [self.dispatch(c) for c in node.children]
 
     def visit_Attribute(self, node):
-        self.dispatch(node.children[0])
+        self.dispatch(node.target)
         codegen.load_attr(self.ctx, node.name)
 
     def visit_Variable(self, node):
@@ -24,12 +24,12 @@ class Compiler(ast.ASTVisitor):
         codegen.binary_operation(self.ctx, node.op)
 
     def visit_Assignment(self, node):
-        if isinstance(node.children[0], ast.NewType):
-            if node.children[0].type_type == 'Enum':
-                codegen.enum(self.ctx, node.var.varname, node.children[0].options,
-                             CallbackHelper(node).type_code_cb)
+        if isinstance(node.source, ast.NewType):
+            if node.source.type_type == 'Enum':
+                codegen.enum(self.ctx, node.var.varname, node.source.options,
+                             CallbackHelper(node.source).type_code_cb)
             else:
-                codegen.new_type(self.ctx, node.var.varname, [node.children[0].type_type], CallbackHelper(node).type_code_cb)
+                codegen.new_type(self.ctx, node.var.varname, [node.source.type_type], CallbackHelper(node.source).type_code_cb)
         else:
             self.general_nonterminal_visit(node)
         codegen.assignment(self.ctx, node.var.varname)
@@ -44,7 +44,7 @@ class Compiler(ast.ASTVisitor):
             codegen.function_call(self.ctx, len(node.args), CallbackHelper(node).function_args_cb)
 
     def visit_Conditional(self, node):
-        self.dispatch(node.children[0])
+        self.dispatch(node.condition)
         helper = CallbackHelper(node)
         codegen.conditional(self.ctx, helper.conditional_true_block_cb, helper.conditional_false_block_cb)
 
@@ -60,8 +60,8 @@ class Compiler(ast.ASTVisitor):
         helper.case_no_match_cb(self.ctx)
 
     def visit_Return(self, node):
-        if node.children:
-            self.dispatch(node.children[0])
+        if node.arg:
+            self.dispatch(node.arg)
         else:
             codegen.load_none(self.ctx)
         codegen.do_return(self.ctx)
@@ -79,30 +79,30 @@ class CallbackHelper(object):
         self.case_parent = case_parent
 
     def funcdef_code_cb(self, ctx):
-        for local in ast.GatherAssignedNames().dispatch(self.node.children[0]):
+        for local in ast.GatherAssignedNames().dispatch(self.node.code):
             if local not in ctx.locals:
                 ctx.locals.append(local)
-        Compiler(ctx).dispatch(self.node.children[0])
+        Compiler(ctx).dispatch(self.node.code)
 
     def function_args_cb(self, ctx):
         [Compiler(ctx).dispatch(c) for c in reversed(self.node.args)]
 
     def conditional_true_block_cb(self, ctx):
-        Compiler(ctx).dispatch(self.node.children[1])
+        Compiler(ctx).dispatch(self.node.true_block)
 
     def conditional_false_block_cb(self, ctx):
-        false_block = self.node.children[2]
+        false_block = self.node.false_block
         if false_block is not None:
             Compiler(ctx).dispatch(false_block)
 
     def while_condition_cb(self, ctx):
-        Compiler(ctx).dispatch(self.node.children[0])
+        Compiler(ctx).dispatch(self.node.condition)
 
     def while_block_cb(self, ctx):
-        Compiler(ctx).dispatch(self.node.children[1])
+        Compiler(ctx).dispatch(self.node.block)
 
     def type_code_cb(self, ctx):
-        Compiler(ctx).dispatch(self.node.children[0])
+        Compiler(ctx).dispatch(self.node.block)
 
     def case_match_cb(self, ctx):
         Compiler(ctx).dispatch(self.node.block)

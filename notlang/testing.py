@@ -295,3 +295,6 @@ class ASTFactory(object):
 
     def return_(self, arg=None):
         return ast.Return(arg, self.spos)
+
+    def statement(self):
+        return ast.Stmt(self.return_(), self.spos)

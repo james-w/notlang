@@ -204,12 +204,12 @@ class FirstPass(ASTVisitor):
         self.child_visit(node.children[0], node.name)
 
     def visit_Assignment(self, node):
-        if isinstance(node.children[0], NewType):
+        if isinstance(node.source, NewType):
             if node.var.varname in self.children:
                 raise NotNameError("Redefinition of %s" % node.var.varname, [node.sourcepos])
             self.types.add(node.var.varname)
             self.functions.add(node.var.varname)
-            self.child_visit(node.children[0].children[0], node.var.varname)
+            self.child_visit(node.source.block, node.var.varname)
         else:
             self.assignments.add(node.var.varname)
 
@@ -267,14 +267,14 @@ class SecondPass(ASTVisitor):
             self.callgraph[prefix(k)] = v
 
     def visit_FuncDef(self, node):
-        self.child_visit(node.children[0], node.name, node.argtypes)
+        self.child_visit(node.code, node.name, node.argtypes)
 
     def visit_Assignment(self, node):
-        if isinstance(node.children[0], NewType):
-            self.child_visit(node.children[0].children[0], node.var.varname, [])
-            if node.children[0].type_type == 'Tuple':
+        if isinstance(node.source, NewType):
+            self.child_visit(node.source.block, node.var.varname, [])
+            if node.source.type_type == 'Tuple':
                 cgraph = self.callgraph.setdefault(node.var.varname, set())
-                for opt in node.children[0].options:
+                for opt in node.source.options:
                     cgraph.add(opt)
 
     def general_terminal_visit(self, node):
@@ -382,7 +382,7 @@ class ThirdPass(ASTVisitor):
             if "." not in fname:
                 env.register(fname, inherit=True)
         child = ThirdPass(env, node.name in self.only_process, self.name_graph.children[node.name], only_process=child_process)
-        constraints = child.dispatch(node.children[0])[0]
+        constraints = child.dispatch(node.code)[0]
         constraints.append(Constraint(
             self.env.lookup(node.name, node.sourcepos),
             SUPERTYPE_OF,
@@ -432,7 +432,7 @@ class ThirdPass(ASTVisitor):
             else:
                 new_t = ftype.rtype
         child = ThirdPass(env, name in self.only_process, self.name_graph.children[name], only_process=child_process, self_type=new_t)
-        constraints, _ = child.dispatch(node.children[0])
+        constraints, _ = child.dispatch(node.block)
         if self.should_handle_direct(name):
             if node.type_type == 'Enum':
                 ftype = new_t
@@ -472,13 +472,13 @@ class ThirdPass(ASTVisitor):
         return [], instantiate(self.env.lookup(node.varname, node.sourcepos))
 
     def visit_Assignment(self, node):
-        if isinstance(node.children[0], NewType):
-            return self._handle_new_type(node.children[0], node.var.varname)
+        if isinstance(node.source, NewType):
+            return self._handle_new_type(node.source, node.var.varname)
         if not self.active:
             return [], None
         # TODO: handle Attribute
         t = self.env.register(node.var.varname)
-        constraints, child_t = self.dispatch(node.children[0])
+        constraints, child_t = self.dispatch(node.source)
         constraints.append(Constraint(
             t, SUPERTYPE_OF,
             child_t,
@@ -488,7 +488,11 @@ class ThirdPass(ASTVisitor):
     def visit_Return(self, node):
         if not self.active:
             return [], None
-        constraints, child_t = self.dispatch(node.children[0])
+        if node.arg:
+            constraints, child_t = self.dispatch(node.arg)
+        else:
+            constraints = []
+            child_t = NONE
         constraints.append(Constraint(
             self.env.rtype,
             SUPERTYPE_OF,
@@ -549,7 +553,7 @@ class ThirdPass(ASTVisitor):
         if not self.active:
             return [], None
         new_t = self.env.newvar()
-        child_c, child_t = self.dispatch(node.children[0])
+        child_c, child_t = self.dispatch(node.target)
         constraints = child_c
         constraints.append(Constraint(AttributeAccess(child_t, node.name), SUBTYPE_OF, new_t, [node.sourcepos]))
         return constraints, new_t
