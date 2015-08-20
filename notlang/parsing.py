@@ -74,7 +74,9 @@ class Transformer(RPythonVisitor):
     def visit_main(self, node):
         stmts = []
         for child in node.children:
-            stmts.append(self.dispatch(child))
+            stmt = self.dispatch(child)
+            if stmt:
+                stmts.append(self.dispatch(child))
         return ast.Block(stmts, node.getsourcepos())
 
     visit_suite = visit_main
@@ -89,7 +91,8 @@ class Transformer(RPythonVisitor):
                               self.dispatch(node.children[1]), node.getsourcepos())
 
     def visit_statement(self, node):
-        return ast.Stmt(self.dispatch(node.children[0]), node.getsourcepos())
+        if node.children:
+            return ast.Stmt(self.dispatch(node.children[0]), node.getsourcepos())
 
     def visit_comparison(self, node):
         if len(node.children) == 1:

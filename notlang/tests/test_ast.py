@@ -37,7 +37,7 @@ class NodeTests(TestCase):
         self.factory = testing.ASTFactory(self)
 
     def test_Block(self):
-        statements = [self.factory.statement(), self.factory.statement()]
+        statements = [self.factory.stmt(), self.factory.stmt()]
         block = ast.Block(statements, self.factory.spos)
         self.assertIs(statements, block.statements)
         self.assertIs(self.factory.spos, block.sourcepos)

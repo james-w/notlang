@@ -11,7 +11,7 @@ main: >newline_or_statement<*  [EOF];
 
 newline_or_statement: [NEWLINE] | statement;
 
-statement: simple_statement | compound_statement;
+statement: simple_statement | compound_statement | [NEWLINE];
 
 simple_statement: small_statement [newlines];
 

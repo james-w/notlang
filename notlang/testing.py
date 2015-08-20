@@ -234,33 +234,33 @@ class ASTFactory(object):
             b = self.int()
         return ast.BinOp(op, a, b, self.spos)
 
-    def newtype(self, block=None, options=None, type_type='Type'):
+    def newtype(self, block=None, options=None, type_type='Type', type_params=None):
         if block is None:
             block = self.pass_()
         if options is None:
             options = []
-        return ast.NewType(block, type_type, self.spos, options=options)
+        return ast.NewType(block, type_type, self.spos, options=options, type_params=type_params)
 
     def enum(self, block=None, options=None):
         if options is None:
             options = [self.type_option()]
         return self.newtype(block=block, options=options, type_type='Enum')
 
-    def funcdef(self, name=None, body=None, args=None):
+    def funcdef(self, name=None, body=None, args=None, rtype=None, argtypes=None, type_params=None):
         if name is None:
             name = self.testcase.getUniqueString()
         if body is None:
             body = self.pass_()
         if args is None:
             args = []
-        return ast.FuncDef(name, args, body, self.spos)
+        return ast.FuncDef(name, args, body, self.spos, rtype=rtype, argtypes=argtypes, type_params=type_params)
 
-    def function_call(self, function=None, args=None):
+    def function_call(self, function=None, args=None, type_params=None):
         if function is None:
             function = self.variable()
         if args is None:
             args = []
-        return ast.Function(function, args, self.spos)
+        return ast.Function(function, args, self.spos, type_params=type_params)
 
     def block(self, children=None):
         if children is None:
@@ -296,5 +296,9 @@ class ASTFactory(object):
     def return_(self, arg=None):
         return ast.Return(arg, self.spos)
 
-    def statement(self):
-        return ast.Stmt(self.return_(), self.spos)
+    def attribute(self, target=None, name=None):
+        if target is None:
+            target = self.variable()
+        if name is None:
+            name = self.testcase.getUniqueString()
+        return ast.Attribute(target, name, self.spos)
