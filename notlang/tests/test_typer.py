@@ -612,6 +612,10 @@ class UnifyTypeTests(TestCase):
         self.assertIs(None, typer.unify_types(typer.INT, typer.BOOL, typer.SUPERTYPE_OF))
         self.assertIs(None, typer.unify_types(typer.INT, typer.BOOL, typer.SUBTYPE_OF))
 
+    def test_different_classes(self):
+        self.assertIs(None, typer.unify_types(typer.INT, typer.TypeExpr("a"), typer.SUPERTYPE_OF))
+        self.assertIs(None, typer.unify_types(typer.INT, typer.TypeExpr("b"), typer.SUBTYPE_OF))
+
     def test_vs_any(self):
         self.assertIs(typer.ANY, typer.unify_types(typer.ANY, typer.BOOL, typer.SUPERTYPE_OF))
         self.assertIs(None, typer.unify_types(typer.BOOL, typer.ANY, typer.SUPERTYPE_OF))

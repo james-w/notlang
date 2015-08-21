@@ -1,7 +1,7 @@
 import sys
 
 from . import graph
-from .ast import ASTVisitor, NewType, Attribute, Variable
+from .ast import ASTVisitor, NewType
 
 
 class Type(object):
@@ -734,6 +734,8 @@ def unify_types(a, b, constraint):
         return ANY
     if constraint == SUBTYPE_OF and b is ANY:
         return ANY
+    if a.__class__ != b.__class__:
+        return None
     # XXX: ignores SUBTYPE_OF/SUPERTYPE_OF
     # it's not clear whether we need a third constraint that
     # just means that they can be unified, or whether
