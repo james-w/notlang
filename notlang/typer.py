@@ -662,6 +662,9 @@ def satisfy_function(a, b, direction, positions, substitution):
 def satisfy_parameterised_type(a, b, direction, positions, substitution):
     new_constraints = []
     if not isinstance(b, ParameterisedType):
+        if b.__class__ == Type:
+            if unify_types(a.types[0], b, direction) is not None:
+                return []
         raise NotTypeError("Types mismatch: %s != %s" % (a, b), positions)
     if len(a.types) != len(b.types):
         raise NotTypeError("Types mismatch: %s != %s, wrong number of type params" % (a, b), positions)
@@ -694,6 +697,8 @@ def satisfy_constraint(constraint, substitution):
         return satisfy_function(a, b, direction, positions, substitution)
     elif isinstance(a, ParameterisedType):
         return satisfy_parameterised_type(a, b, direction, positions, substitution)
+    elif isinstance(b, ParameterisedType):
+        return satisfy_parameterised_type(b, a, INVERSE_CONSTRAINT[direction], positions, substitution)
     else:
         newtype = unify_types(a, b, direction)
         if newtype is None:
