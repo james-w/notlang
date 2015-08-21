@@ -275,7 +275,13 @@ class SecondPass(ASTVisitor):
             if node.source.type_type == 'Tuple':
                 cgraph = self.callgraph.setdefault(node.var.varname, set())
                 for opt in node.source.options:
-                    cgraph.add(opt)
+                    cgraph.add(opt.name)
+            if node.source.type_type == 'Enum':
+                cgraph = self.callgraph.setdefault(node.var.varname, set())
+                for opt in node.source.options:
+                    for member in opt.members:
+                        if member not in node.source.type_params:
+                            cgraph.add(member)
 
     def general_terminal_visit(self, node):
         pass
@@ -404,12 +410,12 @@ class ThirdPass(ASTVisitor):
             attrs[n] = env.register(n, inherit=False)
         if node.type_type == 'Enum':
             for val in node.options:
-                attrs[val] = env.register('{}.{}'.format(name, val), inherit=True)
+                attrs[val.name] = env.register('{}.{}'.format(name, val.name), inherit=True)
         if self.should_handle_direct(name):
             if node.type_type == 'Tuple':
                 for i, a_name in enumerate(['first', 'second']):
                     if len(node.options) > i:
-                        t_name = node.options[i]
+                        t_name = node.options[i].name
                         argtype = self.env.get_type(t_name)
                         attrs[a_name] = FunctionType([], argtype)
             new_t = Type(name, attrs=attrs, bases=(METATYPES.get(node.type_type),))
@@ -421,10 +427,24 @@ class ThirdPass(ASTVisitor):
             self.env.register_type(name, new_t)
             if node.type_type == 'Enum':
                 for val in node.options:
-                    opt_name = '{}.{}'.format(name, val)
+                    opt_name = '{}.{}'.format(name, val.name)
                     opt_type = Type(opt_name, bases=(new_t, METATYPES.get(node.type_type)))
-                    env.register_type(opt_name, opt_type)
-                    subtypes.append(opt_type)
+                    opt_rtype = opt_type
+                    t_params = []
+                    if val.members:
+                        args = []
+                        for member in val.members:
+                            if member in node.type_params:
+                                t_param = new_t.types[node.type_params.index(member)+1]
+                                args.append(t_param)
+                                t_params.append(t_param)
+                            else:
+                                args.append(self.env.get_type(member))
+                        if t_params:
+                            opt_type = ParameterisedType([opt_type] + t_params)
+                        opt_rtype = FunctionType(args, opt_type)
+                    env.register_type(opt_name, opt_rtype)
+                    subtypes.append((opt_name, opt_rtype))
         else:
             ftype = self.env.lookup(name, node.sourcepos)
             if node.type_type == 'Enum':
@@ -436,9 +456,9 @@ class ThirdPass(ASTVisitor):
         if self.should_handle_direct(name):
             if node.type_type == 'Enum':
                 ftype = new_t
-                for subtype in subtypes:
+                for sname, subtype in subtypes:
                     constraints.append(Constraint(
-                        instantiate(env.lookup(subtype.name, node.sourcepos)),
+                        instantiate(env.lookup(sname, node.sourcepos)),
                         SUPERTYPE_OF,
                         subtype,
                         [node.sourcepos]))
@@ -446,10 +466,10 @@ class ThirdPass(ASTVisitor):
                 if node.type_type == 'Tuple':
                     argtypes = []
                     for t_name in node.options:
-                        argtype = self.env.get_type(t_name)
+                        argtype = self.env.get_type(t_name.name)
                         if argtype is None:
                             raise NotTypeError(
-                                "Unknown type: %s" % t_name, [node.sourcepos])
+                                "Unknown type: %s" % t_name.name, [t_name.sourcepos])
                         argtypes.append(argtype)
                     ftype = FunctionType(argtypes, new_t)
                 else:
@@ -530,11 +550,25 @@ class ThirdPass(ASTVisitor):
         constraints.append(Constraint(
             ttype, SUBTYPE_OF, METATYPES.get('Enum'), [node.sourcepos]))
         for case in node.cases:
-            self.dispatch(case.block)
-            new_constraints, ltype = self.dispatch(case.label)
-            constraints.extend(new_constraints)
-            constraints.append(Constraint(
-                ttype, SUPERTYPE_OF, ltype, [node.sourcepos]))
+            if case.is_simple():
+                new_constraints, ltype = self.dispatch(case.label)
+                constraints.extend(new_constraints)
+                constraints.append(Constraint(
+                    ttype, SUPERTYPE_OF, ltype, [node.sourcepos]))
+            else:
+                argtypes = []
+                for arg in case.label.args:
+                    arg_t = self.env.register(arg.varname)
+                    argtypes.append(arg_t)
+                new_constraints, ltype = self.dispatch(case.label.fname)
+                # Need to bind the types of the args to the types in the
+                # constructor, and also bind the type to the type of the target
+                constraints.append(Constraint(
+                    ttype, SUPERTYPE_OF, ltype, [node.sourcepos]))
+                case_type = self.dispatch(case.label.fname)[1]
+                constraints.append(Constraint(
+                    case_type, SUPERTYPE_OF, FunctionType(argtypes, ltype), [node.sourcepos]))
+            constraints.extend(self.dispatch(case.block)[0])
         return constraints, None
 
     def visit_BinOp(self, node):
@@ -630,7 +664,7 @@ def satisfy_attribute_access(attr, other, direction, positions, substitution):
             break
     else:
         raise NotTypeError("%s has no attribute %s" % (t, attr.name), positions)
-    return [Constraint(ret, INVERSE_CONSTRAINT[direction], other, positions)]
+    return [Constraint(instantiate(get_substituted(ret, substitution)), INVERSE_CONSTRAINT[direction], other, positions)]
 
 
 def satisfy_expr(expr, other, direction, positions, substitution):

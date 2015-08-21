@@ -725,7 +725,7 @@ class SecondPassTests(TestCase):
         pass2 = typer.SecondPass(None, {}, pass1)
         node = self.factory.assignment(
             target=self.factory.variable(tname),
-            source=self.factory.tuple(types=[othername]))
+            source=self.factory.tuple(types=[self.factory.type_option(name=othername)]))
         pass2.dispatch(node)
         self.assertEqual(set(), pass2.calls)
         self.assertEqual({tname: set([othername])}, pass2.callgraph)
@@ -909,7 +909,7 @@ class ThirdPassTests(TestCase):
         atype = typer.Type(aname)
         node = self.factory.assignment(
             target=self.factory.variable(tname),
-            source=self.factory.tuple(types=[aname]))
+            source=self.factory.tuple(types=[self.factory.type_option(name=aname)]))
         name_graph = typer.FirstPass()
         name_graph.dispatch(node)
         checker = self.get_third_pass(True, only_handle=[tname], name_graph=name_graph)

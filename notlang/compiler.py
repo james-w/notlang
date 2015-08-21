@@ -104,17 +104,37 @@ class CallbackHelper(object):
     def type_code_cb(self, ctx):
         Compiler(ctx).dispatch(self.node.block)
 
+    def case_self_cb(self, ctx):
+        Compiler(ctx).dispatch(self.case_parent.target)
+
     def case_match_cb(self, ctx):
+        if not(self.node.is_simple()):
+            functions = {0: 'first', 1: 'second'}
+            for i, arg in enumerate(self.node.label.args):
+                Compiler(ctx).dispatch(self.case_parent.target)
+                codegen.load_attr(ctx, functions[i])
+                codegen.function_call(ctx, 1, self.case_self_cb)
+                codegen.assignment(ctx, arg.varname)
         Compiler(ctx).dispatch(self.node.block)
 
     def case_no_match_cb(self, ctx):
         if self.cases:
             case = self.cases[0]
-            Compiler(ctx).dispatch(case.label)
-            Compiler(ctx).dispatch(self.case_parent.target)
-            codegen.is_(ctx)
+            if case.is_simple():
+                Compiler(ctx).dispatch(case.label)
+                Compiler(ctx).dispatch(self.case_parent.target)
+                codegen.is_(ctx)
+            else:
+                # XXX: hardcoding
+                codegen.load_global(ctx, "isinstance")
+                codegen.function_call(ctx, 2, self.case_is_instance_function_args_cb)
             helper = CallbackHelper(case, cases=self.cases[1:], case_parent=self.case_parent)
             codegen.conditional(ctx, helper.case_match_cb, helper.case_no_match_cb)
+
+    def case_is_instance_function_args_cb(self, ctx):
+        case = self.cases[0]
+        Compiler(ctx).dispatch(self.case_parent.target)
+        Compiler(ctx).dispatch(case.label.fname)
 
 
 def dump_instr(index, inst, arg, context=None):

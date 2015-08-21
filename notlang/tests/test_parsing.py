@@ -150,6 +150,9 @@ class BasicParsingTests(TestCase):
     def test_new_enum(self):
         self.assert_parses_ok("A = new Enum(B, C):\n    pass\n\n")
 
+    def test_new_enum_with_tuple_type(self):
+        self.assert_parses_ok("A = new Enum(B, C(D)):\n    pass\n\n")
+
     def test_case(self):
         self.assert_parses_ok("case a:\n\n    A:\n\n        pass\n\n")
 
@@ -427,7 +430,7 @@ class ASTTests(TestCase):
         t = ass.children[0]
         self.assertIsInstance(t, ast.NewType)
         self.assertEqual(1, len(t.children))
-        self.assertEqual(["A"], t.options)
+        self.assertEqual(["A"], [o.name for o in t.options])
         self.assertEqual([], t.type_params)
         self.assertEqual(5, t.sourcepos.i)
 
@@ -439,7 +442,7 @@ class ASTTests(TestCase):
         t = ass.children[0]
         self.assertIsInstance(t, ast.NewType)
         self.assertEqual(1, len(t.children))
-        self.assertEqual(["A", "B"], t.options)
+        self.assertEqual(["A", "B"], [o.name for o in t.options])
         self.assertEqual([], t.type_params)
         self.assertEqual(5, t.sourcepos.i)
 
@@ -451,7 +454,7 @@ class ASTTests(TestCase):
         t = ass.children[0]
         self.assertIsInstance(t, ast.NewType)
         self.assertEqual(1, len(t.children))
-        self.assertEqual(["A"], t.options)
+        self.assertEqual(["A"], [o.name for o in t.options])
         self.assertEqual(["B"], t.type_params)
         self.assertEqual(5, t.sourcepos.i)
 

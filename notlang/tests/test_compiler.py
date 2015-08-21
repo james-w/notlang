@@ -212,7 +212,7 @@ class TestCompiler(TestCase):
     def test_enum(self):
         var = self.factory.variable(name="a")
         block = self.factory.pass_()
-        options = ["A"]
+        options = [self.factory.type_option(name="A")]
         t = self.factory.enum(block=block, options=options)
         node = self.factory.assignment(target=var, source=t)
         ctx = compile(node)
@@ -220,7 +220,7 @@ class TestCompiler(TestCase):
         self.assertIsInstance(ctx.constants[0], objectspace.W_String)
         self.assertEqual('a', ctx.constants[0].strval)
         self.assertIsInstance(ctx.constants[1], objectspace.W_Code)
-        self.assertEqual(['Enum', 'A', 'a'], ctx.names)
+        self.assertEqual(['Enum', 'Type', 'A', 'a'], ctx.names)
         self.assertThat(ctx.data,
             BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
                              bytecode.LOAD_GLOBAL, 0,
@@ -231,14 +231,54 @@ class TestCompiler(TestCase):
                              bytecode.MAKE_TYPE, 0,
                              bytecode.DUP_TOP, 0,
                              bytecode.DUP_TOP, 0,
+                             bytecode.LOAD_GLOBAL, 1,
+                             bytecode.ROT_TWO, 0,
+                             bytecode.LOAD_GLOBAL, 0,
+                             bytecode.ROT_TWO, 0,
+                             bytecode.BUILD_TUPLE, 3,
                              bytecode.LOAD_CONSTANT, 2,
                              bytecode.ROT_TWO, 0,
-                             bytecode.BUILD_TUPLE, 1,
                              bytecode.LOAD_CONSTANT, 3,
                              bytecode.MAKE_TYPE, 0,
                              bytecode.CALL_FUNCTION, 0,
-                             bytecode.SET_ATTR, 1,
-                             bytecode.ASSIGN, 2]))
+                             bytecode.SET_ATTR, 2,
+                             bytecode.ASSIGN, 3]))
+
+    def test_destructuring_enum(self):
+        var = self.factory.variable(name="a")
+        block = self.factory.pass_()
+        options = [self.factory.type_option(name="A", members=["x"])]
+        t = self.factory.enum(block=block, options=options)
+        node = self.factory.assignment(target=var, source=t)
+        ctx = compile(node)
+        self.assertEqual(4, len(ctx.constants))
+        self.assertIsInstance(ctx.constants[0], objectspace.W_String)
+        self.assertEqual('a', ctx.constants[0].strval)
+        self.assertIsInstance(ctx.constants[1], objectspace.W_Code)
+        self.assertEqual(['Enum', 'Type', 'Tuple', 'A', 'a'], ctx.names)
+        self.assertThat(ctx.data,
+            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
+                             bytecode.LOAD_GLOBAL, 0,
+                             bytecode.BUILD_TUPLE, 1,
+                             bytecode.LOAD_CONSTANT, 1,
+                             bytecode.MAKE_FUNCTION, 0,
+                             bytecode.CALL_FUNCTION, 0,
+                             bytecode.MAKE_TYPE, 0,
+                             bytecode.DUP_TOP, 0,
+                             bytecode.DUP_TOP, 0,
+                             bytecode.LOAD_GLOBAL, 1,
+                             bytecode.ROT_TWO, 0,
+                             bytecode.LOAD_GLOBAL, 0,
+                             bytecode.ROT_TWO, 0,
+                             bytecode.LOAD_GLOBAL, 2,
+                             bytecode.ROT_TWO, 0,
+                             bytecode.BUILD_TUPLE, 4,
+                             bytecode.LOAD_CONSTANT, 2,
+                             bytecode.ROT_TWO, 0,
+                             bytecode.LOAD_CONSTANT, 3,
+                             bytecode.MAKE_TYPE, 0,
+                             bytecode.SET_ATTR, 3,
+                             bytecode.ASSIGN, 4]))
 
     def test_Pass(self):
         node = self.factory.pass_()

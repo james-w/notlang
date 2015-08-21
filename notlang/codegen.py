@@ -130,14 +130,24 @@ def enum(ctx, name, options, code_cb):
         dup_top(ctx)
         # dup the base type for use in the bases
         dup_top(ctx)
-        ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(objectspace.W_String(name)))
+        load_global(ctx, "Type")
         rot_two(ctx)
-        build_tuple(ctx, 1)
+        load_global(ctx, "Enum")
+        rot_two(ctx)
+        if option.members:
+            load_global(ctx, "Tuple")
+            rot_two(ctx)
+            build_tuple(ctx, 4)
+        else:
+            build_tuple(ctx, 3)
+        ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(objectspace.W_String(option.name)))
+        rot_two(ctx)
         ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(objectspace.W_Dict({})))
         ctx.emit(bytecode.MAKE_TYPE)
-        # make a singleton
-        ctx.emit(bytecode.CALL_FUNCTION, 0)
-        set_attr(ctx, option)
+        if not option.members:
+            # make a singleton
+            ctx.emit(bytecode.CALL_FUNCTION, 0)
+        set_attr(ctx, option.name)
 
 
 def load_locals(ctx):

@@ -3,9 +3,6 @@ from pyrsistent import pvector
 
 class W_Root(object):
 
-    __slots__ = ()
-    _settled_ = True
-
     def add(self, other):
         raise NotImplementedError
 
@@ -112,9 +109,6 @@ class W_Int(W_Root):
 
 class W_Func(W_Root):
 
-    __slots__ = ['code']
-    _immutable_fields_ = ['code']
-
     def __init__(self, code):
         self.code = code
 
@@ -128,9 +122,6 @@ class W_Func(W_Root):
 
 class W_Method(W_Root):
 
-    __slots__ = ['code', 'instance']
-    _immutable_fields_ = ['code', 'instance']
-
     def __init__(self, code, instance):
         self.code = code
         self.instance = instance
@@ -141,9 +132,6 @@ class W_Method(W_Root):
 
 class W_Type(W_Root):
 
-    __slots__ = ['name']
-    _immutable_fields_ = ['name']
-
     @classmethod
     def call(cls, space, args, globals, trace=False):
         obj = cls()
@@ -151,9 +139,6 @@ class W_Type(W_Root):
 
 
 class W_Dict(W_Root):
-
-    __slots__ = ['dictval']
-    _immutable_fields_ = ['dictval']
 
     def __init__(self, dictval):
         self.dictval = dictval
@@ -164,9 +149,6 @@ class W_Dict(W_Root):
 
 class W_String(W_Root):
 
-    __slots__ = ['strval']
-    _immutable_fields_ = ['strval']
-
     def __init__(self, strval):
         self.strval = strval
 
@@ -175,9 +157,6 @@ class W_String(W_Root):
 
 
 class W_List(W_Type):
-
-    __slots__ = ['listval']
-    _immutable_fields_ = ['listval']
 
     def __init__(self, listval):
         self.listval = listval
@@ -197,10 +176,7 @@ class W_List(W_Type):
         return cls(pvector([]))
 
 
-class W_Tuple(W_Root):
-
-    __slots__ = ['val']
-    _immutable_fields_ = ['val']
+class W_Tuple(W_Type):
 
     def __init__(self, val):
         self.val = val
@@ -214,3 +190,15 @@ class W_Tuple(W_Root):
     @classmethod
     def call(cls, space, args, globals, trace=False):
         return cls(tuple(args))
+
+
+class W_IsInstance(W_Func):
+
+    @classmethod
+    def call(cls, space, args, globals, trace=False):
+        # XXX: args seem backwards
+        return W_Int(int(isinstance(args[1], args[0])))
+
+
+class W_Enum(W_Type):
+    pass

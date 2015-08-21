@@ -227,6 +227,22 @@ class NewType(NonTerminal):
         return self.children[0]
 
 
+class TypeOption(Node):
+
+    def __init__(self, name, sourcepos, members=None):
+        self.name = name
+        self.sourcepos = sourcepos
+        if members is None:
+            members = []
+        self.members = members
+
+    def get_extra_dot_info(self):
+        if self.members:
+            return str(self.name) + "(" + ", ".join(self.members) + ")"
+        else:
+            return str(self.name)
+
+
 class Case(NonTerminal):
 
     def __init__(self, target, cases, sourcepos):
@@ -255,6 +271,20 @@ class CaseCase(NonTerminal):
     @property
     def block(self):
         return self.children[1]
+
+    def is_simple(self):
+        """True if the pattern doesn't destructure.
+
+        case a:
+             Nothing:
+                 pass
+             Just(x):
+                 pass
+
+        The first case is simple, the second is not,
+        as it destructures to bind x.
+        """
+        return isinstance(self.label, Variable) or isinstance(self.label, Attribute)
 
 
 class Attribute(NonTerminal):
@@ -357,6 +387,12 @@ class GatherAssignedNames(ASTVisitor):
 
     def visit_FuncDef(self, node):
         return [node.name]
+
+    def visit_CaseCase(self, node):
+        cnames = self.dispatch(node.block)
+        if not node.is_simple():
+            cnames.extend([n.varname for n in node.label.args])
+        return cnames
 
     def general_terminal_visit(self, node):
         return []

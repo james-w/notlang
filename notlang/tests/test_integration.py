@@ -209,3 +209,20 @@ y = Answer.Y
 return y.is_yes()
 """, self)
         self.assertThat(ret, testing.IsW_Int(1))
+
+    def test_parameterised(self):
+        ret = interpret("""
+Option = new Enum<A>(Nothing, Some(A)):
+    pass
+
+o = Option.Some(1)
+
+case o:
+    Option.Nothing:
+        a = 0
+    Option.Some(b):
+        a = b
+
+return a
+""", self)
+        self.assertThat(ret, testing.IsW_Int(1))

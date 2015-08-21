@@ -130,6 +130,22 @@ Enums can have methods too:
                   Thing.B:
                        return 0
 
+An Enum member can also be a tuple:
+
+    Container = new Enum<A>(Empty, Full(A)):
+        pass
+
+    exists = Container.Just(1)
+
+Now when the case statement is used, the
+values contained in the tuple are destructured.
+
+    case exists:
+        Container.Empty:
+            pass
+        Container.Full(x):
+            print x
+
 ### Builtins
 
 #### print

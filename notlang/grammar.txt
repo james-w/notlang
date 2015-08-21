@@ -36,8 +36,10 @@ type_type: "Type" | "Enum" | "Tuple";
 
 type_params: [TYPE_PARAM_START] IDENTIFIER [TYPE_PARAM_END];
 type_options: "(" type_options_list? [")"];
-type_options_list: IDENTIFIER type_options_list_trailer*;
-type_options_list_trailer: [","] <IDENTIFIER>;
+type_options_list: type_option type_options_list_trailer*;
+type_options_list_trailer: [","] <type_option>;
+type_option: IDENTIFIER type_option_trailer?;
+type_option_trailer: ["("] IDENTIFIER [")"];
 
 comparison: expr comparison_trailer*;
 

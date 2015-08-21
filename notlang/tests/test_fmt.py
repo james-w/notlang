@@ -150,9 +150,9 @@ class FormatterTests(TestCase):
     def test_NewType_with_options(self):
         t = self.factory.newtype(
             block = self.factory.stmt(child=self.factory.pass_()),
-            options=["A", "B"],
+            options=[self.factory.type_option(name="A"), self.factory.type_option(name="B", members=["b"])],
             )
-        self.assertEqual("new Type(A, B):\n    pass\n", fmt.Formatter().dispatch(t))
+        self.assertEqual("new Type(A, B(b)):\n    pass\n", fmt.Formatter().dispatch(t))
 
 
 class RoundtripTests(TestCase):

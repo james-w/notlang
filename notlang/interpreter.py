@@ -4,7 +4,7 @@ from rpython.rlib import jit
 from rpython.rlib.debug import make_sure_not_resized
 
 from . import bytecode, compiler
-from .objectspace import W_Code, W_Dict, W_Func, W_List, W_Tuple, W_Type, W_Int
+from .objectspace import W_Code, W_Dict, W_Func, W_List, W_Tuple, W_Type, W_Int, W_IsInstance, W_Enum
 from .parsing import parse
 
 
@@ -214,5 +214,5 @@ def get_bytecode(source, trace_typer=False, trace_lexer=False):
 def interpret(source, trace=False, trace_typer=False, trace_lexer=False):
     prog = get_bytecode(source, trace_typer=trace_typer, trace_lexer=trace_lexer)
     space = Space()
-    globals = dict(List=W_List, Type=W_Type, Enum=W_Type, Tuple=W_Tuple)
+    globals = dict(List=W_List, Type=W_Type, Enum=W_Enum, Tuple=W_Tuple, isinstance=W_IsInstance)
     return space.call_function(prog, [], globals, globals, trace=trace)

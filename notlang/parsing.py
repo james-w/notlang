@@ -185,6 +185,13 @@ class Transformer(RPythonVisitor):
         return ast.FuncDef(name, args, self.dispatch(block), node.getsourcepos(), rtype=rtype,
                 argtypes=argtypes, type_params=type_params)
 
+    def _parse_type_option(self, node):
+        if len(node.children) > 1:
+            members = [n.additional_info for n in node.children[1].children]
+            return ast.TypeOption(node.children[0].additional_info, node.children[0].getsourcepos(), members=members)
+        else:
+            return ast.TypeOption(node.children[0].additional_info, node.children[0].getsourcepos())
+
     def visit_new_decl(self, node):
         type_type = node.children[1].additional_info
         type_params = []
@@ -192,14 +199,18 @@ class Transformer(RPythonVisitor):
         block_node = node.children[-1]
         if len(node.children) > 4:
             type_params = [node.children[2].children[0].additional_info]
-            options = [c.additional_info for c in node.children[3].children[1].children]
+            options = [self._parse_type_option(c) for c in node.children[3].children[1].children]
         elif len(node.children) > 3:
             if node.children[2].symbol == 'type_params':
                 type_params = [node.children[2].children[0].additional_info]
             else:
-                options = [c.additional_info for c in node.children[2].children[1].children]
+                options = [self._parse_type_option(c) for c in node.children[2].children[1].children]
         if type_type in ('Enum', 'Tuple') and not options:
             raise ParseError(node.getsourcepos(), ErrorInformation(node.getsourcepos().i, ["options for {}".format(type_type)]))
+        if type_type != 'Enum':
+            for option in options:
+                if option.members:
+                    raise ParseError(option.sourcepos, ErrorInformation(option.sourcepos.i, ["plain options only for {}".format(type_type)]))
         block = self.dispatch(block_node)
         return ast.NewType(block, type_type, node.getsourcepos(), type_params=type_params, options=options)
 

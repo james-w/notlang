@@ -80,3 +80,8 @@ Toople = new Tuple(Dog, Answer):
 
 t = Toople(dog, Answer.Y)
 print(t.second().is_yes())
+
+Maybe = new Enum<A>(Nothing, Just(A)):
+     pass
+
+m = Maybe.Just(1)

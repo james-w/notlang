@@ -106,12 +106,18 @@ class Formatter(ASTVisitor):
         header = self.indent + self.dispatch(node.label) + ":\n"
         return header + self.indented().dispatch(node.block)
 
+    def visit_TypeOption(self, node):
+        members = ""
+        if node.members:
+            members = "(" + ", ".join(node.members) + ")"
+        return node.name + members
+
     def visit_NewType(self, node):
         type_params = ""
         if node.type_params:
             type_params = "<" + ", ".join(node.type_params) + ">"
         options = ""
         if node.options:
-            options = "(" + ", ".join(node.options) + ")"
+            options = "(" + ", ".join([self.dispatch(o) for o in node.options]) + ")"
         body = self.indented().dispatch(node.block)
         return "new " + node.type_type + type_params + options + ":\n" + body
