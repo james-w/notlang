@@ -967,4 +967,4 @@ def typecheck(node, trace=False):
 
 
 def _trace(message):
-    sys.stderr.write(message + "\n")
+    sys.stderr.write("type: " + message + "\n")
