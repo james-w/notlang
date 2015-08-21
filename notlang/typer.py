@@ -201,7 +201,7 @@ class FirstPass(ASTVisitor):
         if node.name in self.children:
             raise NotNameError("Redefinition of %s" % node.name, [node.sourcepos])
         self.functions.add(node.name)
-        self.child_visit(node.children[0], node.name)
+        self.child_visit(node.code, node.name)
 
     def visit_Assignment(self, node):
         if isinstance(node.source, NewType):
