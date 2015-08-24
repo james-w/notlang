@@ -341,6 +341,17 @@ foo = Thing<int>()
 foo = Thing<bool>()
 """)
 
+    def test_parameterised_type_as_argtype(self):
+        ftype = self.get_type('foo', """
+Thing = new Type<a>:
+    pass
+
+
+def foo(a: Thing<int>):
+    return a
+""")
+        self.assertThat(ftype.args[0], testing.IsParametricType([testing.IsType('Thing'), Is(typer.INT)]))
+
     def get_type(self, name, source):
         self.addDetail('source', text_content(source))
         return get_type_of(name, source)

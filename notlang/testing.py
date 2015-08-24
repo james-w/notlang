@@ -186,12 +186,17 @@ class ConstraintMatches(object):
 
 class IsTypeReference(object):
 
-    def __init__(self, name):
+    def __init__(self, name, type_params=None):
         def get_name(a):
             return getattr(a, 'name', None)
+        def get_type_params(a):
+            return getattr(a, 'type_params', [])
+        if type_params is None:
+            type_params = []
         self.matcher = MatchesAll(
             IsInstance(ast.TypeReference),
             AfterPreprocessing(get_name, Equals(name)),
+            AfterPreprocessing(get_type_params, MatchesListwise(type_params)),
         )
 
     def __str__(self):

@@ -340,7 +340,14 @@ class TypeEnv(object):
         return self.types.get(name, None)
 
     def get_type_from_ref(self, ref):
-        return self.get_type(ref.name)
+        base = self.get_type(ref.name)
+        if base is None:
+            return base
+        if ref.type_params:
+            if not isinstance(base, ParameterisedType):
+                raise NotTypeError("Can't parameterise {} with {}".format(base, ref.type_params), [ref.sourcepos])
+            base = ParameterisedType([base.types[0]] + [self.get_type_from_ref(r) for r in ref.type_params])
+        return base
 
     def register_type(self, name, t):
         self.types[name] = t
@@ -380,6 +387,7 @@ class ThirdPass(ASTVisitor):
         for i, arg in enumerate(node.args):
             argtype_ref = node.argtypes[i]
             if i == 0 and self.self_type is not None:
+                # Handle the super arg in a method signature
                 # XXX: need to check conflict with declared type
                 argtype = self.self_type
             elif argtype_ref is None:

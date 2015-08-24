@@ -34,7 +34,7 @@ new_decl: "new" >type_type< type_params? type_options? [":" newlines] suite;
 
 type_type: "Type" | "Enum" | "Tuple";
 
-type_params: [TYPE_PARAM_START] IDENTIFIER [TYPE_PARAM_END];
+type_params: [TYPE_PARAM_START] type_param [TYPE_PARAM_END];
 type_options: "(" type_options_list? [")"];
 type_options_list: type_option type_options_list_trailer*;
 type_options_list_trailer: [","] <type_option>;
@@ -81,11 +81,13 @@ defargs: defarg defargs_trailer*;
 
 defargs_trailer: [","] <defarg>;
 
-rtype_decl: ["->"] IDENTIFIER;
+rtype_decl: ["->"] type_param;
 
 defarg: IDENTIFIER argtypespec?;
 
-argtypespec: [":"] <IDENTIFIER>;
+argtypespec: [":"] <type_param>;
+
+type_param: IDENTIFIER type_params?;
 
 suite: [INDENT] statement* [DEDENT];
 

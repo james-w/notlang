@@ -71,6 +71,13 @@ class DotVisitor(ast.ASTVisitor):
 
 class TypeReferenceParser(RPythonVisitor):
 
+    def visit_type_param(self, node):
+        base = self.dispatch(node.children[0])
+        if len(node.children) > 1:
+            type_params = [self.dispatch(n) for n in node.children[1].children]
+            base.type_params = type_params
+        return base
+
     def visit_IDENTIFIER(self, node):
         return ast.TypeReference(node.additional_info, node.getsourcepos())
 

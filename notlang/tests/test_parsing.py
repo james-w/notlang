@@ -124,6 +124,9 @@ class BasicParsingTests(TestCase):
     def test_funcdef_with_rtype(self):
         self.assert_parses_ok("def a() -> int:\n    return 1\n\n")
 
+    def test_funcdef_with_complex_rtype(self):
+        self.assert_parses_ok("def a() -> List<int>:\n    return 1\n\n")
+
     def test_funcdef_with_one_arg_rtype(self):
         self.assert_parses_ok("def a(b) -> int:\n    return 1\n\n")
 
@@ -369,6 +372,20 @@ class ASTTests(TestCase):
         self.assertEqual("foo", func.name)
         self.assertEqual([], func.argtypes)
         self.assertThat(func.rtype, testing.IsTypeReference("a"))
+        self.assertEqual([], func.type_params)
+        self.assertIsInstance(func.children[0], ast.Block)
+        self.assertEqual(1, func.sourcepos.i)
+
+    def test_FuncDef_with_complex_rtype(self):
+        node = parse(" def foo() -> List<int>:\n   2\n\n")
+        self.assertIsInstance(node, ast.Block)
+        func = node.children[0].children[0]
+        self.assertIsInstance(func, ast.FuncDef)
+        self.assertEqual(1, len(func.children))
+        self.assertEqual([], func.args)
+        self.assertEqual("foo", func.name)
+        self.assertEqual([], func.argtypes)
+        self.assertThat(func.rtype, testing.IsTypeReference("List", type_params=[testing.IsTypeReference("int")]))
         self.assertEqual([], func.type_params)
         self.assertIsInstance(func.children[0], ast.Block)
         self.assertEqual(1, func.sourcepos.i)
