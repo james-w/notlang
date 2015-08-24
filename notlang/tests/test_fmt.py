@@ -49,7 +49,7 @@ class FormatterTests(TestCase):
     def test_Function_with_params(self):
         fname = self.factory.variable(name="afunction")
         args = [self.factory.int(value=2)]
-        params = ["a"]
+        params = [self.factory.type_reference(name="a")]
         function = self.factory.function_call(function=fname, args=args, type_params=params)
         self.assertEqual("afunction<a>(2)", fmt.Formatter().dispatch(function))
 
@@ -103,19 +103,19 @@ class FormatterTests(TestCase):
     def test_FuncDef_with_rtype(self):
         name = "afunction"
         body = self.factory.stmt(child=self.factory.int(value=2))
-        ret = self.factory.funcdef(name=name, body=body, rtype="c")
+        ret = self.factory.funcdef(name=name, body=body, rtype=self.factory.type_reference(name="c"))
         self.assertEqual("def afunction() -> c:\n    2\n", fmt.Formatter().dispatch(ret))
 
     def test_FuncDef_with_argtype(self):
         name = "afunction"
         body = self.factory.stmt(child=self.factory.int(value=2))
-        ret = self.factory.funcdef(name=name, args=["b"], body=body, argtypes=["c"])
+        ret = self.factory.funcdef(name=name, args=["b"], body=body, argtypes=[self.factory.type_reference(name="c")])
         self.assertEqual("def afunction(b: c):\n    2\n", fmt.Formatter().dispatch(ret))
 
     def test_FuncDef_with_type_params(self):
         name = "afunction"
         body = self.factory.stmt(child=self.factory.int(value=2))
-        ret = self.factory.funcdef(name=name, body=body, type_params=["A"])
+        ret = self.factory.funcdef(name=name, body=body, type_params=[self.factory.type_reference(name="A")])
         self.assertEqual("def afunction<A>():\n    2\n", fmt.Formatter().dispatch(ret))
 
     def test_Case(self):
@@ -136,7 +136,7 @@ class FormatterTests(TestCase):
     def test_NewType_with_type_params(self):
         t = self.factory.newtype(
             block = self.factory.stmt(child=self.factory.pass_()),
-            type_params=["A", "B"],
+            type_params=[self.factory.type_reference(name="A"), self.factory.type_reference(name="B")],
             )
         self.assertEqual("new Type<A, B>:\n    pass\n", fmt.Formatter().dispatch(t))
 

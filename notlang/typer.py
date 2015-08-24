@@ -260,9 +260,11 @@ class SecondPass(ASTVisitor):
             new_prefix = self.prefix + '.' + name
         child = SecondPass(new_prefix, functions, child_graph)
         child.dispatch(node)
-        for argtype_str in argtypes:
-            if argtype_str in functions:
-                child.calls.add(functions[argtype_str])
+        for argtype_ref in argtypes:
+            if argtype_ref is None:
+                continue
+            if argtype_ref.name in functions:
+                child.calls.add(functions[argtype_ref.name])
         if child.calls:
             self.callgraph[name] = child.calls
         for k, v in child.callgraph.items():
@@ -337,6 +339,9 @@ class TypeEnv(object):
     def get_type(self, name):
         return self.types.get(name, None)
 
+    def get_type_from_ref(self, ref):
+        return self.get_type(ref.name)
+
     def register_type(self, name, t):
         self.types[name] = t
 
@@ -373,19 +378,20 @@ class ThirdPass(ASTVisitor):
         env = self.env.subenv(node.name)
         argtypes = []
         for i, arg in enumerate(node.args):
-            argtype_str = node.argtypes[i]
+            argtype_ref = node.argtypes[i]
             if i == 0 and self.self_type is not None:
                 # XXX: need to check conflict with declared type
                 argtype = self.self_type
-            elif argtype_str is None:
+            elif argtype_ref is None:
                 argtype = env.newvar()
             else:
-                argtype = self.env.get_type(argtype_str)
+                argtype = self.env.get_type_from_ref(argtype_ref)
                 if argtype is None:
                     argtype = env.newvar()
             env.extend(arg, argtype, False)
             if i > 0 or self.self_type is None:
                 argtypes.append(argtype)
+        # XXX: missing considering node.rtype and node.type_params?
         for fname in child_process:
             if "." not in fname:
                 env.register(fname, inherit=True)
@@ -424,7 +430,7 @@ class ThirdPass(ASTVisitor):
             if node.type_params:
                 t_params = [new_t]
                 for param in node.type_params:
-                    t_params.append(TypeVariable(param))
+                    t_params.append(TypeVariable(param.name))
                 new_t = ParameterisedType(t_params)
             self.env.register_type(name, new_t)
             if node.type_type == 'Enum':
@@ -435,9 +441,12 @@ class ThirdPass(ASTVisitor):
                     t_params = []
                     if val.members:
                         args = []
+                        # Should be generalised to resolve type refs in the presence
+                        # of type params.
+                        type_param_names = [n.name for n in node.type_params]
                         for member in val.members:
-                            if member in node.type_params:
-                                t_param = new_t.types[node.type_params.index(member)+1]
+                            if member in type_param_names:
+                                t_param = new_t.types[type_param_names.index(member)+1]
                                 args.append(t_param)
                                 t_params.append(t_param)
                             else:
@@ -535,11 +544,11 @@ class ThirdPass(ASTVisitor):
             [node.sourcepos]))
         if node.type_params:
             ptypes = [self.env.newvar()]
-            for type_str in node.type_params:
-                t = self.env.get_type(type_str)
+            for type_ref in node.type_params:
+                t = self.env.get_type_from_ref(type_ref)
                 if t is None:
                     raise NotTypeError(
-                        "Unknown type: %s" % type_str, [node.sourcepos])
+                        "Unknown type: %s" % str(type_ref), [node.sourcepos])
                 ptypes.append(t)
             constraints.append(Constraint(
                 rtype, SUBTYPE_OF, ParameterisedType(ptypes), [node.sourcepos]))

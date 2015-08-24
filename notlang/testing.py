@@ -184,6 +184,23 @@ class ConstraintMatches(object):
         return self.matcher.match(actual)
 
 
+class IsTypeReference(object):
+
+    def __init__(self, name):
+        def get_name(a):
+            return getattr(a, 'name', None)
+        self.matcher = MatchesAll(
+            IsInstance(ast.TypeReference),
+            AfterPreprocessing(get_name, Equals(name)),
+        )
+
+    def __str__(self):
+        return str(self.matcher)
+
+    def match(self, actual):
+        return self.matcher.match(actual)
+
+
 class ASTFactory(object):
 
     spos = SourcePos(0, 0, 0)
@@ -307,3 +324,8 @@ class ASTFactory(object):
         if name is None:
             name = self.testcase.getUniqueString()
         return ast.Attribute(target, name, self.spos)
+
+    def type_reference(self, name=None):
+        if name is None:
+            name = self.testcase.getUniqueString()
+        return ast.TypeReference(name, self.spos)

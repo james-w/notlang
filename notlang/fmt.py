@@ -49,7 +49,7 @@ class Formatter(ASTVisitor):
         argstr = "(" + ", ".join([self.dispatch(c) for c in node.args]) + ")"
         type_params = ""
         if node.type_params:
-            type_params = "<" + ", ".join(node.type_params) + ">"
+            type_params = "<" + ", ".join([str(n) for n in node.type_params]) + ">"
         return base + type_params + argstr
 
     def visit_BinOp(self, node):
@@ -81,7 +81,7 @@ class Formatter(ASTVisitor):
         header = "def " + node.name
         type_params = ""
         if node.type_params:
-            type_params = "<" + ", ".join(node.type_params) + ">"
+            type_params = "<" + ", ".join([str(n) for n in node.type_params]) + ">"
         argstr = "("
         first = True
         for i, arg in enumerate(node.args):
@@ -89,12 +89,12 @@ class Formatter(ASTVisitor):
                 argstr += ", "
             argstr += arg
             if len(node.argtypes) > i and node.argtypes[i]:
-                argstr += ": " + node.argtypes[i]
+                argstr += ": " + str(node.argtypes[i])
             first = False
         argstr += ")"
         rtype = ""
         if node.rtype:
-            rtype = " -> " + node.rtype
+            rtype = " -> " + str(node.rtype)
         block = self.indented().dispatch(node.code)
         return header + type_params + argstr + rtype + ":\n" + block
 
@@ -115,7 +115,7 @@ class Formatter(ASTVisitor):
     def visit_NewType(self, node):
         type_params = ""
         if node.type_params:
-            type_params = "<" + ", ".join(node.type_params) + ">"
+            type_params = "<" + ", ".join([str(n) for n in node.type_params]) + ">"
         options = ""
         if node.options:
             options = "(" + ", ".join([self.dispatch(o) for o in node.options]) + ")"

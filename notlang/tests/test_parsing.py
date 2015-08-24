@@ -1,7 +1,8 @@
 from rpython.rlib.parsing.parsing import ParseError
 from testtools import TestCase
+from testtools.matchers import MatchesListwise
 
-from .. import ast
+from .. import ast, testing
 from ..parsing import parse as _parse
 
 
@@ -279,7 +280,7 @@ class ASTTests(TestCase):
         self.assertIsInstance(func, ast.Function)
         self.assertEqual("foo", func.fname.varname)
         self.assertEqual(0, len(func.args))
-        self.assertEqual(['int'], func.type_params)
+        self.assertThat(func.type_params, MatchesListwise([testing.IsTypeReference("int")]))
         self.assertEqual(1, func.sourcepos.i)
 
     def test_Return(self):
@@ -354,7 +355,7 @@ class ASTTests(TestCase):
         self.assertEqual("foo", func.name)
         self.assertEqual([], func.argtypes)
         self.assertEqual(None, func.rtype)
-        self.assertEqual(["a"], func.type_params)
+        self.assertThat(func.type_params, MatchesListwise([testing.IsTypeReference("a")]))
         self.assertIsInstance(func.children[0], ast.Block)
         self.assertEqual(1, func.sourcepos.i)
 
@@ -367,7 +368,7 @@ class ASTTests(TestCase):
         self.assertEqual([], func.args)
         self.assertEqual("foo", func.name)
         self.assertEqual([], func.argtypes)
-        self.assertEqual("a", func.rtype)
+        self.assertThat(func.rtype, testing.IsTypeReference("a"))
         self.assertEqual([], func.type_params)
         self.assertIsInstance(func.children[0], ast.Block)
         self.assertEqual(1, func.sourcepos.i)
@@ -381,12 +382,38 @@ class ASTTests(TestCase):
         self.assertEqual([], func.args)
         self.assertEqual("foo", func.name)
         self.assertEqual([], func.argtypes)
-        self.assertEqual("a", func.rtype)
-        self.assertEqual(["a"], func.type_params)
+        self.assertThat(func.rtype, testing.IsTypeReference("a"))
+        self.assertThat(func.type_params, MatchesListwise([testing.IsTypeReference("a")]))
         self.assertIsInstance(func.children[0], ast.Block)
         self.assertEqual(1, func.sourcepos.i)
 
-    # TODO: more complete FuncDef tests
+    def test_FuncDef_with_argtype(self):
+        node = parse(" def foo(a: int):\n   2\n\n")
+        self.assertIsInstance(node, ast.Block)
+        func = node.children[0].children[0]
+        self.assertIsInstance(func, ast.FuncDef)
+        self.assertEqual(1, len(func.children))
+        self.assertEqual(["a"], func.args)
+        self.assertEqual("foo", func.name)
+        self.assertThat(func.argtypes, MatchesListwise([testing.IsTypeReference("int")]))
+        self.assertEqual(None, func.rtype)
+        self.assertEqual([], func.type_params)
+        self.assertIsInstance(func.children[0], ast.Block)
+        self.assertEqual(1, func.sourcepos.i)
+
+    def test_FuncDef_with_undefined_argtype(self):
+        node = parse(" def foo(a):\n   2\n\n")
+        self.assertIsInstance(node, ast.Block)
+        func = node.children[0].children[0]
+        self.assertIsInstance(func, ast.FuncDef)
+        self.assertEqual(1, len(func.children))
+        self.assertEqual(["a"], func.args)
+        self.assertEqual("foo", func.name)
+        self.assertEqual([None], func.argtypes)
+        self.assertEqual(None, func.rtype)
+        self.assertEqual([], func.type_params)
+        self.assertIsInstance(func.children[0], ast.Block)
+        self.assertEqual(1, func.sourcepos.i)
 
     def test_NewType(self):
         node = parse(" a = new Type:\n    pass\n\n")
@@ -405,7 +432,7 @@ class ASTTests(TestCase):
         self.assertIsInstance(ass, ast.Assignment)
         t = ass.children[0]
         self.assertIsInstance(t, ast.NewType)
-        self.assertEqual(["b"], t.type_params)
+        self.assertThat(t.type_params, MatchesListwise([testing.IsTypeReference("b")]))
         self.assertEqual(5, t.sourcepos.i)
 
     def test_NewType_with_block(self):
@@ -417,7 +444,7 @@ class ASTTests(TestCase):
         self.assertIsInstance(t, ast.NewType)
         self.assertEqual(1, len(t.children))
         self.assertEqual([], t.options)
-        self.assertEqual(["b"], t.type_params)
+        self.assertThat(t.type_params, MatchesListwise([testing.IsTypeReference("b")]))
         self.assertEqual(5, t.sourcepos.i)
         self.assertIsInstance(t.children[0], ast.Block)
         self.assertIsInstance(t.children[0].children[0].children[0], ast.Pass)
@@ -455,7 +482,7 @@ class ASTTests(TestCase):
         self.assertIsInstance(t, ast.NewType)
         self.assertEqual(1, len(t.children))
         self.assertEqual(["A"], [o.name for o in t.options])
-        self.assertEqual(["B"], t.type_params)
+        self.assertThat(t.type_params, MatchesListwise([testing.IsTypeReference("B")]))
         self.assertEqual(5, t.sourcepos.i)
 
     def test_Enum(self):

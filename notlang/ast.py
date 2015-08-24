@@ -302,6 +302,20 @@ class Attribute(NonTerminal):
         return self.children[0]
 
 
+class TypeReference(NonTerminal):
+
+    def __init__(self, name, sourcepos):
+        self.name = name
+        self.children = []
+        self.sourcepos = sourcepos
+
+    def get_extra_dot_info(self):
+        return self.name
+
+    def __str__(self):
+        return self.name
+
+
 class VisitError(Exception):
     def __init__(self, node):
         self.node = node

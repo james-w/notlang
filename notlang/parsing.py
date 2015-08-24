@@ -69,6 +69,12 @@ class DotVisitor(ast.ASTVisitor):
         return lines
 
 
+class TypeReferenceParser(RPythonVisitor):
+
+    def visit_IDENTIFIER(self, node):
+        return ast.TypeReference(node.additional_info, node.getsourcepos())
+
+
 class Transformer(RPythonVisitor):
 
     def visit_main(self, node):
@@ -122,7 +128,8 @@ class Transformer(RPythonVisitor):
                 type_params = []
                 if len(child.children) > 1:
                     if child.children[0].symbol == 'type_params':
-                        type_params = [a.additional_info for a in child.children[0].children]
+                        type_parser = TypeReferenceParser()
+                        type_params = [type_parser.dispatch(a) for a in child.children[0].children]
                         if len(child.children) > 2:
                             arg_children = child.children[2].children
                     else:
@@ -158,20 +165,21 @@ class Transformer(RPythonVisitor):
         args = []
         argtypes = []
         rtype = None
+        type_parser = TypeReferenceParser()
 
         params = node.children[2]
         if params.symbol == 'type_params':
-            type_params = [params.children[0].additional_info]
+            type_params = [type_parser.dispatch(a) for a in params.children]
             params = node.children[3]
             if len(node.children) > 5:
-                rtype = node.children[4].children[0].additional_info
+                rtype = type_parser.dispatch(node.children[4].children[0])
                 block = node.children[5]
             else:
                 block = node.children[4]
         else:
             type_params = []
             if len(node.children) > 4:
-                rtype = node.children[3].children[0].additional_info
+                rtype = type_parser.dispatch(node.children[3].children[0])
                 block = node.children[4]
             else:
                 block = node.children[3]
@@ -179,7 +187,7 @@ class Transformer(RPythonVisitor):
             for argnode in params.children[0].children:
                 args.append(argnode.children[0].additional_info)
                 if len(argnode.children) > 1:
-                    argtypes.append(argnode.children[1].additional_info)
+                    argtypes.append(type_parser.dispatch(argnode.children[1]))
                 else:
                     argtypes.append(None)
         return ast.FuncDef(name, args, self.dispatch(block), node.getsourcepos(), rtype=rtype,
@@ -197,12 +205,13 @@ class Transformer(RPythonVisitor):
         type_params = []
         options = []
         block_node = node.children[-1]
+        type_parser = TypeReferenceParser()
         if len(node.children) > 4:
-            type_params = [node.children[2].children[0].additional_info]
+            type_params = [type_parser.dispatch(a) for a in node.children[2].children]
             options = [self._parse_type_option(c) for c in node.children[3].children[1].children]
         elif len(node.children) > 3:
             if node.children[2].symbol == 'type_params':
-                type_params = [node.children[2].children[0].additional_info]
+                type_params = [type_parser.dispatch(a) for a in node.children[2].children]
             else:
                 options = [self._parse_type_option(c) for c in node.children[2].children[1].children]
         if type_type in ('Enum', 'Tuple') and not options:
