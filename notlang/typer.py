@@ -164,10 +164,12 @@ def type_from_decl(type_str, vartypes, types):
 
 SUPERTYPE_OF = "supertype of"
 SUBTYPE_OF = "subtype of"
+UNIFIES = "unifies with"
 
 INVERSE_CONSTRAINT = {
     SUPERTYPE_OF: SUBTYPE_OF,
     SUBTYPE_OF: SUPERTYPE_OF,
+    UNIFIES: UNIFIES,
 }
 
 
@@ -500,7 +502,7 @@ class ThirdPass(ASTVisitor):
         t = self.env.register(node.var.varname)
         constraints, child_t = self.dispatch(node.source)
         constraints.append(Constraint(
-            t, SUPERTYPE_OF,
+            t, UNIFIES,
             child_t,
             [node.sourcepos]))
         return constraints, t
@@ -515,7 +517,7 @@ class ThirdPass(ASTVisitor):
             child_t = NONE
         constraints.append(Constraint(
             self.env.rtype,
-            SUPERTYPE_OF,
+            UNIFIES,
             child_t,
             [node.sourcepos]))
         return constraints, None
@@ -554,7 +556,7 @@ class ThirdPass(ASTVisitor):
                 new_constraints, ltype = self.dispatch(case.label)
                 constraints.extend(new_constraints)
                 constraints.append(Constraint(
-                    ttype, SUPERTYPE_OF, ltype, [node.sourcepos]))
+                    ttype, UNIFIES, ltype, [node.sourcepos]))
             else:
                 argtypes = []
                 for arg in case.label.args:
@@ -564,7 +566,7 @@ class ThirdPass(ASTVisitor):
                 # Need to bind the types of the args to the types in the
                 # constructor, and also bind the type to the type of the target
                 constraints.append(Constraint(
-                    ttype, SUPERTYPE_OF, ltype, [node.sourcepos]))
+                    ttype, UNIFIES, ltype, [node.sourcepos]))
                 case_type = self.dispatch(case.label.fname)[1]
                 constraints.append(Constraint(
                     case_type, SUPERTYPE_OF, FunctionType(argtypes, ltype), [node.sourcepos]))
@@ -667,18 +669,12 @@ def satisfy_attribute_access(attr, other, direction, positions, substitution):
     return [Constraint(instantiate(get_substituted(ret, substitution)), INVERSE_CONSTRAINT[direction], other, positions)]
 
 
-def satisfy_expr(expr, other, direction, positions, substitution):
-    if expr in substitution:
-        newlhs, newpos = substitution[expr]
-        return [Constraint(newlhs, direction, other, positions + newpos)]
+def satisfy_expr(expr, other_expr, direction, positions, substitution):
+    if expr != other_expr:
+        update_substitution(substitution, expr, other_expr, positions)
     else:
-        if isinstance(other, TypeExpr):
-            if other in substitution:
-                newrhs, newpos = substitution[other]
-                return [Constraint(expr, direction, newrhs, positions + newpos)]
-        if expr != get_substituted(other, substitution):
-            update_substitution(substitution, expr, get_substituted(other, substitution), positions)
-        return []
+        raise AssertionError("How?")
+    return []
 
 
 def satisfy_function(a, b, direction, positions, substitution):
@@ -717,10 +713,16 @@ def satisfy_constraint(constraint, substitution):
     should be checked.
     """
     #print constraint
-    a = constraint.a
-    b = constraint.b
     direction = constraint.constraint
     positions = constraint.positions
+    a = constraint.a
+    b = constraint.b
+    while a in substitution:
+        a, newpos = substitution[a]
+        positions = positions + newpos
+    if b in substitution:
+        b, newpos = substitution[b]
+        positions = positions + newpos
     if not isinstance(a, TypeExpr) and isinstance(b, TypeExpr):
         return [Constraint(b, INVERSE_CONSTRAINT[direction], a, positions)]
     if isinstance(b, AttributeAccess):
@@ -737,6 +739,8 @@ def satisfy_constraint(constraint, substitution):
         newtype = unify_types(a, b, direction)
         if newtype is None:
             raise NotTypeError("Type mismatch: %s is not a %s of %s" % (a, direction, b), positions)
+        if isinstance(constraint.a, TypeExpr):
+            update_substitution(substitution, constraint.a, newtype, positions)
     return []
 
 
@@ -775,16 +779,23 @@ def unify_types(a, b, constraint):
         return ANY
     if a.__class__ != b.__class__:
         return None
-    # XXX: ignores SUBTYPE_OF/SUPERTYPE_OF
-    # it's not clear whether we need a third constraint that
-    # just means that they can be unified, or whether
-    # this is the wrong approach.
     a_bases = (a,) + a.bases
     b_bases = (b,) + b.bases
-    for a_base in a_bases:
-        for b_base in b_bases:
-            if a_base == b_base:
-                return a_base
+    if constraint == UNIFIES:
+        for a_base in a_bases:
+            for b_base in b_bases:
+                if a_base == b_base:
+                    return a_base
+    else:
+        if constraint == SUPERTYPE_OF:
+            target = a
+            sources = b_bases
+        else:
+            target = b
+            sources = a_bases
+        for base in sources:
+            if base == target:
+                return base
 
 
 def occurs(lhs, rhs):

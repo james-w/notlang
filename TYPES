@@ -31,12 +31,21 @@ needed up a hierarchy. e.g.
 
 will change the inference when it sees the second declaration.
 
-We do need to have type declarations for all functions with
-this method though. Otherwise we have to assume ANY when we
-don't know them, and how do you then pass that to something
-that declares need of a more specific type? Only really
-a problem if we can't do inference on the function when
-it is used, so header files with no types wouldn't work.
+
+There are two contributors to constraints:
+
+  1. Use: when a variable is used then its type is constrained by the
+     way that it is used. Passing it to a function means that it must
+     be a subtype of the relevant argument type. This restricts the
+     types that the variable can hold.
+
+  2. Definition: when a variable is defined, or updated, then it
+     changes the type that the variable may hold. This causes an
+     expansion in the possible types.
+
+We need to find a type scheme that satisfies all of these constraints
+at the same time.
+
 
 Type checking
 -------------

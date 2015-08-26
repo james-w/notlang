@@ -108,15 +108,9 @@ class SatisfyConstraintsTests(TestCase):
         ret = typer.satisfy_constraint(
                 typer.Constraint(a, typer.SUPERTYPE_OF, typer.INT, constraint_pos),
                 substitution)
-        self.assertEqual(1, len(ret))
-        self.assertThat(
-            ret[0],
-            testing.ConstraintMatches(
-                Is(b),
-                typer.SUPERTYPE_OF,
-                Is(typer.INT),
-                [Is(constraint_pos[0]), Is(subs_pos[0])]))
-        self.assertEqual(1, len(substitution))
+        self.assertEqual(0, len(ret))
+        self.assertEqual(2, len(substitution))
+        self.assertEqual((typer.INT, constraint_pos + subs_pos), substitution[b])
 
     def test_type_expr_updates_substitution(self):
         a = typer.TypeExpr('a')
@@ -404,15 +398,7 @@ y = Answer.Y
 y = Answer.N
 
 """)
-        # This should probably have been elevated to 'Answer'
-        # as the type, but it doesn't work. That
-        # probably also means that some invalid programs
-        # may type check, because widening of the type isn't
-        # accounted for later.
-        # The problem is that by the time we decide whether
-        # two concrete types can be unified, we no longer
-        # have info about the expressions
-        self.assertThat(ftype, testing.IsType('Answer.Y'))
+        self.assertThat(ftype, testing.IsType('Answer'))
 
     def test_tuple(self):
         ftype = self.get_type('f', """
@@ -422,6 +408,21 @@ Thing = new Tuple(int, int):
 f = Thing(1, 1)
 """)
         self.assertThat(ftype, testing.IsType('Thing'))
+
+    def test_enum_return(self):
+        ftype = self.get_type('f', """
+Answer = new Enum(Y, N):
+    pass
+
+
+def f():
+    if 1 == 1:
+        return Answer.Y
+    else:
+        return Answer.N
+""")
+        self.assertThat(ftype.rtype, testing.IsType("Answer"))
+
 
 
 class InstantiateTests(TestCase):
@@ -626,7 +627,7 @@ class UnifyTypeTests(TestCase):
         t1 = typer.Type('a')
         t2 = typer.Type('b', bases=(t1,))
         self.assertIs(t1, typer.unify_types(t1, t2, typer.SUPERTYPE_OF))
-        self.assertIs(t1, typer.unify_types(t1, t2, typer.SUBTYPE_OF))
+        self.assertIs(None, typer.unify_types(t1, t2, typer.SUBTYPE_OF))
 
 
 class FirstPassTests(TestCase):
@@ -829,7 +830,7 @@ class ThirdPassTests(TestCase):
             MatchesListwise([
                 testing.ConstraintMatches(
                     Is(t),
-                    typer.SUPERTYPE_OF,
+                    typer.UNIFIES,
                     Is(typer.INT),
                     [Is(self.factory.spos)])]))
 
@@ -898,7 +899,7 @@ class ThirdPassTests(TestCase):
             ))
         self.assertThat(constraints[1], testing.ConstraintMatches(
             Is(ttype),
-            typer.SUPERTYPE_OF,
+            typer.UNIFIES,
             Is(ltype),
             [Is(self.factory.spos)],
             ))
