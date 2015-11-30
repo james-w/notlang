@@ -1,3 +1,11 @@
+int = new Type:
+    pass
+
+
+bool = new Type:
+    pass
+
+
 List = new Type<a>:
 
     def append(self, val: a) -> List<a>:
@@ -5,3 +13,4 @@ List = new Type<a>:
 
     def first(self) -> a:
         pass
+
