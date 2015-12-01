@@ -157,7 +157,7 @@ class SatisfyConstraintsTests(TestCase):
 
     def test_getattr_no_attr(self):
         t1 = typer.Type("a")
-        a = typer.BOOL
+        a = typer.Type("b")
         b = typer.AttributeAccess(t1, 'a')
         constraint_pos = [SourcePos(2, 2, 2)]
         substitution = {}
@@ -651,88 +651,123 @@ class SubstitutionTests(TestCase):
     def test_adds(self):
         substitution = {}
         positions = []
-        typer.update_substitution(substitution, typer.INT, typer.BOOL, positions)
-        self.assertEqual({typer.INT: (typer.BOOL, positions)}, substitution)
+        t1 = typer.Type("t1")
+        t2 = typer.Type("t2")
+        typer.update_substitution(substitution, t1, t2, positions)
+        self.assertEqual({t1: (t2, positions)}, substitution)
 
     def test_replaces(self):
-        substitution = {typer.INT: (typer.NONE, [])}
+        t1 = typer.Type("t1")
+        t2 = typer.Type("t2")
+        t3 = typer.Type("t3")
+        substitution = {t1: (t2, [])}
         positions = []
-        typer.update_substitution(substitution, typer.INT, typer.BOOL, positions)
-        self.assertEqual({typer.INT: (typer.BOOL, positions)}, substitution)
+        typer.update_substitution(substitution, t1, t3, positions)
+        self.assertEqual({t1: (t3, positions)}, substitution)
 
     def test_updates_other_references(self):
         a = typer.TypeExpr('a')
-        substitution = {typer.INT: (a, [])}
+        t1 = typer.Type("t1")
+        t2 = typer.Type("t2")
+        substitution = {t1: (a, [])}
         positions = []
-        typer.update_substitution(substitution, a, typer.BOOL, positions)
-        self.assertEqual({typer.INT: (typer.BOOL, []), a: (typer.BOOL, positions)}, substitution)
+        typer.update_substitution(substitution, a, t2, positions)
+        self.assertEqual({t1: (t2, []), a: (t2, positions)}, substitution)
 
     def test_updates_other_references_in_ftype(self):
         a = typer.TypeExpr('a')
         f = typer.FunctionType([], a)
-        substitution = {typer.INT: (f, [])}
+        t1 = typer.Type("t1")
+        t2 = typer.Type("t2")
+        substitution = {t1: (f, [])}
         positions = []
-        typer.update_substitution(substitution, a, typer.BOOL, positions)
+        typer.update_substitution(substitution, a, t2, positions)
         self.assertEqual(2, len(substitution))
-        self.assertThat(substitution[a], Equals((typer.BOOL, [])))
-        self.assertThat(substitution[typer.INT][0], testing.IsFunctionType([], Is(typer.BOOL)))
+        self.assertThat(substitution[a], Equals((t2, [])))
+        self.assertThat(substitution[t1][0], testing.IsFunctionType([], Is(t2)))
 
     def test_occurs_check(self):
         substitution = {}
         positions = []
+        t1 = typer.Type("t1")
         self.assertRaises(typer.NotTypeError, typer.update_substitution,
-                substitution, typer.INT, typer.INT, positions)
+                substitution, t1, t1, positions)
 
     def test_get_substituded(self):
-        substitution = {typer.INT: (typer.NONE, [])}
-        ret = typer.get_substituted(typer.INT, substitution)
-        self.assertIs(typer.NONE, ret)
+        t1 = typer.Type("t1")
+        t2 = typer.Type("t2")
+        substitution = {t1: (t2, [])}
+        ret = typer.get_substituted(t1, substitution)
+        self.assertIs(t2, ret)
 
     def test_get_substituded_transitive(self):
-        substitution = {typer.INT: (typer.NONE, []), typer.NONE: (typer.BOOL, [])}
-        ret = typer.get_substituted(typer.INT, substitution)
-        self.assertIs(typer.BOOL, ret)
+        t1 = typer.Type("t1")
+        t2 = typer.Type("t2")
+        t3 = typer.Type("t3")
+        substitution = {t1: (t2, []), t2: (t3, [])}
+        ret = typer.get_substituted(t1, substitution)
+        self.assertIs(t3, ret)
 
     def test_get_substituded_function_type(self):
-        substitution = {typer.INT: (typer.FunctionType([typer.NONE], typer.NONE), []), typer.NONE: (typer.BOOL, [])}
-        ret = typer.get_substituted(typer.INT, substitution)
-        self.assertThat(ret, testing.IsFunctionType([Is(typer.BOOL)], Is(typer.BOOL)))
+        t1 = typer.Type("t1")
+        t2 = typer.Type("t2")
+        t3 = typer.Type("t3")
+        substitution = {t1: (typer.FunctionType([t2], t2), []), t2: (t3, [])}
+        ret = typer.get_substituted(t1, substitution)
+        self.assertThat(ret, testing.IsFunctionType([Is(t3)], Is(t3)))
 
     def test_occurs_same_type(self):
-        self.assertEqual(True, typer.occurs(typer.INT, typer.INT))
+        t1 = typer.Type("t1")
+        self.assertEqual(True, typer.occurs(t1, t1))
 
     def test_occurs_different_types(self):
-        self.assertEqual(False, typer.occurs(typer.INT, typer.NONE))
+        t1 = typer.Type("t1")
+        t2 = typer.Type("t2")
+        self.assertEqual(False, typer.occurs(t1, t2))
 
     def test_occurs_function_arg(self):
-        self.assertEqual(True, typer.occurs(typer.INT, typer.FunctionType([typer.INT], typer.BOOL)))
+        t1 = typer.Type("t1")
+        t2 = typer.Type("t2")
+        self.assertEqual(True, typer.occurs(t1, typer.FunctionType([t1], t2)))
 
     def test_occurs_function_rtype(self):
-        self.assertEqual(True, typer.occurs(typer.INT, typer.FunctionType([typer.BOOL], typer.INT)))
+        t1 = typer.Type("t1")
+        t2 = typer.Type("t2")
+        self.assertEqual(True, typer.occurs(t1, typer.FunctionType([t2], t1)))
 
     def test_occurs_parameterised_type(self):
-        self.assertEqual(True, typer.occurs(typer.INT, typer.ParameterisedType([typer.BOOL, typer.INT])))
+        t1 = typer.Type("t1")
+        t2 = typer.Type("t2")
+        self.assertEqual(True, typer.occurs(t1, typer.ParameterisedType([t2, t1])))
+
+    # TODO: test occurs UnionType
 
 
 class UnifyTypeTests(TestCase):
 
     def test_same(self):
-        self.assertIs(typer.INT, typer.unify_types(typer.INT, typer.INT, typer.SUPERTYPE_OF))
-        self.assertIs(typer.INT, typer.unify_types(typer.INT, typer.INT, typer.SUBTYPE_OF))
+        t1 = typer.Type("a")
+        self.assertIs(t1, typer.unify_types(t1, t1, typer.SUPERTYPE_OF))
+        self.assertIs(t1, typer.unify_types(t1, t1, typer.SUBTYPE_OF))
 
     def test_different(self):
-        self.assertIs(None, typer.unify_types(typer.INT, typer.BOOL, typer.SUPERTYPE_OF))
-        self.assertIs(None, typer.unify_types(typer.INT, typer.BOOL, typer.SUBTYPE_OF))
+        t1 = typer.Type("a")
+        t2 = typer.Type("b")
+        self.assertIs(None, typer.unify_types(t1, t2, typer.SUPERTYPE_OF))
+        self.assertIs(None, typer.unify_types(t1, t2, typer.SUBTYPE_OF))
 
     def test_different_classes(self):
-        self.assertIs(None, typer.unify_types(typer.INT, typer.TypeExpr("a"), typer.SUPERTYPE_OF))
-        self.assertIs(None, typer.unify_types(typer.INT, typer.TypeExpr("b"), typer.SUBTYPE_OF))
+        t1 = typer.Type("a")
+        self.assertIs(None, typer.unify_types(t1, typer.TypeExpr("a"), typer.SUPERTYPE_OF))
+        self.assertIs(None, typer.unify_types(t1, typer.TypeExpr("b"), typer.SUBTYPE_OF))
 
     def test_vs_any(self):
-        self.assertIs(typer.ANY, typer.unify_types(typer.ANY, typer.BOOL, typer.SUPERTYPE_OF))
-        self.assertIs(None, typer.unify_types(typer.BOOL, typer.ANY, typer.SUPERTYPE_OF))
-        self.assertIs(typer.ANY, typer.unify_types(typer.INT, typer.ANY, typer.SUBTYPE_OF))
-        self.assertIs(None, typer.unify_types(typer.ANY, typer.BOOL, typer.SUBTYPE_OF))
+        t1 = typer.Type("a")
+        t2 = typer.Type("b")
+        self.assertIs(typer.ANY, typer.unify_types(typer.ANY, t1, typer.SUPERTYPE_OF))
+        self.assertIs(None, typer.unify_types(t1, typer.ANY, typer.SUPERTYPE_OF))
+        self.assertIs(typer.ANY, typer.unify_types(t2, typer.ANY, typer.SUBTYPE_OF))
+        self.assertIs(None, typer.unify_types(typer.ANY, t1, typer.SUBTYPE_OF))
 
     def test_subtype(self):
         t1 = typer.Type('a')
@@ -903,9 +938,10 @@ class ThirdPassTests(TestCase):
     def test_Variable(self):
         node = self.factory.variable()
         checker = self.get_third_pass(True)
-        checker.env.extend(node.varname, typer.INT, [])
+        t = typer.Type('a')
+        checker.env.extend(node.varname, t, [])
         constraints, t = checker.dispatch(node)
-        self.assertThat(t, Is(typer.INT))
+        self.assertThat(t, Is(t))
         self.assertThat(constraints, Equals([]))
 
     def test_Variable_missing_disabled(self):
@@ -918,7 +954,7 @@ class ThirdPassTests(TestCase):
     def test_Variable_disabled(self):
         node = self.factory.variable()
         checker = self.get_third_pass(False)
-        checker.env.extend(node.varname, typer.INT, [])
+        checker.env.extend(node.varname, typer.Type('a'), [])
         constraints, t = checker.dispatch(node)
         self.assertThat(t, Is(None))
         self.assertThat(constraints, Equals([]))

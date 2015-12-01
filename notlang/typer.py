@@ -149,9 +149,6 @@ class AttributeAccess(Type):
 
 
 ANY = Type("ANY")
-INT = Type("int")
-NONE = Type("None")
-BOOL = Type("bool")
 
 
 METATYPES = {
