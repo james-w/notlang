@@ -105,6 +105,33 @@ class FunctionType(Type):
         return id(self) == id(other)
 
 
+class UnionType(Type):
+
+    def __init__(self, subtypes):
+        self.subtypes = subtypes
+
+    def __str__(self):
+        subtype_str = " | ".join([str(a) for a in self.subtypes])
+        return "[" + subtype_str + "]"
+
+    def __repr__(self):
+        return "<UnionType:%s>" % str(self)
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.subtypes == other.subtypes
+
+    def reduce(self):
+        # TODO: handle unioning with a union
+        new_subs = []
+        for sub in self.subtypes:
+            if sub in new_subs:
+                continue
+            new_subs.append(sub)
+        if len(new_subs) < 2:
+            return new_subs[0]
+        return UnionType(new_subs)
+
+
 class AttributeAccess(Type):
 
     def __init__(self, type, name):
@@ -214,7 +241,7 @@ class FirstPass(ASTVisitor):
             self.functions.add(node.var.varname)
             self.child_visit(node.source.block, node.var.varname)
         else:
-            self.assignments.add(node.var.varname)
+                self.assignments.add(node.var.varname)
 
     def general_terminal_visit(self, node):
         pass
@@ -313,7 +340,6 @@ class TypeEnv(object):
         return TypeExpr(varname)
 
     def register(self, name, reference, sourcepos, inherit=False):
-        # XXX: need to combine multiple assignments
         self.env[name] = (reference, sourcepos, inherit)
 
     def register_with_new_expr(self, name, sourcepos, inherit=False):
@@ -340,6 +366,14 @@ class TypeEnv(object):
                 new.extend(n, var, sourcepos)
         new.types = self.types.copy()
         self.children[name] = new
+        return new
+
+    def subenv_same_scope(self):
+        new = TypeEnv(self.prefix)
+        for n, (var, sourcepos, inherit) in self.env.items():
+            new.extend(n, var, sourcepos)
+        new.types = self.types.copy()
+        new.rtype = self.rtype
         return new
 
     def get_type(self, name):
@@ -550,7 +584,7 @@ class ThirdPass(ASTVisitor):
         else:
             # TODO: handle setting attribute
             constraints, child_t = self.dispatch(node.source)
-            self.env.register(node.var.varname, child_t, node.sourcepos)
+            self.env.register(node.var.varname, child_t, [node.sourcepos])
             return constraints, child_t
 
     def visit_Return(self, node):
@@ -566,6 +600,8 @@ class ThirdPass(ASTVisitor):
             UNIFIES,
             child_t,
             [node.sourcepos]))
+        # TODO: should disable rest of the block
+        # to avoid incorrect inferences
         return constraints, None
 
     def _handle_function(self, node, target):
@@ -640,6 +676,55 @@ class ThirdPass(ASTVisitor):
         constraints.append(Constraint(AttributeAccess(child_t, node.name), SUBTYPE_OF, new_t, [node.sourcepos]))
         return constraints, new_t
 
+    def visit_Conditional(self, node):
+        if not self.active:
+            return [], None
+        constraints = []
+        condition_cs, condition_t = self.dispatch(node.condition)
+        # Use Truthy rather than bool
+        constraints.append(Constraint(
+            condition_t,
+            SUBTYPE_OF,
+            self.env.get_type('bool'),
+            [node.condition.sourcepos]))
+        constraints.extend(condition_cs)
+        leaked_vars = []
+        for child in [node.true_block, node.false_block]:
+            env = self.env.subenv_same_scope()
+            if child is not None:
+                child_pass = ThirdPass(env, True, self.name_graph)
+                constraints.extend(child_pass.dispatch(child)[0])
+            leaked_vars.append(env.env.copy())
+        fully_leaked = leaked_vars[0].copy()
+        partially_leaked = {}
+        for possible_leak_set in leaked_vars[1:]:
+            for a in fully_leaked.keys():
+                if a not in possible_leak_set:
+                    partially_leaked[a] = fully_leaked[a]
+                    del fully_leaked[a]
+                else:
+                    fully_leaked[a] = (unionify(fully_leaked[a][0], possible_leak_set[a][0]), fully_leaked[a][1] + possible_leak_set[a][1], fully_leaked[a][2] and possible_leak_set[a][2])
+                    del possible_leak_set[a]
+            for a in possible_leak_set.keys():
+                if a in partially_leaked:
+                    partially_leaked[a] = (unionify(partially_leaked[a][0], possible_leak_set[a][0]), partially_leaked[a][1] + possible_leak_set[a][1], partially_leaked[a][2] and possible_leak_set[a][2])
+                else:
+                    partially_leaked[a] = possible_leak_set[a]
+                del possible_leak_set[a]
+        for a, val in fully_leaked.items():
+            self.env.register(a, val[0], val[1], val[2])
+        for a, val in partially_leaked.items():
+            if a not in self.env.env:
+                # Don't register a leaked var that wasn't
+                # already defined. Perhaps some way
+                # of registering it with an invalid type
+                # would lead to better errors.
+                continue
+            self.env.register(a, val[0], val[1], val[2])
+        return constraints, None
+
+    # TODO: visit_Conditional treatment for While and Case too.
+
     def general_terminal_visit(self, node):
         return [], None
 
@@ -648,6 +733,18 @@ class ThirdPass(ASTVisitor):
         for child in node.children:
             constraints.extend(self.dispatch(child)[0])
         return constraints, None
+
+
+def unionify(a, b):
+    """Union two types.
+
+    In general this will return a UnionType of the two
+    types, but reductions may be made if there is
+    a simplification that can be done, e.g.
+
+       unionify(a, a) == a
+    """
+    return UnionType([a, b]).reduce()
 
 
 FUNCTIONS = {
@@ -710,7 +807,7 @@ def satisfy_attribute_access(attr, other, direction, positions, substitution):
         if ret is not None:
             break
     else:
-        raise NotTypeError("%s has no attribute %s" % (t, attr.name), positions)
+        raise NotTypeError("%s has no attribute %s" % (get_substituted(t, substitution), attr.name), positions)
     return [Constraint(other, direction, instantiate(get_substituted(ret, substitution)), positions)]
 
 
@@ -723,9 +820,9 @@ def satisfy_expr(expr, other_expr, direction, positions, substitution):
 def satisfy_function(a, b, direction, positions, substitution):
     new_constraints = []
     if not isinstance(b, FunctionType):
-        raise NotTypeError("Types mismatch: %s != %s" % (a, b), positions)
+        raise NotTypeError("Types mismatch: %s != %s" % (get_substituted(a, substitution), get_substituted(b, substitution)), positions)
     if len(a.args) != len(b.args):
-        raise NotTypeError("Types mismatch: %s != %s, argument lengths differ" % (a, b), positions)
+        raise NotTypeError("Types mismatch: %s != %s, argument lengths differ" % (get_substituted(a, substitution), get_substituted(b, substitution)), positions)
     for i, arg in enumerate(a.args):
         new_constraints.insert(0, Constraint(arg, direction, b.args[i], positions))
     new_constraints.insert(0, Constraint(a.rtype, direction, b.rtype, positions))
@@ -738,9 +835,9 @@ def satisfy_parameterised_type(a, b, direction, positions, substitution):
         if b.__class__ == Type:
             if unify_types(a.types[0], b, direction) is not None:
                 return []
-        raise NotTypeError("Types mismatch: %s != %s" % (a, b), positions)
+        raise NotTypeError("Types mismatch: %s != %s" % (get_substituted(a, substitution), get_substituted(b, substitution)), positions)
     if len(a.types) != len(b.types):
-        raise NotTypeError("Types mismatch: %s != %s, wrong number of type params" % (a, b), positions)
+        raise NotTypeError("Types mismatch: %s != %s, wrong number of type params" % (get_substituted(a, substitution), get_substituted(b, substitution)), positions)
     for i, arg in enumerate(a.types):
         new_constraints.insert(0, Constraint(arg, direction, b.types[i], positions))
     return new_constraints
@@ -781,7 +878,7 @@ def satisfy_constraint(constraint, substitution):
     else:
         newtype = unify_types(a, b, direction)
         if newtype is None:
-            raise NotTypeError("Type mismatch: %s is not a %s of %s" % (a, direction, b), positions)
+            raise NotTypeError("Type mismatch: %s is not a %s of %s" % (get_substituted(a, substitution), direction, get_substituted(b, substitution)), positions)
         if isinstance(constraint.a, TypeExpr):
             update_substitution(substitution, constraint.a, newtype, positions)
     return []
@@ -875,7 +972,7 @@ def update_substitution(substitution, lhs, rhs, positions):
     """
     assert rhs is not None, "{} is said to be None, not a valid type".format(lhs)
     if occurs(lhs, rhs):
-        raise NotTypeError("Recursive type definition: %s = %s" % (lhs, rhs), positions)
+        raise NotTypeError("Recursive type definition: %s = %s" % (get_substituted(lhs, substitution), get_substituted(rhs, substitution)), positions)
     substitution[lhs] = (rhs, positions)
     def replace_in(a, old, new):
         if a == old:
@@ -894,7 +991,7 @@ def update_substitution(substitution, lhs, rhs, positions):
         return a
     for other_lhs, (other_rhs, other_positions) in substitution.items():
         if other_lhs == rhs:
-            raise NotTypeError("Circular inference %s %s" % (lhs, rhs), positions)
+            raise NotTypeError("Circular inference %s %s" % (get_substituted(lhs, substitution), get_substituted(rhs, substitution)), positions)
         if lhs != other_lhs:
             substitution[other_lhs] = (replace_in(other_rhs, lhs, rhs), other_positions)
 
@@ -912,6 +1009,8 @@ def get_substituted(var, substitutions):
         var = substitutions[var][0]
     if isinstance(var, FunctionType):
         var = FunctionType([get_substituted(a, substitutions) for a in var.args], get_substituted(var.rtype, substitutions))
+    if isinstance(var, UnionType):
+        var = UnionType([get_substituted(a, substitutions) for a in var.subtypes]).reduce()
     return var
 
 

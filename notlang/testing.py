@@ -121,6 +121,23 @@ class IsFunctionType(object):
         return self.matcher.match(actual)
 
 
+class IsUnionType(object):
+
+    def __init__(self, subtypes):
+        def get_subtypes(a):
+            return getattr(a, 'subtypes', [])
+        self.matcher = MatchesAll(
+            IsInstance(typer.UnionType),
+            AfterPreprocessing(get_subtypes, MatchesListwise(subtypes)),
+        )
+
+    def __str__(self):
+        return str(self.matcher)
+
+    def match(self, actual):
+        return self.matcher.match(actual)
+
+
 class IsW_Int(object):
 
     def __init__(self, value):

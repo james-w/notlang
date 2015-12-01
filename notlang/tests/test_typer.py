@@ -457,6 +457,78 @@ def f():
 """)
         self.assertThat(ftype, testing.IsFunctionType([], testing.IsType("Answer")))
 
+    def test_branching_variable_type(self):
+        # A branch with differing variable types
+        # leads to an ad-hoc union type.
+        ftype, env = self.get_type('foo', """
+foo = 1
+if foo > 0:
+    foo = 1 == 2
+""")
+        self.assertThat(
+            ftype,
+            testing.IsUnionType([Is(env.get_type('bool')), Is(env.get_type('int'))]))
+
+    def test_branching_variable_type_unifies(self):
+        # A union type from branching is reduced
+        # if each branch has the same type
+        ftype, env = self.get_type('foo', """
+foo = 1
+if foo > 0:
+    foo = 1 == 2
+else:
+    foo = 1 == 2
+""")
+        self.assertThat(
+            ftype,
+            Is(env.get_type('bool')))
+
+    def test_branching_defines_undeclared(self):
+        # A set of blocks with full coverage can
+        # define a new variable
+        ftype, env = self.get_type('foo', """
+if 1 > 0:
+    foo = 1 == 2
+else:
+    foo = 1 == 2
+""")
+        self.assertThat(
+            ftype,
+            Is(env.get_type('bool')))
+
+    def test_branching_doesnt_leak_undeclared(self):
+        # A leaked var from a block isn't available
+        # afterwards if it doesn't have full
+        # coverage
+        e = self.assertRaises(typer.NotNameError, self.get_type, 'foo', """
+if 1 > 0:
+    foo = 1 == 2
+foo + 1
+""")
+        self.assertEqual(28, e.positions[0].i)
+
+    def test_use_a_union_type(self):
+        ftype, env = self.get_type('bar', """
+def id(a):
+    return a
+
+foo = 1
+if 1 > 0:
+    foo = 1 == 2
+bar = id(foo)
+""")
+        self.assertThat(
+            ftype,
+            testing.IsUnionType([Is(env.get_type('bool')), Is(env.get_type('int'))]))
+
+    def test_use_a_union_type_wrong(self):
+        e = self.assertRaises(typer.NotTypeError, self.get_type, 'foo', """
+foo = 1
+if 1 > 0:
+    foo = 1 == 2
+foo + 1
+""")
+        self.assertEqual(36, e.positions[0].i)
 
 
 class InstantiateTests(TestCase):
