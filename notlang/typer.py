@@ -154,26 +154,6 @@ NONE = Type("None")
 BOOL = Type("bool")
 
 
-def make_list_type():
-    content_type = TypeVariable("a")
-    l = ParameterisedType([Type("List", {}), content_type])
-    l.types[0].attrs['append'] = FunctionType([content_type], l)
-    l.types[0].attrs['first'] = FunctionType([], content_type)
-    return l
-
-
-LIST = make_list_type()
-
-
-BASE_TYPES = {
-    "any": ANY,
-    "int": INT,
-    "None": NONE,
-    "bool": BOOL,
-    "List": LIST,
-}
-
-
 METATYPES = {
     'Type': Type('Type'),
     'Enum': Type('Enum'),
@@ -747,17 +727,6 @@ def unionify(a, b):
     return UnionType([a, b]).reduce()
 
 
-FUNCTIONS = {
-    '+': FunctionType([INT, INT], INT),
-    '-': FunctionType([INT, INT], INT),
-    '*': FunctionType([INT, INT], INT),
-    '>': FunctionType([INT, INT], BOOL),
-    '==': FunctionType([INT, INT], BOOL),
-    'true': FunctionType([], BOOL),
-    'print': FunctionType([ANY], NONE),
-}
-
-
 class NotNameError(Exception):
 
     def __init__(self, message, positions):
@@ -1153,6 +1122,7 @@ def env_from_prelude(trace=False):
     new_env.extend(">", FunctionType([int_t, int_t], bool_t), [])
     new_env.extend("-", FunctionType([int_t, int_t], int_t), [])
     new_env.extend("+", FunctionType([int_t, int_t], int_t), [])
+    new_env.extend("*", FunctionType([int_t, int_t], int_t), [])
     new_env.extend("==", FunctionType([int_t, int_t], bool_t), [])
     return new_env
 
