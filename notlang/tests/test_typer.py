@@ -283,11 +283,12 @@ def c(x):
                 Is(env.get_type('int'))))
 
     def test_infinite_recursion(self):
-        self.assertRaises(AssertionError, self.get_type, 'a', """
+        ftype, env = self.get_type('a', """
 def a(b):
     return a(b)
 
 """)
+        self.assertThat(ftype, testing.IsFunctionType([testing.IsTypeVariable('a')], testing.IsType('None')))
 
     def test_inferred_from_other(self):
         ftype, env = self.get_type('a', """
@@ -642,8 +643,8 @@ class GeneraliseFunctionTests(TestCase):
     def test_unconstrained_rtype(self):
         t1 = typer.Type("a")
         input = typer.FunctionType([t1], typer.TypeExpr("bar"))
-        e = self.assertRaises(AssertionError, typer.generalise, input)
-        self.assertThat(str(e), Equals("unconstrained return type: %s" % input))
+        ftype = typer.generalise(input)
+        self.assertThat(ftype.rtype, testing.IsType('None'))
 
 
 class SubstitutionTests(TestCase):

@@ -6,6 +6,10 @@ bool = new Type:
     pass
 
 
+None = new Type:
+    pass
+
+
 List = new Type<a>:
 
     def append(self, val: a) -> List<a>:
@@ -14,3 +18,6 @@ List = new Type<a>:
     def first(self) -> a:
         pass
 
+
+def print(a) -> None:
+    pass

@@ -809,6 +809,13 @@ def satisfy_parameterised_type(a, b, direction, positions, substitution):
     return new_constraints
 
 
+def satisfy_union_type(u, other, direction, positions, substitution):
+    new_constraints = []
+    for t in u.subtypes:
+        new_constraints.append(Constraint(t, direction, other, positions))
+    return new_constraints
+
+
 def satisfy_constraint(constraint, substitution):
     """Attempt to satisfy a single constraint based on a substitution.
 
@@ -841,10 +848,12 @@ def satisfy_constraint(constraint, substitution):
         return satisfy_parameterised_type(a, b, direction, positions, substitution)
     elif isinstance(b, ParameterisedType):
         return satisfy_parameterised_type(b, a, INVERSE_CONSTRAINT[direction], positions, substitution)
+    elif isinstance(b, UnionType):
+        return satisfy_union_type(b, a, INVERSE_CONSTRAINT[direction], positions, substitution)
     else:
         newtype = unify_types(a, b, direction)
         if newtype is None:
-            raise NotTypeError("Type mismatch: %s is not a %s of %s" % (get_substituted(a, substitution), direction, get_substituted(b, substitution)), positions)
+            raise NotTypeError("Type mismatch: %s is not a %s %s" % (get_substituted(a, substitution), direction, get_substituted(b, substitution)), positions)
         if isinstance(constraint.a, TypeExpr):
             update_substitution(substitution, constraint.a, newtype, positions)
     return []
@@ -1006,9 +1015,6 @@ def generalise(ftype, vars=None):
 
     A repeated TypeExpr will be assiged the same TypeVariables for
     each occurence.
-
-    Raises an error if the return type is unconstrained at the
-    end.
     """
     if vars is None:
         vars = {}
@@ -1037,7 +1043,8 @@ def generalise(ftype, vars=None):
         args = [_generalise(arg, generalise=True) for arg in ftype.args]
         rtype = _generalise(ftype.rtype, generalise=False)
         if isinstance(rtype, TypeExpr):
-            raise AssertionError("unconstrained return type: %s" % ftype)
+            # Can we put this in the prelude?
+            rtype = Type("None")
         return FunctionType(args, rtype)
     return ftype
 
@@ -1146,10 +1153,15 @@ def generalise_functions(base_env, subst, names, ftypes, trace=False):
                     for t in target.types[1:]:
                         vars[env.types[t.name]] = t
                 parent = target
-                target = target.attrs[name_part]
-            parent.attrs[name_parts[-1]] = generalise(get_substituted(target, subst), vars=vars)
-            if trace:
-                _trace("{} has type {}".format(name, parent.attrs[name_parts[-1]]))
+                if name_part in target.attrs:
+                    target = target.attrs[name_part]
+                else:
+                    target = None
+                    break
+            if target is not None:
+                parent.attrs[name_parts[-1]] = generalise(get_substituted(target, subst), vars=vars)
+                if trace:
+                    _trace("{} has type {}".format(name, parent.attrs[name_parts[-1]]))
         else:
             base_env.env[name] = (generalise(base_t), [], True)
             if name in base_env.types:

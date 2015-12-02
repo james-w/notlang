@@ -82,6 +82,13 @@ t = Toople(dog, Answer.Y)
 print(t.second().is_yes())
 
 Maybe = new Enum<A>(Nothing, Just(A)):
-     pass
 
-m = Maybe.Just(1)
+    def print_val(self):
+        case self:
+            Maybe.Just(a):
+                print(a)
+
+m = Maybe.Nothing
+m.print_val()
+m = Maybe.Just(4)
+m.print_val()
