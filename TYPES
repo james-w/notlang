@@ -153,6 +153,80 @@ To do this:
 
 There may be some post-processing needed if there are any hasattr() in the substitution?
 
+Handling assignment
+-------------------
+
+Assignment is an extension to the basic HM algorithm.
+
+Consider
+
+  a = 1
+  a = "a"
+  foo(a)
+
+This is fine as long as foo() acts on any type, or
+on a string.
+
+There are three ways to consider this.
+
+  1. The first assignment makes the variable an int.
+     The second assignment is illegal. This would be
+     ok, but makes e.g. enums a bit tricky as it wouldn't
+     widen from Maybe.Just(A) to Maybe as needed.
+
+  2. The two assignments unify to their most specific
+     common type, here Type or something. This restricts
+     the ability of the developer to re-use vars in perfectly
+     legal ways, but wouldn't be too onerous. The bigger
+     problem is that the current algorithm can't go back
+     and change its mind about the type of the var
+     during constraint solving.
+
+  3. The type of the var is int after the first assignment,
+     and str after the second. Everything that satisfies that
+     is legal. This is natural to e.g. Python developers.
+     The complications are firstly that branches can
+     create union types, so after a branch recombines the
+     checker needs to decide whether we made a union type.
+     The second complication is that the question "what type
+     is this variable" doesn't have a simple answer, but
+     that's not much of a concern, as it's usually pretty
+     obvious. It would be possible to reconstruct the
+     types of a variable across its lifetime by storing
+     enough information.
+
+I chose option 3. The fact that it maps naturally to
+what developers expect is good, and that it makes variables
+have variable types is natural.
+
+This is implemented by not having TypeExpr()s for variables,
+just remembering what they were set to last, and returning
+that whenever the variable is referenced.
+
+After a branch recombines, e.g. after an if, there is an
+algorithm that decides which variables are in scope, and
+what their type is, making a union type if needed. This means
+that
+
+if True:
+    foo = 1
+print(foo)
+
+raises a NameError when foo is printed, as it may not be
+in scope, but
+
+if True:
+    foo = 1
+else:
+    foo = 2
+print(foo)
+
+is fine as the variable will always be defined. Extending
+to loops, elif and cases is harder though, as it needs
+coverage analysis, so sometimes a variable will have to
+pre-defined even if the developer knows that it will always
+have a value after a branch.
+
 References
 ----------
 
