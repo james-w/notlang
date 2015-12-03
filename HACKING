@@ -6,7 +6,14 @@ Getting started
 
 You can try running the test file with
 
-  PYTHONPATH=pypy virtualenv/bin/python targetnotlang.py test.not
+  virtualenv/bin/python targetnotlang.py test.not
+
+Tests
+-----
+
+You can run all the tests with
+
+  make test
 
 Translating
 -----------
@@ -22,20 +29,28 @@ Parsing
 
 To help debug parsing you can run
 
-  PYTHONPATH=.:pypy virtualenv/bin/python notlang/bin/view_raw_parse_tree.py <FILE>
+  virtualenv/bin/not-view-raw-parse-tree <FILE>
 
-to see the raw parse tree from the rpython lexer/parser.
+to see the raw parse tree from the rpython lexer/parser, or
 
-  PYTHONPATH=.:pypy virtualenv/bin/python notlang/bin/view_parse_tree.py <FILE>
+  virtualenv/bin/not-view-parse-tree <FILE>
 
 to see the AST produced from the raw parse tree.
+
+Typechecking
+------------
+
+To get a dump of the inferred types of the functions
+in a file run
+
+  virtualenv/bin/not-dump-type-info <FILE>
 
 Compiling
 ---------
 
 To see the bytecode produced for the top level as a file try
 
-  PYTHONPATH=.:pypy virtualenv/bin/python notlang/bin/dump_bytecode.py <FILE>
+  virtualenv/bin/not-dump-bytecode <FILE>
 
 Debugging
 ---------
@@ -47,5 +62,6 @@ To find out what you can pass to this see the list in --help.
 Some of note are
 
   - -Derror to show all tracebacks
+  - -Dlexer to show the incremental results of the lexer
   - -Dinterp to get tracing from the interpreter as it works.
   - -Dtype to get debug output from the type checker.

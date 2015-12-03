@@ -6,15 +6,9 @@ from notlang import typer
 from notlang.parsing import parse, ParseError
 
 
-def get_substituted(var, substitutions):
-    while var in substitutions:
-        var = substitutions[var][0]
-    return var
-
-
 def dump(env, substitutions):
-    for name, (t, _)in env.env.items():
-        print("%s has type %s" % (name, get_substituted(t, substitutions)))
+    for name, (t, _, _)in env.env.items():
+        print("%s has type %s" % (name, typer.get_substituted(t, substitutions)))
 
 
 if __name__ == '__main__':
