@@ -15,16 +15,13 @@ endif
 build: deps $(TARGET)
 
 $(TARGET): $(MAIN) $(BASEDIR)/*.py $(BASEDIR)/grammar.txt
-	PYTHONPATH=pypy $(VIRTUALENV_BIN)/python ./pypy/rpython/translator/goal/translate.py --opt=jit $(MAIN)
+	$(VIRTUALENV_BIN)/rpython --opt=jit $(MAIN)
 
 package-deps:
 	sudo apt-get install $$(xargs < package-deps.txt)
 
-deps: $(VIRTUALENV) pypy
+deps: $(VIRTUALENV)
 	$(VIRTUALENV_BIN)/python setup.py develop
-
-pypy:
-	hg clone https://bitbucket.org/pypy/pypy
 
 $(VIRTUALENV):
 	virtualenv $(VIRTUALENV) --python /usr/bin/pypy
@@ -34,10 +31,10 @@ clean:
 	find $(BASEDIR) -name \*.pyc -delete
 
 test:
-	PYTHONPATH=pypy $(VIRTUALENV_BIN)/py.test $(NAME) -k $(TEST_FILTER) --maxfail=$(TEST_FAILFAST)
+	$(VIRTUALENV_BIN)/py.test $(NAME) -k $(TEST_FILTER) --maxfail=$(TEST_FAILFAST)
 
 profile_tests:
-	PYTHONPATH=pypy $(VIRTUALENV_BIN)/python -m cProfile -o profile $(VIRTUALENV_BIN)/py.test $(NAME) -k $(TEST_FILTER)
+	$(VIRTUALENV_BIN)/python -m cProfile -o profile $(VIRTUALENV_BIN)/py.test $(NAME) -k $(TEST_FILTER)
 	python -c "import pstats; p = pstats.Stats('profile'); p.strip_dirs(); p.sort_stats('cumtime'); p.print_stats(50); p.sort_stats('tottime'); p.print_stats(50)"
 
 autotest:

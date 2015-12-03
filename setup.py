@@ -6,6 +6,7 @@ setup(
     install_requires=[
         'pyrsistent',
         'pytest',
+        'rpython',
         'testtools',
         'gorun',
     ],
