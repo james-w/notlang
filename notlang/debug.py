@@ -41,3 +41,29 @@ def trace_typer(opts):
 
 def trace_lexer(opts):
     return LEXER in opts.debug
+
+
+class colours:
+    PURPLE = '\033[0;35m'
+    BLUE = '\033[0;34m'
+    GREEN = '\033[0;32m'
+    YELLOW = '\033[1;33m'
+    RED = '\033[0;31m'
+    BROWN = '\033[0;33m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+
+def coloured(text, colour):
+    return colour + str(text) + colours.ENDC
+
+
+def colour_list(l, colour):
+    return "[" + ", ".join(map(lambda x: coloured(x, colour), l)) + "]"
+
+
+def colour_dict(l, key_colour, value_colour, value_fn=None):
+    if value_fn is None:
+        value_fn = lambda x: coloured(repr(x), value_colour)
+    return "{" + ", ".join(map(lambda x: coloured(repr(x[0]), key_colour) + ": " + value_fn(x[1]), l.items())) + "}"

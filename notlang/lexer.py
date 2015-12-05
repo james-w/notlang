@@ -3,6 +3,8 @@ import sys
 from rpython.rlib.parsing import deterministic, regex
 from rpython.rlib.parsing.lexer import Lexer, SourcePos, Token
 
+from . import debug
+
 
 class AbstractIndentTrackingLexingDFARunner(deterministic.DFARunner):
 
@@ -24,7 +26,7 @@ class AbstractIndentTrackingLexingDFARunner(deterministic.DFARunner):
     def find_next_token(self, trace=False):
         token = self._find_next_token()
         if trace:
-            sys.stderr.write("lexer: " + str(token) + "\n")
+            sys.stderr.write("lexer: token: " + debug.coloured(token.name, debug.colours.GREEN) + " " + debug.coloured(repr(token.source), debug.colours.BLUE) + " " + str(token.source_pos) + "\n")
         return token
 
     def _find_next_token(self):

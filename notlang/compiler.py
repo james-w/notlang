@@ -1,4 +1,4 @@
-from . import ast, bytecode, codegen, compilercontext, objectspace, typer
+from . import ast, bytecode, codegen, compilercontext, debug, objectspace, typer
 
 
 class Compiler(ast.ASTVisitor):
@@ -138,15 +138,15 @@ class CallbackHelper(object):
 
 
 def dump_instr(index, inst, arg, context=None):
-    line = "%d " % index
-    line += bytecode.reverse_map[inst]
+    line = debug.coloured(str(index), debug.colours.BOLD) + " "
+    line += debug.coloured(bytecode.reverse_map[inst], debug.colours.BROWN)
     if inst not in bytecode.unary_ops:
-        line += " " + str(arg)
+        line += " " + debug.coloured(str(arg), debug.colours.BLUE)
     if context is not None:
         if inst in (bytecode.LOAD_VAR, bytecode.ASSIGN, bytecode.LOAD_GLOBAL, bytecode.LOAD_ATTR):
-            line += " (" + str(context.names[arg]) + ")"
+            line += " (" + debug.coloured(str(context.names[arg]), debug.colours.GREEN) + ")"
         if inst in (bytecode.LOAD_CONSTANT,):
-            line += " (" + context.constants[arg].repr() + ")"
+            line += " (" + debug.coloured(context.constants[arg].repr(), debug.colours.GREEN) + ")"
     return line
 
 

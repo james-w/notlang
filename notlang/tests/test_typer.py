@@ -19,21 +19,21 @@ class SatisfyConstraintsTests(TestCase):
 
     def test_trivially_equal(self):
         t = typer.Type("a")
-        self.satisfy_constraints([typer.Constraint(t, typer.SUPERTYPE_OF, t, [self.spos])])
+        self.satisfy_constraints([typer.Constraint(t, typer.SUPERTYPE_OF, t, [self.spos], "")])
 
     def test_trivially_not_equal(self):
         t1 = typer.Type("a")
         t2 = typer.Type("b")
         self.assertRaises(typer.NotTypeError, self.satisfy_constraints,
-            [typer.Constraint(t1, typer.SUPERTYPE_OF, t2, [self.spos])])
+            [typer.Constraint(t1, typer.SUPERTYPE_OF, t2, [self.spos], "")])
 
     def test_not_equal_across_two(self):
         vartype = typer.TypeExpr("a")
         t1 = typer.Type("b")
         t2 = typer.Type("c")
         self.assertRaises(typer.NotTypeError, self.satisfy_constraints,
-            [typer.Constraint(vartype, typer.SUPERTYPE_OF, t1, [self.spos]),
-             typer.Constraint(vartype, typer.SUPERTYPE_OF, t2, [self.spos])])
+            [typer.Constraint(vartype, typer.SUPERTYPE_OF, t1, [self.spos], ""),
+             typer.Constraint(vartype, typer.SUPERTYPE_OF, t2, [self.spos], "")])
 
     def test_not_equal_across_three(self):
         vartype1 = typer.TypeExpr("a")
@@ -41,9 +41,9 @@ class SatisfyConstraintsTests(TestCase):
         t1 = typer.Type("c")
         t2 = typer.Type("d")
         self.assertRaises(typer.NotTypeError, self.satisfy_constraints,
-            [typer.Constraint(vartype1, typer.SUPERTYPE_OF, t1, [self.spos]),
-             typer.Constraint(vartype2, typer.SUPERTYPE_OF, vartype1, [self.spos]),
-             typer.Constraint(vartype2, typer.SUPERTYPE_OF, t2, [self.spos])])
+            [typer.Constraint(vartype1, typer.SUPERTYPE_OF, t1, [self.spos], ""),
+             typer.Constraint(vartype2, typer.SUPERTYPE_OF, vartype1, [self.spos], ""),
+             typer.Constraint(vartype2, typer.SUPERTYPE_OF, t2, [self.spos], "")])
 
     def test_basic_type_vs_incompatible(self):
         t1 = typer.Type("a")
@@ -51,14 +51,14 @@ class SatisfyConstraintsTests(TestCase):
         self.assertRaises(
             typer.NotTypeError,
             typer.satisfy_constraint,
-            typer.Constraint(t1, typer.SUPERTYPE_OF, t2, []),
+            typer.Constraint(t1, typer.SUPERTYPE_OF, t2, [], ""),
             {})
 
     def test_basic_type_vs_compatible(self):
         t1 = typer.Type("a")
         substitution = {}
         ret = typer.satisfy_constraint(
-                typer.Constraint(t1, typer.SUPERTYPE_OF, t1, []),
+                typer.Constraint(t1, typer.SUPERTYPE_OF, t1, [], ""),
                 substitution)
         self.assertEqual([], ret)
         self.assertEqual({}, substitution)
@@ -71,7 +71,7 @@ class SatisfyConstraintsTests(TestCase):
         self.assertRaises(
             typer.NotTypeError,
             typer.satisfy_constraint,
-            typer.Constraint(a, typer.SUPERTYPE_OF, t1, constraint_pos),
+            typer.Constraint(a, typer.SUPERTYPE_OF, t1, constraint_pos, ""),
             substitution)
 
     def test_function_type_vs_function_type(self):
@@ -84,7 +84,7 @@ class SatisfyConstraintsTests(TestCase):
         constraint_pos = [SourcePos(2, 2, 2)]
         substitution = {}
         ret = typer.satisfy_constraint(
-            typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+            typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos, ""),
             substitution)
         self.assertEqual(2, len(ret))
         self.assertThat(
@@ -113,7 +113,7 @@ class SatisfyConstraintsTests(TestCase):
         self.assertRaises(
             typer.NotTypeError,
             typer.satisfy_constraint,
-            typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+            typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos, ""),
             substitution)
 
     def test_type_expr_subsitute(self):
@@ -124,7 +124,7 @@ class SatisfyConstraintsTests(TestCase):
         constraint_pos = [SourcePos(2, 2, 2)]
         substitution = {a: (b, subs_pos)}
         ret = typer.satisfy_constraint(
-                typer.Constraint(a, typer.SUPERTYPE_OF, t1, constraint_pos),
+                typer.Constraint(a, typer.SUPERTYPE_OF, t1, constraint_pos, ""),
                 substitution)
         self.assertEqual(0, len(ret))
         self.assertEqual(2, len(substitution))
@@ -136,7 +136,7 @@ class SatisfyConstraintsTests(TestCase):
         constraint_pos = [SourcePos(2, 2, 2)]
         substitution = {}
         ret = typer.satisfy_constraint(
-                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos, ""),
                 substitution)
         self.assertEqual([], ret)
         self.assertEqual({a: (b, constraint_pos)}, substitution)
@@ -147,7 +147,7 @@ class SatisfyConstraintsTests(TestCase):
         constraint_pos = [SourcePos(2, 2, 2)]
         substitution = {}
         ret = typer.satisfy_constraint(
-                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos, ""),
                 substitution)
         self.assertThat(
             ret,
@@ -164,7 +164,7 @@ class SatisfyConstraintsTests(TestCase):
         self.assertRaises(
             typer.NotTypeError,
             typer.satisfy_constraint,
-                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos),
+                typer.Constraint(a, typer.SUPERTYPE_OF, b, constraint_pos, ""),
                 substitution)
 
     def test_getattr_has_attr(self):
@@ -175,7 +175,7 @@ class SatisfyConstraintsTests(TestCase):
         constraint_pos = [SourcePos(2, 2, 2)]
         substitution = {}
         ret = typer.satisfy_constraint(
-                typer.Constraint(b, typer.SUBTYPE_OF, a, constraint_pos),
+                typer.Constraint(b, typer.SUBTYPE_OF, a, constraint_pos, ""),
                 substitution)
         self.assertEqual(1, len(ret))
         self.assertThat(
@@ -193,7 +193,7 @@ class SatisfyConstraintsTests(TestCase):
         constraint_pos = [SourcePos(2, 2, 2)]
         substitution = {d: (c, [])}
         ret = typer.satisfy_constraint(
-                typer.Constraint(b, typer.SUBTYPE_OF, a, constraint_pos),
+                typer.Constraint(b, typer.SUBTYPE_OF, a, constraint_pos, ""),
                 substitution)
         self.assertEqual(1, len(ret))
         self.assertThat(
@@ -204,11 +204,7 @@ class SatisfyConstraintsTests(TestCase):
 
 
 def get_type_of(name, source):
-    try:
-        parsed = parsing.parse(source)
-    except ParseError as e:
-        print e.nice_error_message(source=source)
-        raise
+    parsed = parsing.parse(source)
     env, substitutions = typer.typecheck(parsed, trace=True)
     return typer.get_substituted(env.env[name][0], substitutions), env
 
@@ -378,7 +374,20 @@ def foo(a: Thing<int>):
 
     def get_type(self, name, source):
         self.addDetail('source', text_content(source))
-        return get_type_of(name, source)
+        try:
+            return get_type_of(name, source)
+        except ParseError as e:
+            err = e.nice_error_message(source=source)
+            self.addDetail('parse_error', text_content(err))
+            raise
+        except typer.NotTypeError as e:
+            err = e.nice_error_message(source=source)
+            self.addDetail('type_error', text_content(err))
+            raise
+        except typer.NotNameError as e:
+            err = e.nice_error_message(source=source)
+            self.addDetail('name_error', text_content(err))
+            raise
 
     def test_attribute_access(self):
         source = """
@@ -433,7 +442,7 @@ y = Answer.Y
 y = Answer.N
 
 """)
-        self.assertThat(ftype, testing.IsType('Answer.N'))
+        self.assertThat(ftype, testing.IsType('Answer'))
 
     def test_tuple(self):
         ftype, env = self.get_type('f', """
@@ -468,7 +477,7 @@ if foo > 0:
 """)
         self.assertThat(
             ftype,
-            testing.IsUnionType([Is(env.get_type('bool')), Is(env.get_type('int'))]))
+            testing.IsUnionType([Is(env.get_type('int')), Is(env.get_type('bool'))]))
 
     def test_branching_variable_type_unifies(self):
         # A union type from branching is reduced
@@ -520,7 +529,7 @@ bar = id(foo)
 """)
         self.assertThat(
             ftype,
-            testing.IsUnionType([Is(env.get_type('bool')), Is(env.get_type('int'))]))
+            testing.IsUnionType([Is(env.get_type('int')), Is(env.get_type('bool'))]))
 
     def test_use_a_union_type_wrong(self):
         e = self.assertRaises(typer.NotTypeError, self.get_type, 'foo', """
@@ -530,6 +539,33 @@ if 1 > 0:
 foo + 1
 """)
         self.assertEqual(36, e.positions[0].i)
+
+    def test_return_ends_checking(self):
+        ftype, env = self.get_type('foo', """
+foo = 1
+if 1 > 0:
+    foo = 1 == 2
+    return foo
+foo + 1
+""")
+        self.assertThat(ftype, Is(env.get_type('int')))
+
+    def test_return_from_a_case(self):
+        ftype, env = self.get_type('x', """
+Answer = new Enum(Y, N):
+
+    def is_yes(self):
+        case self:
+            Answer.Y:
+                return 1
+            Answer.N:
+                return 0
+
+y = Answer.Y
+
+x = y.is_yes()
+""")
+        self.assertThat(ftype, Is(env.get_type('int')))
 
 
 class InstantiateTests(TestCase):
@@ -1040,7 +1076,7 @@ class ThirdPassTests(TestCase):
             ))
         self.assertThat(constraints[1], testing.ConstraintMatches(
             Is(ttype),
-            typer.UNIFIES,
+            typer.SUPERTYPE_OF,
             Is(ltype),
             [Is(self.factory.spos)],
             ))

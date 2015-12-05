@@ -1,7 +1,7 @@
 import os
 import sys
 
-from . import graph, parsing
+from . import debug, graph, parsing
 from .ast import ASTVisitor, NewType
 
 
@@ -108,6 +108,7 @@ class FunctionType(Type):
 class UnionType(Type):
 
     def __init__(self, subtypes):
+        assert subtypes, "can't union no types"
         self.subtypes = subtypes
 
     def __str__(self):
@@ -121,12 +122,16 @@ class UnionType(Type):
         return type(self) == type(other) and self.subtypes == other.subtypes
 
     def reduce(self):
-        # TODO: handle unioning with a union
         new_subs = []
-        for sub in self.subtypes:
-            if sub in new_subs:
-                continue
-            new_subs.append(sub)
+        def include(s):
+            for sub in s:
+                if sub in new_subs:
+                    continue
+                if isinstance(sub, UnionType):
+                    include(sub.subtypes)
+                else:
+                    new_subs.append(sub)
+        include(self.subtypes)
         if len(new_subs) < 2:
             return new_subs[0]
         return UnionType(new_subs)
@@ -169,25 +174,24 @@ def type_from_decl(type_str, vartypes, types):
 
 SUPERTYPE_OF = "supertype of"
 SUBTYPE_OF = "subtype of"
-UNIFIES = "unifies with"
 
 INVERSE_CONSTRAINT = {
     SUPERTYPE_OF: SUBTYPE_OF,
     SUBTYPE_OF: SUPERTYPE_OF,
-    UNIFIES: UNIFIES,
 }
 
 
 class Constraint(object):
 
-    def __init__(self, a, constraint, b, positions):
+    def __init__(self, a, constraint, b, positions, why):
         self.a = a
         self.constraint = constraint
         self.b = b
         self.positions = positions
+        self.why = why
 
     def __str__(self):
-        return "%r %s %r" % (self.a, self.constraint, self.b)
+        return "%r %s %r (%s)" % (self.a, self.constraint, self.b, self.why)
 
 
 class FirstPass(ASTVisitor):
@@ -308,13 +312,16 @@ class TypeEnv(object):
         self.prefix = prefix
         self.children = {}
         self.types = {}
-        self.rtype = self.newvar()
+        # Can this be from the prelude?
+        self.rtype = Type("None")
+        self.returned = False
         self.has_been_filled = False
 
     def newvar(self):
         self.counter += 1
         varname = self.prefix + ":" + str(self.counter)
-        return TypeExpr(varname)
+        expr = TypeExpr(varname)
+        return expr
 
     def register(self, name, reference, sourcepos, inherit=False):
         self.env[name] = (reference, sourcepos, inherit)
@@ -346,7 +353,8 @@ class TypeEnv(object):
         return new
 
     def subenv_same_scope(self):
-        new = TypeEnv(self.prefix)
+        self.counter += 1
+        new = TypeEnv(self.prefix + "." + str(self.counter))
         for n, (var, sourcepos, inherit) in self.env.items():
             new.extend(n, var, sourcepos)
         new.types = self.types.copy()
@@ -418,6 +426,7 @@ class ThirdPass(ASTVisitor):
             if i > 0 or self.self_type is None:
                 argtypes.append(argtype)
         if node.rtype is not None:
+            # TODO: should be env.declared_rtype or something
             env.rtype = self.env.get_type_from_ref(node.rtype)
             if env.rtype is None:
                 raise NotTypeError("Unable to resolve {} to a valid type".format(node.rtype), [node.sourcepos])
@@ -432,7 +441,8 @@ class ThirdPass(ASTVisitor):
             self.env.lookup(node.name, node.sourcepos),
             SUPERTYPE_OF,
             FunctionType(argtypes, env.rtype),
-            [node.sourcepos]))
+            [node.sourcepos],
+            "Function {} is used in the right way".format(node.name)))
         return constraints, None
 
     def _handle_new_type(self, node, name):
@@ -478,9 +488,8 @@ class ThirdPass(ASTVisitor):
             if node.type_type == 'Enum':
                 for val in node.options:
                     opt_name = '{}.{}'.format(name, val.name)
-                    opt_type = Type(opt_name, bases=(new_t, METATYPES.get(node.type_type)))
+                    opt_type = new_t
                     opt_rtype = opt_type
-                    t_params = []
                     if val.members:
                         args = []
                         # Should be generalised to resolve type refs in the presence
@@ -490,11 +499,8 @@ class ThirdPass(ASTVisitor):
                             if member in type_param_names:
                                 t_param = new_t.types[type_param_names.index(member)+1]
                                 args.append(t_param)
-                                t_params.append(t_param)
                             else:
                                 args.append(self.env.get_type(member))
-                        if t_params:
-                            opt_type = ParameterisedType([opt_type] + t_params)
                         opt_rtype = FunctionType(args, opt_type)
                     env.register_type(opt_name, opt_rtype)
                     subtypes.append((opt_name, opt_rtype))
@@ -514,7 +520,9 @@ class ThirdPass(ASTVisitor):
                         instantiate(env.lookup(sname, node.sourcepos)),
                         SUPERTYPE_OF,
                         subtype,
-                        [node.sourcepos]))
+                        [node.sourcepos],
+                        "Use of constructor {} matches its types".format(sname),
+                        ))
             else:
                 if node.type_type == 'Tuple':
                     argtypes = []
@@ -531,7 +539,9 @@ class ThirdPass(ASTVisitor):
                 instantiate(self.env.lookup(name, node.sourcepos)),
                 SUPERTYPE_OF,
                 ftype,
-                [node.sourcepos]))
+                [node.sourcepos],
+                "Constructor of {} is used correctly".format(name),
+                ))
         return constraints, ftype
 
     def visit_ConstantInt(self, node):
@@ -556,7 +566,9 @@ class ThirdPass(ASTVisitor):
                 var_t,
                 SUPERTYPE_OF,
                 child_t,
-                [node.sourcepos]))
+                [node.sourcepos],
+                "Use of attribute {} has correct type".format(node.var.varname),
+                ))
             return constraints, var_t
         else:
             # TODO: handle setting attribute
@@ -571,14 +583,11 @@ class ThirdPass(ASTVisitor):
             constraints, child_t = self.dispatch(node.arg)
         else:
             constraints = []
-            child_t = NONE
-        constraints.append(Constraint(
-            self.env.rtype,
-            UNIFIES,
-            child_t,
-            [node.sourcepos]))
-        # TODO: should disable rest of the block
-        # to avoid incorrect inferences
+            child_t = None
+        if child_t is not None:
+            self.env.rtype = child_t
+        self.active = False
+        self.env.returned = True
         return constraints, None
 
     def _handle_function(self, node, target):
@@ -591,7 +600,9 @@ class ThirdPass(ASTVisitor):
             argtypes.append(arg_t)
         constraints.append(Constraint(target,
             SUPERTYPE_OF, FunctionType(argtypes, rtype),
-            [node.sourcepos]))
+            [node.sourcepos],
+            "Function {} called in correct manner".format(target),
+            ))
         if node.type_params:
             ptypes = [self.env.newvar()]
             for type_ref in node.type_params:
@@ -601,7 +612,8 @@ class ThirdPass(ASTVisitor):
                         "Unknown type: %s" % str(type_ref), [node.sourcepos])
                 ptypes.append(t)
             constraints.append(Constraint(
-                rtype, SUBTYPE_OF, ParameterisedType(ptypes), [node.sourcepos]))
+                rtype, SUBTYPE_OF, ParameterisedType(ptypes), [node.sourcepos],
+                "Declared type params when calling {} match function rtype".format(target)))
         return constraints, rtype
 
     def visit_Case(self, node):
@@ -609,27 +621,51 @@ class ThirdPass(ASTVisitor):
             return [], None
         constraints, ttype = self.dispatch(node.target)
         constraints.append(Constraint(
-            ttype, SUBTYPE_OF, METATYPES.get('Enum'), [node.sourcepos]))
+            ttype, SUBTYPE_OF, METATYPES.get('Enum'), [node.sourcepos],
+            "Case is called on an enum type"))
+        returned = []
+        rtypes = []
+        leaked_vars = []
         for case in node.cases:
+            subenv = self.env.subenv_same_scope()
             if case.is_simple():
                 new_constraints, ltype = self.dispatch(case.label)
                 constraints.extend(new_constraints)
                 constraints.append(Constraint(
-                    ttype, UNIFIES, ltype, [node.sourcepos]))
+                    ttype, SUPERTYPE_OF, ltype, [node.sourcepos],
+                    "case label is a subclass of the target"))
             else:
                 argtypes = []
                 for arg in case.label.args:
-                    arg_t = self.env.register_with_new_expr(arg.varname, [arg.sourcepos])
+                    arg_t = subenv.register_with_new_expr(arg.varname, [arg.sourcepos])
                     argtypes.append(arg_t)
                 new_constraints, ltype = self.dispatch(case.label.fname)
                 # Need to bind the types of the args to the types in the
                 # constructor, and also bind the type to the type of the target
                 constraints.append(Constraint(
-                    ttype, UNIFIES, ltype, [node.sourcepos]))
+                    ttype, SUPERTYPE_OF, ltype, [node.sourcepos],
+                    "case label is a subclass of the target"))
                 case_type = self.dispatch(case.label.fname)[1]
                 constraints.append(Constraint(
-                    case_type, SUPERTYPE_OF, FunctionType(argtypes, ltype), [node.sourcepos]))
-            constraints.extend(self.dispatch(case.block)[0])
+                    case_type, SUPERTYPE_OF, FunctionType(argtypes, ltype), [node.sourcepos],
+                    "case label subtype matches use"))
+            child_pass = ThirdPass(subenv, True, self.name_graph)
+            constraints.extend(child_pass.dispatch(case.block)[0])
+            returned.append(subenv.returned)
+            if subenv.returned:
+                # The branch returned, so leaks no vars,
+                # put the parent vars back in.
+                leaked_vars.append(self.env.subenv_same_scope().env.copy())
+            else:
+                leaked_vars.append(subenv.env.copy())
+            rtypes.append(subenv.rtype)
+        # We assume full cover and use a subsequent pass to check
+        # that it didn't cause a mistaken inference
+        # TODO: Implement that pass to check
+        # is that even possible? It's not just whether a variable
+        # is live, but what type it has too, as a full_cover
+        # will perhaps miss unioning with a previous value.
+        analyse_leaked_vars(self.env, returned, rtypes, leaked_vars, full_cover=True)
         return constraints, None
 
     def visit_BinOp(self, node):
@@ -650,7 +686,8 @@ class ThirdPass(ASTVisitor):
         new_t = self.env.newvar()
         child_c, child_t = self.dispatch(node.target)
         constraints = child_c
-        constraints.append(Constraint(AttributeAccess(child_t, node.name), SUBTYPE_OF, new_t, [node.sourcepos]))
+        constraints.append(Constraint(AttributeAccess(child_t, node.name), SUBTYPE_OF, new_t, [node.sourcepos],
+            "Attribute {} is found on target type".format(node.name)))
         return constraints, new_t
 
     def visit_Conditional(self, node):
@@ -663,44 +700,29 @@ class ThirdPass(ASTVisitor):
             condition_t,
             SUBTYPE_OF,
             self.env.get_type('bool'),
-            [node.condition.sourcepos]))
+            [node.condition.sourcepos],
+            "Conditional is testing a bool"))
         constraints.extend(condition_cs)
         leaked_vars = []
+        rtypes = []
+        returned = []
         for child in [node.true_block, node.false_block]:
-            env = self.env.subenv_same_scope()
             if child is not None:
+                env = self.env.subenv_same_scope()
                 child_pass = ThirdPass(env, True, self.name_graph)
                 constraints.extend(child_pass.dispatch(child)[0])
-            leaked_vars.append(env.env.copy())
-        fully_leaked = leaked_vars[0].copy()
-        partially_leaked = {}
-        for possible_leak_set in leaked_vars[1:]:
-            for a in fully_leaked.keys():
-                if a not in possible_leak_set:
-                    partially_leaked[a] = fully_leaked[a]
-                    del fully_leaked[a]
+                returned.append(env.returned)
+                if env.returned:
+                    # The branch returned, so leaks no vars,
+                    # put the parent vars back in.
+                    leaked_vars.append(self.env.subenv_same_scope().env.copy())
                 else:
-                    fully_leaked[a] = (unionify(fully_leaked[a][0], possible_leak_set[a][0]), fully_leaked[a][1] + possible_leak_set[a][1], fully_leaked[a][2] and possible_leak_set[a][2])
-                    del possible_leak_set[a]
-            for a in possible_leak_set.keys():
-                if a in partially_leaked:
-                    partially_leaked[a] = (unionify(partially_leaked[a][0], possible_leak_set[a][0]), partially_leaked[a][1] + possible_leak_set[a][1], partially_leaked[a][2] and possible_leak_set[a][2])
-                else:
-                    partially_leaked[a] = possible_leak_set[a]
-                del possible_leak_set[a]
-        for a, val in fully_leaked.items():
-            self.env.register(a, val[0], val[1], val[2])
-        for a, val in partially_leaked.items():
-            if a not in self.env.env:
-                # Don't register a leaked var that wasn't
-                # already defined. Perhaps some way
-                # of registering it with an invalid type
-                # would lead to better errors.
-                continue
-            self.env.register(a, val[0], val[1], val[2])
+                    leaked_vars.append(env.env.copy())
+                rtypes.append(env.rtype)
+        analyse_leaked_vars(self.env, returned, rtypes, leaked_vars, full_cover=all([node.true_block, node.false_block]))
         return constraints, None
 
-    # TODO: visit_Conditional treatment for While and Case too.
+    # TODO: visit_Conditional treatment for While too.
 
     def general_terminal_visit(self, node):
         return [], None
@@ -712,6 +734,47 @@ class ThirdPass(ASTVisitor):
         return constraints, None
 
 
+def analyse_leaked_vars(env, returned, rtypes, leaked_vars, full_cover=False):
+    if full_cover and all(returned):
+        env.rtype = unionify_all(rtypes)
+        env.returned = True
+    else:
+        for (include, rtype) in zip(returned, rtypes):
+            if include:
+                env.rtype = unionify(env.rtype, rtype)
+    if full_cover:
+        fully_leaked = leaked_vars[0].copy()
+        start_index = 1
+    else:
+        fully_leaked = {}
+        start_index = 0
+    partially_leaked = {}
+    for possible_leak_set in leaked_vars[start_index:]:
+        for a in fully_leaked.keys():
+            if a not in possible_leak_set:
+                partially_leaked[a] = fully_leaked[a]
+                del fully_leaked[a]
+            else:
+                fully_leaked[a] = (unionify(fully_leaked[a][0], possible_leak_set[a][0]), fully_leaked[a][1] + possible_leak_set[a][1], fully_leaked[a][2] and possible_leak_set[a][2])
+                del possible_leak_set[a]
+        for a in possible_leak_set.keys():
+            if a in partially_leaked:
+                partially_leaked[a] = (unionify(partially_leaked[a][0], possible_leak_set[a][0]), partially_leaked[a][1] + possible_leak_set[a][1], partially_leaked[a][2] and possible_leak_set[a][2])
+            else:
+                partially_leaked[a] = possible_leak_set[a]
+            del possible_leak_set[a]
+    for a, val in fully_leaked.items():
+        env.register(a, val[0], val[1], val[2])
+    for a, val in partially_leaked.items():
+        if a not in env.env:
+            # Don't register a leaked var that wasn't
+            # already defined. Perhaps some way
+            # of registering it with an invalid type
+            # would lead to better errors.
+            continue
+        env.register(a, unionify(env.env[a][0], val[0]), env.env[a][1] + val[1], env.env[a][2] and val[2])
+
+
 def unionify(a, b):
     """Union two types.
 
@@ -721,7 +784,12 @@ def unionify(a, b):
 
        unionify(a, a) == a
     """
-    return UnionType([a, b]).reduce()
+    return unionify_all([a, b])
+
+
+def unionify_all(ts):
+    """Union all of the types in a list."""
+    return UnionType(ts).reduce()
 
 
 class NotNameError(Exception):
@@ -774,10 +842,21 @@ def satisfy_attribute_access(attr, other, direction, positions, substitution):
             break
     else:
         raise NotTypeError("%s has no attribute %s" % (get_substituted(t, substitution), attr.name), positions)
-    return [Constraint(other, direction, instantiate(get_substituted(ret, substitution)), positions)]
+    return [Constraint(other, direction, instantiate(get_substituted(ret, substitution)), positions,
+        "Use of attribute {} matches actual type".format(attr.name))]
 
 
 def satisfy_expr(expr, other_expr, direction, positions, substitution):
+    if isinstance(other_expr, UnionType):
+        # Special case for A = [A | B], which
+        # simplifies to A = B
+        subtypes = other_expr.subtypes
+        new_subtypes = filter(lambda x: x != expr, subtypes)
+        if new_subtypes != subtypes:
+            if len(new_subtypes) > 1:
+                other_expr = UnionType(new_subtypes)
+            else:
+                other_expr = new_subtypes[0]
     if expr != other_expr:
         update_substitution(substitution, expr, other_expr, positions)
     return []
@@ -790,8 +869,8 @@ def satisfy_function(a, b, direction, positions, substitution):
     if len(a.args) != len(b.args):
         raise NotTypeError("Types mismatch: %s != %s, argument lengths differ" % (get_substituted(a, substitution), get_substituted(b, substitution)), positions)
     for i, arg in enumerate(a.args):
-        new_constraints.insert(0, Constraint(arg, direction, b.args[i], positions))
-    new_constraints.insert(0, Constraint(a.rtype, direction, b.rtype, positions))
+        new_constraints.insert(0, Constraint(arg, direction, b.args[i], positions, "Type of argument {} matches".format(i)))
+    new_constraints.insert(0, Constraint(a.rtype, direction, b.rtype, positions, "Return type matches"))
     return new_constraints
 
 
@@ -805,18 +884,18 @@ def satisfy_parameterised_type(a, b, direction, positions, substitution):
     if len(a.types) != len(b.types):
         raise NotTypeError("Types mismatch: %s != %s, wrong number of type params" % (get_substituted(a, substitution), get_substituted(b, substitution)), positions)
     for i, arg in enumerate(a.types):
-        new_constraints.insert(0, Constraint(arg, direction, b.types[i], positions))
+        new_constraints.insert(0, Constraint(arg, direction, b.types[i], positions, "subtype {} matches".format(i)))
     return new_constraints
 
 
 def satisfy_union_type(u, other, direction, positions, substitution):
     new_constraints = []
     for t in u.subtypes:
-        new_constraints.append(Constraint(t, direction, other, positions))
+        new_constraints.append(Constraint(t, direction, other, positions, "matches each of the types in the union"))
     return new_constraints
 
 
-def satisfy_constraint(constraint, substitution):
+def satisfy_constraint(constraint, substitution, trace=False):
     """Attempt to satisfy a single constraint based on a substitution.
 
     This will raise an error if it can't do it, or update the substitution
@@ -825,11 +904,13 @@ def satisfy_constraint(constraint, substitution):
     The function will return a list of additional constraints that
     should be checked.
     """
-    # print constraint
+    if trace:
+        _trace("Processing constraint " + debug.coloured(constraint, debug.colours.BROWN) + " against " + colour_substitution(substitution))
     direction = constraint.constraint
     positions = constraint.positions
     a = constraint.a
     b = constraint.b
+    why = constraint.why
     while a in substitution:
         a, newpos = substitution[a]
         positions = positions + newpos
@@ -837,7 +918,7 @@ def satisfy_constraint(constraint, substitution):
         b, newpos = substitution[b]
         positions = positions + newpos
     if not isinstance(a, TypeExpr) and isinstance(b, TypeExpr):
-        return [Constraint(b, INVERSE_CONSTRAINT[direction], a, positions)]
+        return [Constraint(b, INVERSE_CONSTRAINT[direction], a, positions, why)]
     if isinstance(b, AttributeAccess):
         return satisfy_attribute_access(b, a, direction, positions, substitution)
     elif isinstance(a, TypeExpr):
@@ -859,7 +940,7 @@ def satisfy_constraint(constraint, substitution):
     return []
 
 
-def satisfy_constraints(constraints, initial_subtitution=None):
+def satisfy_constraints(constraints, initial_subtitution=None, trace=False):
     """Given a set of constraints, this will attempt to satisfy them all.
 
     If it fails it will raise a NotTypeError or NotNameError.
@@ -875,7 +956,7 @@ def satisfy_constraints(constraints, initial_subtitution=None):
         constraint = constraints.pop(0)
         # We put the new constraints at the front, but it probably
         # doesn't matter
-        constraints = satisfy_constraint(constraint, substitution) + constraints
+        constraints = satisfy_constraint(constraint, substitution, trace=trace) + constraints
     return substitution
 
 
@@ -896,21 +977,15 @@ def unify_types(a, b, constraint):
         return None
     a_bases = (a,) + a.bases
     b_bases = (b,) + b.bases
-    if constraint == UNIFIES:
-        for a_base in a_bases:
-            for b_base in b_bases:
-                if a_base == b_base:
-                    return a_base
+    if constraint == SUPERTYPE_OF:
+        target = a
+        sources = b_bases
     else:
-        if constraint == SUPERTYPE_OF:
-            target = a
-            sources = b_bases
-        else:
-            target = b
-            sources = a_bases
-        for base in sources:
-            if base == target:
-                return base
+        target = b
+        sources = a_bases
+    for base in sources:
+        if base == target:
+            return base
 
 
 def occurs(lhs, rhs):
@@ -930,6 +1005,10 @@ def occurs(lhs, rhs):
             return True
     if isinstance(rhs, ParameterisedType):
         for subtype in rhs.types:
+            if occurs(lhs, subtype):
+                return True
+    if isinstance(rhs, UnionType):
+        for subtype in rhs.subtypes:
             if occurs(lhs, subtype):
                 return True
     return False
@@ -963,10 +1042,9 @@ def update_substitution(substitution, lhs, rhs, positions):
             for t in a.types:
                 types.append(replace_in(t, old, new))
             a.types = types
+        # TODO: UnionType
         return a
     for other_lhs, (other_rhs, other_positions) in substitution.items():
-        if other_lhs == rhs:
-            raise NotTypeError("Circular inference %s %s" % (get_substituted(lhs, substitution), get_substituted(rhs, substitution)), positions)
         if lhs != other_lhs:
             substitution[other_lhs] = (replace_in(other_rhs, lhs, rhs), other_positions)
 
@@ -974,7 +1052,7 @@ def update_substitution(substitution, lhs, rhs, positions):
 def get_substituted(var, substitutions):
     """Get the substituted form of var.
 
-    This applies any substituations for var, recursing if var is a function
+    This applies any substituations for var, recursing if var is a compound
     type after substitutions.
 
     Given a type, this will get the best information that the substitution
@@ -984,7 +1062,9 @@ def get_substituted(var, substitutions):
         var = substitutions[var][0]
     if isinstance(var, FunctionType):
         var = FunctionType([get_substituted(a, substitutions) for a in var.args], get_substituted(var.rtype, substitutions))
-    if isinstance(var, UnionType):
+    elif isinstance(var, ParameterisedType):
+        var = ParameterisedType([get_substituted(a, substitutions) for a in var.types])
+    elif isinstance(var, UnionType):
         var = UnionType([get_substituted(a, substitutions) for a in var.subtypes]).reduce()
     return var
 
@@ -1116,11 +1196,7 @@ def read_prelude():
 def env_from_prelude(trace=False):
     base_env = TypeEnv('main')
     prelude_source = read_prelude()
-    try:
-        new_env, subst = _typecheck(parsing.parse(prelude_source), base_env, trace=trace)
-    except parsing.ParseError, e:
-        print e.nice_error_message(source=prelude_source)
-        raise
+    new_env, subst = _typecheck(parsing.parse(prelude_source), base_env, trace=trace)
     int_t = new_env.get_type('int')
     bool_t = new_env.get_type('bool')
     new_env.extend(">", FunctionType([int_t, int_t], bool_t), [])
@@ -1161,7 +1237,7 @@ def generalise_functions(base_env, subst, names, ftypes, trace=False):
             if target is not None:
                 parent.attrs[name_parts[-1]] = generalise(get_substituted(target, subst), vars=vars)
                 if trace:
-                    _trace("{} has type {}".format(name, parent.attrs[name_parts[-1]]))
+                    _trace("{} has type {}".format(debug.coloured(name, debug.colours.BLUE), debug.coloured(parent.attrs[name_parts[-1]], debug.colours.GREEN)))
         else:
             base_env.env[name] = (generalise(base_t), [], True)
             if name in base_env.types:
@@ -1181,12 +1257,12 @@ def _typecheck(node, base_env, trace=False):
     all_functions = get_all_functions(pass1)
     sets = graph.get_disjoint_sets(pass2.callgraph, all_functions)
     if trace:
-        _trace("Type-context sets: {}".format(str(sets)))
+        _trace("Type-context sets: [" + ", ".join(map(lambda x: debug.colour_list(x, debug.colours.BLUE), sets)) + "]")
     handled = set()
     subst = {}
     for s in sets:
         if trace:
-            _trace("Processing type-context(s) {}".format(s))
+            _trace(debug.coloured("Processing type-context(s) ", debug.colours.BOLD) + debug.colour_list(s, debug.colours.BLUE))
         handled.update(s)
         ftypes = {}
         for name in s:
@@ -1196,19 +1272,23 @@ def _typecheck(node, base_env, trace=False):
         pass3 = ThirdPass(base_env, False, pass1, only_process=s)
         constraints, t = pass3.dispatch(node)
         if trace:
-            _trace("Gathered constraints: {}".format(map(str, constraints)))
-        subst = satisfy_constraints(constraints, initial_subtitution=subst)
+            _trace("Gathered constraints: " + debug.colour_list(constraints, debug.colours.BROWN))
+        subst = satisfy_constraints(constraints, initial_subtitution=subst, trace=trace)
         generalise_functions(base_env, subst, s, ftypes, trace=trace)
     if trace:
-        _trace("Processing remainder")
+        _trace(debug.coloured("Processing remainder", debug.colours.BOLD))
     pass3 = ThirdPass(base_env, True, pass1, skip=handled)
     constraints, t = pass3.dispatch(node)
     if trace:
-        _trace("Constraints: {}".format(map(str, constraints)))
-    subst = satisfy_constraints(constraints, initial_subtitution=subst)
+        _trace("Gathered Constraints: " + debug.colour_list(constraints, debug.colours.BROWN))
+    subst = satisfy_constraints(constraints, initial_subtitution=subst, trace=trace)
     if trace:
-        _trace("Substitution: {}".format(subst))
+        _trace("Substitution: " + colour_substitution(subst))
     return base_env, subst
+
+
+def colour_substitution(s):
+    return debug.colour_dict(s, debug.colours.GREEN, debug.colours.GREEN, value_fn=lambda x: "(" + debug.coloured(repr(x[0]), debug.colours.BROWN) + ", " + repr(x[1]) + ")")
 
 
 def _trace(message):
