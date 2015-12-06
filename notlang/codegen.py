@@ -168,3 +168,8 @@ def build_tuple(ctx, count):
 
 def is_(ctx):
     ctx.emit(bytecode.BINARY_IS)
+
+
+def panic(ctx, msg):
+    ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(objectspace.W_String(msg)))
+    ctx.emit(bytecode.PANIC)

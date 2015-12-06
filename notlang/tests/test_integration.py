@@ -1,7 +1,7 @@
 from rpython.rlib.parsing.parsing import ParseError
 
 from .. import testing
-from ..interpreter import interpret as _interpret
+from ..interpreter import interpret as _interpret, Panic
 from ..typer import NotTypeError
 from testtools import TestCase
 from testtools.content import text_content
@@ -85,6 +85,19 @@ while a > 0:
 return a
 """, self)
         self.assertThat(ret, testing.IsW_Int(0))
+
+    def test_case_pattern_match_failure(self):
+        e = self.assertRaises(Panic, interpret, """
+Answer = new Enum(Y, N):
+    pass
+
+y = Answer.Y
+
+case y:
+    Answer.N:
+        return 0
+""", self)
+        self.assertEqual("Pattern match failure", e.msg.strval)
 
 
 class FunctionTests(TestCase):

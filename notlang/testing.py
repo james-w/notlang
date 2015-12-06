@@ -311,12 +311,12 @@ class ASTFactory(object):
             child = self.pass_()
         return ast.Stmt(child, self.spos)
 
-    def case(self, target=None, cases=None):
+    def case(self, target=None, cases=None, else_case=None):
         if target is None:
             target = self.variable()
         if cases is None:
             cases = [self.case_case()]
-        return ast.Case(target, cases, self.spos)
+        return ast.Case(target, cases, else_case, self.spos)
 
     def case_case(self, label=None, block=None):
         if label is None:

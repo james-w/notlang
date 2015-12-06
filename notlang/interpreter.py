@@ -32,6 +32,12 @@ class Space(object):
         return child_f.execute(trace=trace)
 
 
+class Panic(Exception):
+
+    def __init__(self, msg):
+        self.msg = msg
+
+
 class Frame(object):
     _virtualizable_ = ['valuestack[*]', 'valuestack_pos', 'vars[*]', 'names[*]']
 
@@ -203,6 +209,9 @@ class Frame(object):
             elif c == bytecode.BUILD_TUPLE:
                 fargs = self.popmany(arg)
                 self.push(W_Tuple(fargs))
+            elif c == bytecode.PANIC:
+                msg = self.pop()
+                raise Panic(msg)
             else:
                 assert False, "Unknown opcode: %d" % c
 

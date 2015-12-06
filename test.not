@@ -87,6 +87,8 @@ Maybe = new Enum<A>(Nothing, Just(A)):
         case self:
             Maybe.Just(a):
                 print(a)
+            else:
+                pass
 
 m = Maybe.Nothing
 m.print_val()

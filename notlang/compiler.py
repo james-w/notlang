@@ -56,7 +56,7 @@ class Compiler(ast.ASTVisitor):
         codegen.make_function(self.ctx, node.name, CallbackHelper(node).funcdef_code_cb, node.args)
 
     def visit_Case(self, node):
-        helper = CallbackHelper(node.cases[0], cases=node.cases, case_parent=node)
+        helper = CallbackHelper(node.cases[0], cases=node.cases, case_parent=node, else_case=node.else_case)
         helper.case_no_match_cb(self.ctx)
 
     def visit_Return(self, node):
@@ -73,10 +73,11 @@ class Compiler(ast.ASTVisitor):
 
 class CallbackHelper(object):
 
-    def __init__(self, node, cases=None, case_parent=None):
+    def __init__(self, node, cases=None, case_parent=None, else_case=None):
         self.node = node
         self.cases = cases
         self.case_parent = case_parent
+        self.else_case = else_case
 
     def funcdef_code_cb(self, ctx):
         for local in ast.GatherAssignedNames().dispatch(self.node.code):
@@ -128,8 +129,13 @@ class CallbackHelper(object):
                 # XXX: hardcoding
                 codegen.load_global(ctx, "isinstance")
                 codegen.function_call(ctx, 2, self.case_is_instance_function_args_cb)
-            helper = CallbackHelper(case, cases=self.cases[1:], case_parent=self.case_parent)
+            helper = CallbackHelper(case, cases=self.cases[1:], case_parent=self.case_parent, else_case=self.else_case)
             codegen.conditional(ctx, helper.case_match_cb, helper.case_no_match_cb)
+        elif self.else_case:
+            Compiler(ctx).dispatch(self.else_case.block)
+        else:
+            # TODO: exceptions, better error message
+            codegen.panic(ctx, "Pattern match failure")
 
     def case_is_instance_function_args_cb(self, ctx):
         case = self.cases[0]

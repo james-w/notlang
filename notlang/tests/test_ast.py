@@ -122,7 +122,7 @@ class NodeTests(TestCase):
     def test_Case(self):
         target = self.factory.variable()
         cases = [self.factory.case_case()]
-        stmt = ast.Case(target, cases, self.factory.spos)
+        stmt = ast.Case(target, cases, None, self.factory.spos)
         self.assertIs(target, stmt.target)
         self.assertEqual(cases, stmt.cases)
         self.assertIs(self.factory.spos, stmt.sourcepos)

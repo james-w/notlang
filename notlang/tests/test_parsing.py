@@ -575,3 +575,20 @@ class ASTTests(TestCase):
         self.assertIsInstance(case.cases[0].block, ast.Block)
         self.assertEqual(13, case.cases[0].sourcepos.i)
         self.assertEqual("C", case.cases[1].label.varname)
+        self.assertEqual(None, case.else_case)
+
+    def test_case_with_else(self):
+        node = parse(" case a:\n    B:\n        pass\n    else:\n       pass\n")
+        self.assertIsInstance(node, ast.Block)
+        case = node.children[0].children[0]
+        self.assertIsInstance(case, ast.Case)
+        self.assertIsInstance(case.target, ast.Variable)
+        self.assertEqual('a', case.target.varname)
+        self.assertEqual(1, case.sourcepos.i)
+        self.assertEqual(1, len(case.cases))
+        self.assertIsInstance(case.cases[0], ast.CaseCase)
+        self.assertIsInstance(case.cases[0].label, ast.Variable)
+        self.assertEqual("B", case.cases[0].label.varname)
+        self.assertIsInstance(case.cases[0].block, ast.Block)
+        self.assertEqual(13, case.cases[0].sourcepos.i)
+        self.assertEqual("else", case.else_case.label.varname)

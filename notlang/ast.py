@@ -245,8 +245,8 @@ class TypeOption(Node):
 
 class Case(NonTerminal):
 
-    def __init__(self, target, cases, sourcepos):
-        self.children = [target] + cases
+    def __init__(self, target, cases, else_case, sourcepos):
+        self.children = [target] + cases + [else_case]
         self.sourcepos = sourcepos
 
     @property
@@ -255,7 +255,11 @@ class Case(NonTerminal):
 
     @property
     def cases(self):
-        return self.children[1:]
+        return self.children[1:-1]
+
+    @property
+    def else_case(self):
+        return self.children[-1]
 
 
 class CaseCase(NonTerminal):

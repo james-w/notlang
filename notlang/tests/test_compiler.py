@@ -1,9 +1,9 @@
-from operator import attrgetter
+from operator import attrgetter, methodcaller
 
 from testtools import TestCase
 from rpython.rlib.parsing.lexer import SourcePos
 
-from .. import ast, bytecode, objectspace
+from .. import bytecode, objectspace
 from ..compiler import Compiler
 from ..compilercontext import CompilerContext
 from ..testing import BytecodeMatches, ASTFactory
@@ -297,7 +297,7 @@ class TestCompiler(TestCase):
         ]
         node = self.factory.case(target=var, cases=cases)
         ctx = compile(node)
-        self.assertEqual([1, 2], map(attrgetter('intval'), ctx.constants))
+        self.assertEqual([repr(1), repr(2), repr("Pattern match failure")], map(methodcaller('repr'), ctx.constants))
         self.assertEqual(["B", "a", "C"], ctx.names)
         self.assertThat(ctx.data,
             BytecodeMatches([
@@ -306,11 +306,35 @@ class TestCompiler(TestCase):
                 bytecode.BINARY_IS, 0,
                 bytecode.JUMP_IF_FALSE, 4,
                 bytecode.LOAD_CONSTANT, 0,
-                bytecode.JUMP_FORWARD, 12,
+                bytecode.JUMP_FORWARD, 16,
                 bytecode.LOAD_GLOBAL, 2,
                 bytecode.LOAD_GLOBAL, 1,
                 bytecode.BINARY_IS, 0,
                 bytecode.JUMP_IF_FALSE, 4,
                 bytecode.LOAD_CONSTANT, 1,
-                bytecode.JUMP_FORWARD, 0,
+                bytecode.JUMP_FORWARD, 4,
+                bytecode.LOAD_CONSTANT, 2,
+                bytecode.PANIC, 0,
+                ]))
+
+    def test_Case_with_else(self):
+        var = self.factory.variable(name="a")
+        cases = [
+            self.factory.case_case(label=self.factory.variable(name="B"), block=self.factory.int(value=1)),
+        ]
+        else_case = self.factory.case_case(label=self.factory.variable(name="else"), block=self.factory.int(value=2))
+        node = self.factory.case(target=var, cases=cases, else_case=else_case)
+        print node.children
+        ctx = compile(node)
+        self.assertEqual([1, 2], map(attrgetter('intval'), ctx.constants))
+        self.assertEqual(["B", "a"], ctx.names)
+        self.assertThat(ctx.data,
+            BytecodeMatches([
+                bytecode.LOAD_GLOBAL, 0,
+                bytecode.LOAD_GLOBAL, 1,
+                bytecode.BINARY_IS, 0,
+                bytecode.JUMP_IF_FALSE, 4,
+                bytecode.LOAD_CONSTANT, 0,
+                bytecode.JUMP_FORWARD, 2,
+                bytecode.LOAD_CONSTANT, 1,
                 ]))

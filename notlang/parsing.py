@@ -233,10 +233,20 @@ class Transformer(RPythonVisitor):
     def visit_case(self, node):
         target = self.dispatch(node.children[1])
         cases = []
+        else_case = None
         for case in node.children[2].children:
-            case_node = ast.CaseCase(self.dispatch(case.children[0]), self.dispatch(case.children[1]), case.children[0].getsourcepos())
-            cases.append(case_node)
-        return ast.Case(target, cases, node.getsourcepos())
+            n = case.children[0]
+            if len(n.children) > 1:
+                # normal block
+                case_node = ast.CaseCase(self.dispatch(n.children[0]), self.dispatch(n.children[1]), n.children[0].getsourcepos())
+                cases.append(case_node)
+            else:
+                # else block
+                case_node = ast.CaseCase(ast.Variable("else", n.getsourcepos()), self.dispatch(n.children[0]), n.getsourcepos())
+                if else_case is not None:
+                    raise ParseError(case_node.sourcepos, ErrorInformation(case_node.sourcepos.i, ["Only one else block allowed"]))
+                else_case = case_node
+        return ast.Case(target, cases, else_case, node.getsourcepos())
 
     def visit_pass(self, node):
         return ast.Pass(node.getsourcepos())

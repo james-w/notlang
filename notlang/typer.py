@@ -2,7 +2,7 @@ import os
 import sys
 
 from . import debug, graph, parsing
-from .ast import ASTVisitor, NewType
+from .ast import ASTVisitor, NewType, Variable
 
 
 class Type(object):
@@ -650,6 +650,18 @@ class ThirdPass(ASTVisitor):
                     "case label subtype matches use"))
             child_pass = ThirdPass(subenv, True, self.name_graph)
             constraints.extend(child_pass.dispatch(case.block)[0])
+            returned.append(subenv.returned)
+            if subenv.returned:
+                # The branch returned, so leaks no vars,
+                # put the parent vars back in.
+                leaked_vars.append(self.env.subenv_same_scope().env.copy())
+            else:
+                leaked_vars.append(subenv.env.copy())
+            rtypes.append(subenv.rtype)
+        if node.else_case is not None:
+            subenv = self.env.subenv_same_scope()
+            child_pass = ThirdPass(subenv, True, self.name_graph)
+            constraints.extend(child_pass.dispatch(node.else_case.block)[0])
             returned.append(subenv.returned)
             if subenv.returned:
                 # The branch returned, so leaks no vars,

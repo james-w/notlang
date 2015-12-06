@@ -73,7 +73,8 @@ funcdef: "def" IDENTIFIER type_params? parameters rtype_decl? [":"] [newlines] s
 
 case: "case" expr [":" newlines] case_block;
 case_block: [INDENT] case_case+ [DEDENT];
-case_case: expr [":" newlines] suite;
+case_case: normal_case | else_block;
+normal_case: expr [":" newlines] suite;
 
 parameters: ["("] defargs? [")"];
 

@@ -155,6 +155,9 @@ class W_String(W_Root):
     def repr(self):
         return repr(self.strval)
 
+    def str(self):
+        return self.strval
+
 
 class W_List(W_Type):
 
