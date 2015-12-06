@@ -4,3 +4,4 @@
 - Exceptions
 - Displaying source code on problems (tracebacks with source)
 - JIT
+- Pattern match totality analysis
