@@ -22,7 +22,6 @@ class Type(object):
     def __eq__(self, other):
         return (self.__class__ == other.__class__
                 and self.name == other.name
-                and self.attrs == other.attrs
                 and self.bases == other.bases)
 
     def __ne__(self, other):
@@ -659,12 +658,8 @@ class ThirdPass(ASTVisitor):
             else:
                 leaked_vars.append(subenv.env.copy())
             rtypes.append(subenv.rtype)
-        # We assume full cover and use a subsequent pass to check
-        # that it didn't cause a mistaken inference
-        # TODO: Implement that pass to check
-        # is that even possible? It's not just whether a variable
-        # is live, but what type it has too, as a full_cover
-        # will perhaps miss unioning with a previous value.
+        # We assume full cover, which means that
+        # the runtime has to raise if the match fails.
         analyse_leaked_vars(self.env, returned, rtypes, leaked_vars, full_cover=True)
         return constraints, None
 
@@ -683,9 +678,8 @@ class ThirdPass(ASTVisitor):
     def visit_Attribute(self, node):
         if not self.active:
             return [], None
+        constraints, child_t = self.dispatch(node.target)
         new_t = self.env.newvar()
-        child_c, child_t = self.dispatch(node.target)
-        constraints = child_c
         constraints.append(Constraint(AttributeAccess(child_t, node.name), SUBTYPE_OF, new_t, [node.sourcepos],
             "Attribute {} is found on target type".format(node.name)))
         return constraints, new_t
@@ -1049,7 +1043,7 @@ def update_substitution(substitution, lhs, rhs, positions):
             substitution[other_lhs] = (replace_in(other_rhs, lhs, rhs), other_positions)
 
 
-def get_substituted(var, substitutions):
+def get_substituted(var, substitutions, completed=None):
     """Get the substituted form of var.
 
     This applies any substituations for var, recursing if var is a compound
@@ -1058,14 +1052,24 @@ def get_substituted(var, substitutions):
     Given a type, this will get the best information that the substitution
     has about what type it is.
     """
+    if completed is None:
+        completed = {}
     while var in substitutions:
         var = substitutions[var][0]
+    if var in completed:
+        return completed[var]
     if isinstance(var, FunctionType):
-        var = FunctionType([get_substituted(a, substitutions) for a in var.args], get_substituted(var.rtype, substitutions))
+        var = FunctionType([get_substituted(a, substitutions, completed=completed) for a in var.args], get_substituted(var.rtype, substitutions, completed=completed))
     elif isinstance(var, ParameterisedType):
-        var = ParameterisedType([get_substituted(a, substitutions) for a in var.types])
+        var = ParameterisedType([get_substituted(a, substitutions, completed=completed) for a in var.types])
     elif isinstance(var, UnionType):
-        var = UnionType([get_substituted(a, substitutions) for a in var.subtypes]).reduce()
+        var = UnionType([get_substituted(a, substitutions, completed=completed) for a in var.subtypes]).reduce()
+    elif var.__class__ == Type:
+        completed[var] = var
+        new_attrs = {}
+        for a, b in var.attrs.items():
+            new_attrs[a] = get_substituted(b, substitutions, completed=completed)
+        var.attrs = new_attrs
     return var
 
 
