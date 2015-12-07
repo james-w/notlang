@@ -33,6 +33,10 @@ def load_constant_int(ctx, val):
     return vnum
 
 
+def load_constant_string(ctx, val):
+    ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(objectspace.W_String(val)))
+
+
 def make_function(ctx, name, code_cb, args):
     cctx = compilercontext.CompilerContext()
     for arg in args:
@@ -170,6 +174,5 @@ def is_(ctx):
     ctx.emit(bytecode.BINARY_IS)
 
 
-def panic(ctx, msg):
-    ctx.emit(bytecode.LOAD_CONSTANT, ctx.register_constant(objectspace.W_String(msg)))
+def panic(ctx):
     ctx.emit(bytecode.PANIC)

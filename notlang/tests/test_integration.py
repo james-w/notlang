@@ -97,7 +97,7 @@ case y:
     Answer.N:
         return 0
 """, self)
-        self.assertEqual("Pattern match failure", e.msg.strval)
+        self.assertEqual("Pattern match failure: 'Instance of Y'", e.msg.strval)
 
 
 class FunctionTests(TestCase):

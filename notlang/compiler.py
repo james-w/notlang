@@ -135,7 +135,14 @@ class CallbackHelper(object):
             Compiler(ctx).dispatch(self.else_case.block)
         else:
             # TODO: exceptions, better error message
-            codegen.panic(ctx, "Pattern match failure")
+            codegen.load_constant_string(ctx, "Pattern match failure: ")
+            codegen.load_attr(ctx, 'add')
+            def load_target(ctx):
+                Compiler(ctx).dispatch(self.case_parent.target)
+                codegen.load_attr(ctx, 'repr')
+                codegen.function_call(ctx, 0, lambda x: None)
+            codegen.function_call(ctx, 1, load_target)
+            codegen.panic(ctx)
 
     def case_is_instance_function_args_cb(self, ctx):
         case = self.cases[0]

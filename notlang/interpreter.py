@@ -4,7 +4,7 @@ from rpython.rlib import jit
 from rpython.rlib.debug import make_sure_not_resized
 
 from . import bytecode, compiler
-from .objectspace import W_Code, W_Dict, W_Func, W_List, W_Tuple, W_Type, W_Int, W_IsInstance, W_Enum
+from .objectspace import W_Code, W_Dict, W_Func, W_List, W_Tuple, W_Type, W_Int, W_IsInstance, W_Enum, is_builtin
 from .parsing import parse
 
 
@@ -171,11 +171,14 @@ class Frame(object):
                         raise AssertionError("%s is not callable" % fobj)
                     else:
                         callable = fobj
-                globals = self.globals.copy()
-                for i, name in enumerate(self.names):
-                    if self.vars[i] is not None:
-                        globals[name] = self.vars[i]
-                self.push(callable(self.space, fargs, globals, trace=trace))
+                if is_builtin(callable):
+                    self.push(callable(*fargs))
+                else:
+                    globals = self.globals.copy()
+                    for i, name in enumerate(self.names):
+                        if self.vars[i] is not None:
+                            globals[name] = self.vars[i]
+                    self.push(callable(self.space, fargs, globals, trace=trace))
             elif c == bytecode.MAKE_FUNCTION:
                 code_obj = self.pop()
                 if not isinstance(code_obj, W_Code):
@@ -184,6 +187,7 @@ class Frame(object):
             elif c == bytecode.MAKE_TYPE:
                 attrs = self.pop()
                 bases = self.pop()
+                print map(repr, bases.val)
                 name = self.pop().strval
                 self.push(make_type(name, bases, attrs))
             elif c == bytecode.PRINT:

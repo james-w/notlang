@@ -297,8 +297,8 @@ class TestCompiler(TestCase):
         ]
         node = self.factory.case(target=var, cases=cases)
         ctx = compile(node)
-        self.assertEqual([repr(1), repr(2), repr("Pattern match failure")], map(methodcaller('repr'), ctx.constants))
-        self.assertEqual(["B", "a", "C"], ctx.names)
+        self.assertEqual([repr(1), repr(2), repr("Pattern match failure: ")], map(methodcaller('repr'), ctx.constants))
+        self.assertEqual(["B", "a", "C", "add", "repr"], ctx.names)
         self.assertThat(ctx.data,
             BytecodeMatches([
                 bytecode.LOAD_GLOBAL, 0,
@@ -306,14 +306,19 @@ class TestCompiler(TestCase):
                 bytecode.BINARY_IS, 0,
                 bytecode.JUMP_IF_FALSE, 4,
                 bytecode.LOAD_CONSTANT, 0,
-                bytecode.JUMP_FORWARD, 16,
+                bytecode.JUMP_FORWARD, 26,
                 bytecode.LOAD_GLOBAL, 2,
                 bytecode.LOAD_GLOBAL, 1,
                 bytecode.BINARY_IS, 0,
                 bytecode.JUMP_IF_FALSE, 4,
                 bytecode.LOAD_CONSTANT, 1,
-                bytecode.JUMP_FORWARD, 4,
+                bytecode.JUMP_FORWARD, 14,
                 bytecode.LOAD_CONSTANT, 2,
+                bytecode.LOAD_ATTR, 3,
+                bytecode.LOAD_GLOBAL, 1,
+                bytecode.LOAD_ATTR, 4,
+                bytecode.CALL_FUNCTION, 0,
+                bytecode.CALL_FUNCTION, 1,
                 bytecode.PANIC, 0,
                 ]))
 

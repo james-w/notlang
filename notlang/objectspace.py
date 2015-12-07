@@ -1,6 +1,15 @@
 from pyrsistent import pvector
 
 
+def builtin(f):
+    f._is_builtin = True
+    return f
+
+
+def is_builtin(f):
+    return getattr(f, '_is_builtin', False)
+
+
 class W_Root(object):
 
     def add(self, other):
@@ -137,6 +146,10 @@ class W_Type(W_Root):
         obj = cls()
         return obj
 
+    @builtin
+    def repr(self):
+        return W_String(repr("Instance of " + self.__class__.__name__))
+
 
 class W_Dict(W_Root):
 
@@ -157,6 +170,10 @@ class W_String(W_Root):
 
     def str(self):
         return self.strval
+
+    @builtin
+    def add(self, other):
+        return W_String(self.strval + other.strval)
 
 
 class W_List(W_Type):
