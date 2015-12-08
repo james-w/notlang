@@ -84,9 +84,9 @@ class CodeGenTests(TestCase):
             cctx.emit(bytecode.LOAD_CONSTANT, 98)
         codegen.conditional(ctx, true_block_cb, false_block_cb)
         self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.JUMP_IF_FALSE, 4,
+            BytecodeMatches([bytecode.JUMP_IF_FALSE, 2 * bytecode.INSTRUCTION_SIZE,
                              bytecode.LOAD_CONSTANT, 99,
-                             bytecode.JUMP_FORWARD, 2,
+                             bytecode.JUMP_FORWARD, 1 * bytecode.INSTRUCTION_SIZE,
                              bytecode.LOAD_CONSTANT, 98]))
 
     def test_while(self):
@@ -98,9 +98,9 @@ class CodeGenTests(TestCase):
         codegen.while_loop(ctx, conditional_cb, block_cb)
         self.assertThat(ctx.data,
             BytecodeMatches([bytecode.LOAD_CONSTANT, 88,
-                             bytecode.JUMP_IF_FALSE, 4,
+                             bytecode.JUMP_IF_FALSE, 2 * bytecode.INSTRUCTION_SIZE,
                              bytecode.LOAD_CONSTANT, 99,
-                             bytecode.JUMP_BACK, 6]))
+                             bytecode.JUMP_BACK, 3 * bytecode.INSTRUCTION_SIZE]))
 
     def test_return(self):
         ctx = CompilerContext()

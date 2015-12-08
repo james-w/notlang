@@ -40,7 +40,8 @@ class CompilerContext(object):
 
     def emit(self, bc, arg=0):
         self.data.append(chr(bc))
-        self.data.append(chr(arg))
+        self.data.append(chr((arg & 0xFF00) >> 8))
+        self.data.append(chr(arg & 0xFF))
         self.stacksize += get_stack_change(bc, arg)
         if self.stacksize > self.max_stacksize:
             self.max_stacksize = self.stacksize
@@ -52,5 +53,6 @@ class CompilerContext(object):
         return len(self.data)
 
     def adjust_arg(self, index, new_arg):
-        self.data[index+1] = chr(new_arg)
+        self.data[index+1] = chr((new_arg & 0xFF00) >> 8)
+        self.data[index+2] = chr(new_arg & 0xFF)
 

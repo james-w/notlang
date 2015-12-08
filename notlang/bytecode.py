@@ -1,3 +1,7 @@
+# number of bytes to encode an instruction
+#  opcode higharg lowarg
+INSTRUCTION_SIZE = 3
+
 reverse_map = {}
 
 def register_code(bytecode, i):

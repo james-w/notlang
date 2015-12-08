@@ -1,5 +1,6 @@
 from operator import attrgetter, methodcaller
 
+from hypothesis import given, Settings
 from testtools import TestCase
 from rpython.rlib.parsing.lexer import SourcePos
 
@@ -7,15 +8,47 @@ from .. import bytecode, objectspace
 from ..compiler import Compiler
 from ..compilercontext import CompilerContext
 from ..testing import BytecodeMatches, ASTFactory
+from ..testing.strategies import ast as ast_strats
 
 
-def compile(node, locals=None):
+def compile(node, locals=None, constants=None, names=None, names_to_numbers=None):
     ctx = CompilerContext()
     if locals is None:
         locals = []
     ctx.locals = locals
+    if constants is None:
+        constants = []
+    ctx.constants = constants
+    if names is None:
+        names = []
+    ctx.names = names
+    if names_to_numbers is None:
+        names_to_numbers = {}
+    ctx.names_to_numbers = names_to_numbers
     Compiler(ctx).dispatch(node)
     return ctx
+
+
+def chain_compile(nodes, locals=None, names=None, names_to_numbers=None):
+    if len(nodes) < 1:
+        return []
+    ctx = compile(nodes[0], locals=locals, names=names, names_to_numbers=names_to_numbers)
+    contexts = [ctx]
+    for node in nodes[1:]:
+        ctx = compile(node, locals=ctx.locals, constants=ctx.constants, names=ctx.names, names_to_numbers=ctx.names_to_numbers)
+        contexts.append(ctx)
+    return contexts
+
+
+def bytecode_to_expected(bc):
+    expected = []
+    for i in range(len(bc), step=bytecode.INSTRUCTION_SIZE):
+        opcode = ord(bc[i])
+        high = ord(bc[i+1])
+        low = ord(bc[i+2])
+        arg = (high << 8) + low
+        expected.extend([opcode, arg])
+    return expected
 
 
 class TestCompiler(TestCase):
@@ -26,163 +59,135 @@ class TestCompiler(TestCase):
         super(TestCompiler, self).setUp()
         self.factory = ASTFactory(self)
 
-    def test_variable(self):
-        vname = "foo"
-        node = self.factory.variable(name=vname)
-        ctx = compile(node, locals=[vname])
-        self.assertEqual([vname], ctx.names)
+    @given(ast_strats.VariableStrategy())
+    def test_variable(self, node):
+        ctx = compile(node, locals=[node.varname])
+        self.assertEqual([node.varname], ctx.names)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_VAR, 0]))
 
-    def test_global_variable(self):
-        vname = "foo"
-        node = self.factory.variable(name=vname)
+    @given(ast_strats.VariableStrategy())
+    def test_global_variable(self, node):
         ctx = compile(node)
-        self.assertEqual([vname], ctx.names)
+        self.assertEqual([node.varname], ctx.names)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_GLOBAL, 0]))
 
-    def test_constant_int(self):
-        value = 2
-        node = self.factory.int(value=value)
+    @given(ast_strats.IntStrategy())
+    def test_constant_int(self, node):
         ctx = compile(node)
         self.assertEqual(1, len(ctx.constants))
-        self.assertEqual(value, ctx.constants[0].intval)
+        self.assertEqual(node.intval, ctx.constants[0].intval)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_CONSTANT, 0]))
 
-    def test_binary_operation(self):
-        left = self.factory.int(value=1)
-        right = self.factory.int(value=2)
-        node = self.factory.binop(op='+', a=left, b=right)
+    @given(ast_strats.BinOpStrategy())
+    def test_binary_operation(self, node):
         ctx = compile(node)
-        self.assertEqual(2, len(ctx.constants))
-        self.assertEqual(1, ctx.constants[0].intval)
-        self.assertEqual(2, ctx.constants[1].intval)
+        args_ctxs = chain_compile(node.args)
+        self.assertEqual(len(args_ctxs[-1].constants), len(ctx.constants))
         self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
-                             bytecode.LOAD_CONSTANT, 1,
-                             bytecode.BINARY_ADD, 0]))
+            BytecodeMatches(bytecode_to_expected(args_ctxs[0].data)
+                            + bytecode_to_expected(args_ctxs[1].data)
+                            + [bytecode.BINOP[node.op], 0]))
 
-    def test_assignment(self):
-        vname = "foo"
-        var = self.factory.variable(name=vname)
-        right = self.factory.int(value=2)
-        node = self.factory.assignment(source=right, target=var)
+    @given(ast_strats.AssignmentStrategy())
+    def test_assignment(self, node):
         ctx = compile(node)
-        self.assertEqual(1, len(ctx.constants))
-        self.assertEqual(2, ctx.constants[0].intval)
-        self.assertEqual([vname], ctx.names)
+        source_ctx = compile(node.source)
+        self.assertEqual(len(source_ctx.constants), len(ctx.constants))
+        self.assertIn(node.target.varname, ctx.names)
         self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
-                             bytecode.ASSIGN, 0]))
+            BytecodeMatches(bytecode_to_expected(source_ctx.data)
+                            + [bytecode.ASSIGN, ctx.names.index(node.target.varname)]))
 
-    def test_print(self):
-        arg = self.factory.int(value=2)
-        node = self.factory.function_call(function=self.factory.variable(name="print"), args=[arg])
+    @given(ast_strats.PrintStrategy())
+    def test_print(self, node):
         ctx = compile(node)
-        self.assertEqual(1, len(ctx.constants))
-        self.assertEqual(2, ctx.constants[0].intval)
+        args_ctx = compile(node.args[0])
+        self.assertEqual(len(args_ctx.constants), len(ctx.constants))
         self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
-                             bytecode.PRINT, 0]))
+            BytecodeMatches(bytecode_to_expected(args_ctx.data)
+                            + [bytecode.PRINT, 0]))
 
-    def test_function(self):
-        fname = "foo"
-        arg1 = self.factory.int(value=2)
-        arg2 = self.factory.int(value=99)
-        node = self.factory.function_call(function=self.factory.variable(name=fname), args=[arg1, arg2])
+    @given(ast_strats.FunctionCallStrategy())
+    def test_function(self, node):
         ctx = compile(node)
-        self.assertEqual(2, len(ctx.constants))
-        self.assertEqual(99, ctx.constants[0].intval)
-        self.assertEqual(2, ctx.constants[1].intval)
-        self.assertEqual([fname], ctx.names)
+        contexts = chain_compile(list(reversed(node.args)), names=[node.fname.varname], names_to_numbers={node.fname.varname: 0})
+        if node.args:
+            self.assertEqual(len(contexts[-1].constants), len(ctx.constants))
+        else:
+            self.assertEqual([], ctx.constants)
+        self.assertIn(node.fname.varname, ctx.names)
+        expected_bytecode = [bytecode.LOAD_GLOBAL, 0]
+        for arg_ctx in contexts:
+            expected_bytecode += bytecode_to_expected(arg_ctx.data)
+        expected_bytecode += [bytecode.CALL_FUNCTION, len(node.args)]
+        self.assertThat(ctx.data, BytecodeMatches(expected_bytecode))
+
+    @given(ast_strats.ConditionalStrategy(), settings=Settings(max_examples=10))
+    def test_conditional(self, node):
+        ctx = compile(node)
+        blocks = [node.condition, node.true_block]
+        if node.false_block is not None:
+            blocks.append(node.false_block)
+        contexts = chain_compile(blocks)
+        self.assertEqual(len(contexts[-1].constants), len(ctx.constants))
+        # TODO: optomize out the JUMP_FORWARD if no false_block
+        expected_bytecode = (bytecode_to_expected(contexts[0].data)
+                            + [bytecode.JUMP_IF_FALSE, len(contexts[1].data) + bytecode.INSTRUCTION_SIZE]
+                            + bytecode_to_expected(contexts[1].data))
+        if node.false_block is not None:
+            expected_bytecode += [bytecode.JUMP_FORWARD, len(contexts[2].data)]
+            expected_bytecode += bytecode_to_expected(contexts[2].data)
+        else:
+            # TODO: optomize out the JUMP_FORWARD if no false_block
+            expected_bytecode += [bytecode.JUMP_FORWARD, 0]
+        self.assertThat(ctx.data, BytecodeMatches(expected_bytecode))
+
+    @given(ast_strats.WhileStrategy())
+    def test_while(self, node):
+        ctx = compile(node)
+        condition_ctx = compile(node.condition)
+        block_ctx = compile(node.block, constants=condition_ctx.constants)
+        self.assertEqual(len(block_ctx.constants), len(ctx.constants))
         self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_GLOBAL, 0,
-                             bytecode.LOAD_CONSTANT, 0,
-                             bytecode.LOAD_CONSTANT, 1,
-                             bytecode.CALL_FUNCTION, 2]))
+            BytecodeMatches(bytecode_to_expected(condition_ctx.data)
+                            + [bytecode.JUMP_IF_FALSE, len(block_ctx.data) + bytecode.INSTRUCTION_SIZE]
+                            + bytecode_to_expected(block_ctx.data)
+                            + [bytecode.JUMP_BACK, len(block_ctx.data) + 2 * bytecode.INSTRUCTION_SIZE]))
 
-    def test_conditional(self):
-        condition = self.factory.int(1)
-        true_block = self.factory.int(2)
-        node = self.factory.conditional(condition=condition, true_block=true_block)
+
+    @given(ast_strats.FuncDefStrategy())
+    def test_function_defn(self, node):
         ctx = compile(node)
-        self.assertEqual(2, len(ctx.constants))
-        self.assertEqual(1, ctx.constants[0].intval)
-        self.assertEqual(2, ctx.constants[1].intval)
-        # TODO: optomize out the JUMP_FORWARD
-        self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
-                             bytecode.JUMP_IF_FALSE, 4,
-                             bytecode.LOAD_CONSTANT, 1,
-                             bytecode.JUMP_FORWARD, 0]))
-
-    def test_conditional_with_else(self):
-        condition = self.factory.int(1)
-        true_block = self.factory.int(2)
-        else_block = self.factory.int(3)
-        node = self.factory.conditional(condition=condition, true_block=true_block, false_block=else_block)
-        ctx = compile(node)
-        self.assertEqual(3, len(ctx.constants))
-        self.assertEqual(1, ctx.constants[0].intval)
-        self.assertEqual(2, ctx.constants[1].intval)
-        self.assertEqual(3, ctx.constants[2].intval)
-        self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
-                             bytecode.JUMP_IF_FALSE, 4,
-                             bytecode.LOAD_CONSTANT, 1,
-                             bytecode.JUMP_FORWARD, 2,
-                             bytecode.LOAD_CONSTANT, 2]))
-
-    def test_while(self):
-        condition = self.factory.int(value=1)
-        block = self.factory.int(value=2)
-        node = self.factory.while_(condition=condition, block=block)
-        ctx = compile(node)
-        self.assertEqual(2, len(ctx.constants))
-        self.assertEqual(1, ctx.constants[0].intval)
-        self.assertEqual(2, ctx.constants[1].intval)
-        self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
-                             bytecode.JUMP_IF_FALSE, 4,
-                             bytecode.LOAD_CONSTANT, 1,
-                             bytecode.JUMP_BACK, 6]))
-
-
-    def test_function_defn(self):
-        fname = "foo"
-        block = self.factory.int(value=2)
-        args = ["a", "b"]
-        node = self.factory.funcdef(name=fname, body=block, args=args)
-        ctx = compile(node)
+        code_ctx = CompilerContext()
+        code_ctx.locals = node.args
+        for arg in node.args:
+            code_ctx.register_var(arg)
+        Compiler(code_ctx).dispatch(node.code)
         self.assertEqual(1, len(ctx.constants))
         self.assertIsInstance(ctx.constants[0], objectspace.W_Code)
-        self.assertEqual([fname], ctx.names)
+        self.assertEqual([node.name], ctx.names)
         self.assertThat(ctx.data,
             BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
                              bytecode.MAKE_FUNCTION, 0,
                              bytecode.ASSIGN, 0]))
         self.assertThat(ctx.constants[0].bytecode,
-            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
-                             bytecode.LOAD_CONSTANT, 1,
-                             bytecode.RETURN, 0]))
+            BytecodeMatches(bytecode_to_expected(code_ctx.data)
+                            + [bytecode.LOAD_CONSTANT, len(code_ctx.constants),
+                               bytecode.RETURN, 0]))
 
-    def test_return(self):
-        arg = self.factory.int(value=2)
-        node = self.factory.return_(arg=arg)
+    @given(ast_strats.ReturnStrategy())
+    def test_return(self, node):
         ctx = compile(node)
-        self.assertEqual(1, len(ctx.constants))
-        self.assertEqual(2, ctx.constants[0].intval)
+        if node.arg is not None:
+            arg_ctx = compile(node.arg)
+            num_constants = len(arg_ctx.constants)
+            expected_bytecode = bytecode_to_expected(arg_ctx.data)
+        else:
+            num_constants = 1
+            expected_bytecode = [bytecode.LOAD_CONSTANT, 0]
+        self.assertEqual(num_constants, len(ctx.constants))
         self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
-                             bytecode.RETURN, 0]))
-
-    def test_return_no_arg(self):
-        node = self.factory.return_(arg=None)
-        ctx = compile(node)
-        self.assertEqual(1, len(ctx.constants))
-        self.assertIs(objectspace.TheNone, ctx.constants[0])
-        self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
-                             bytecode.RETURN, 0]))
+            BytecodeMatches(expected_bytecode + [bytecode.RETURN, 0]))
 
     def test_new_type(self):
         var = self.factory.variable(name="a")
@@ -304,15 +309,15 @@ class TestCompiler(TestCase):
                 bytecode.LOAD_GLOBAL, 0,
                 bytecode.LOAD_GLOBAL, 1,
                 bytecode.BINARY_IS, 0,
-                bytecode.JUMP_IF_FALSE, 4,
+                bytecode.JUMP_IF_FALSE, 2 * bytecode.INSTRUCTION_SIZE,
                 bytecode.LOAD_CONSTANT, 0,
-                bytecode.JUMP_FORWARD, 26,
+                bytecode.JUMP_FORWARD, 13 * bytecode.INSTRUCTION_SIZE,
                 bytecode.LOAD_GLOBAL, 2,
                 bytecode.LOAD_GLOBAL, 1,
                 bytecode.BINARY_IS, 0,
-                bytecode.JUMP_IF_FALSE, 4,
+                bytecode.JUMP_IF_FALSE, 2 * bytecode.INSTRUCTION_SIZE,
                 bytecode.LOAD_CONSTANT, 1,
-                bytecode.JUMP_FORWARD, 14,
+                bytecode.JUMP_FORWARD, 7 * bytecode.INSTRUCTION_SIZE,
                 bytecode.LOAD_CONSTANT, 2,
                 bytecode.LOAD_ATTR, 3,
                 bytecode.LOAD_GLOBAL, 1,
@@ -329,7 +334,6 @@ class TestCompiler(TestCase):
         ]
         else_case = self.factory.case_case(label=self.factory.variable(name="else"), block=self.factory.int(value=2))
         node = self.factory.case(target=var, cases=cases, else_case=else_case)
-        print node.children
         ctx = compile(node)
         self.assertEqual([1, 2], map(attrgetter('intval'), ctx.constants))
         self.assertEqual(["B", "a"], ctx.names)
@@ -338,8 +342,8 @@ class TestCompiler(TestCase):
                 bytecode.LOAD_GLOBAL, 0,
                 bytecode.LOAD_GLOBAL, 1,
                 bytecode.BINARY_IS, 0,
-                bytecode.JUMP_IF_FALSE, 4,
+                bytecode.JUMP_IF_FALSE, 2 * bytecode.INSTRUCTION_SIZE,
                 bytecode.LOAD_CONSTANT, 0,
-                bytecode.JUMP_FORWARD, 2,
+                bytecode.JUMP_FORWARD, bytecode.INSTRUCTION_SIZE,
                 bytecode.LOAD_CONSTANT, 1,
                 ]))

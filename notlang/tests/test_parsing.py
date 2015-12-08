@@ -1,9 +1,11 @@
+from hypothesis import given, Settings
 from rpython.rlib.parsing.parsing import ParseError
 from testtools import TestCase
 from testtools.matchers import MatchesListwise
 
-from .. import ast, testing
+from .. import ast, fmt, testing
 from ..parsing import parse as _parse
+from ..testing.strategies import ast as ast_strategies
 
 
 def parse(code):
@@ -592,3 +594,19 @@ class ASTTests(TestCase):
         self.assertIsInstance(case.cases[0].block, ast.Block)
         self.assertEqual(13, case.cases[0].sourcepos.i)
         self.assertEqual("else", case.else_case.label.varname)
+
+
+class RoundtripTests(TestCase):
+
+    @given(ast_strategies.BlockStrategy(), settings=Settings())
+    def test_roundtrips(self, node):
+        # Somewhat testing the formatter, but also
+        # using the AST strategies to generate valid
+        # source to try and parse, as generating
+        # valid source is hard
+        source = fmt.Formatter().dispatch(node)
+        try:
+            parse(source)
+        finally:
+            print "*** PARSED"
+        # TODO: test the asts match

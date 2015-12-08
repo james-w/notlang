@@ -8,7 +8,7 @@ from testtools.matchers import (
     MatchesListwise,
 )
 
-from . import ast, bytecode, objectspace, typer
+from .. import ast, bytecode, objectspace, typer
 
 
 class BytecodeMatches(object):
@@ -22,11 +22,19 @@ class BytecodeMatches(object):
     def name(self, pair):
         return (bytecode.reverse_map.get(pair[0]), pair[1])
 
+    def bc_to_py(self, bc):
+        for i in range(len(bc), step=bytecode.INSTRUCTION_SIZE):
+            opcode = ord(bc[i])
+            high = ord(bc[i+1])
+            low = ord(bc[i+2])
+            arg = (high << 8) + low
+            yield (opcode, arg)
+
     def __str__(self):
         return str(self.matcher)
 
     def match(self, actual):
-        return self.matcher.match(map(self.name, self.pair_up(map(ord, actual))))
+        return self.matcher.match(map(self.name, self.bc_to_py(actual)))
 
 
 class IsType(object):

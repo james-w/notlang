@@ -66,7 +66,7 @@ TheNone = W_None()
 class W_Int(W_Root):
 
     def __init__(self, intval):
-        assert(isinstance(intval, int))
+        assert(isinstance(intval, (int, long)))
         self.intval = intval
 
     def add(self, other):

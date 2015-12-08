@@ -87,11 +87,13 @@ class Frame(object):
             # required hint indicating this is the top of the opcode dispatch
             driver.jit_merge_point(pc=pc, code=code, frame=self)
             c = ord(code[pc])
-            arg = ord(code[pc + 1])
-            pc += 2
+            higharg = ord(code[pc + 1])
+            lowarg = ord(code[pc + 2])
+            arg = (higharg << 8) + lowarg
+            pc += 3
             if trace:
                 sys.stderr.write("instr: ")
-                sys.stderr.write(compiler.dump_instr(pc-2, c, arg, context=self))
+                sys.stderr.write(compiler.dump_instr(pc-3, c, arg, context=self))
                 sys.stderr.write(" " + repr([a for a in reversed(self.valuestack[:self.valuestack_pos])]))
                 sys.stderr.write("\n")
             if c == bytecode.LOAD_CONSTANT:

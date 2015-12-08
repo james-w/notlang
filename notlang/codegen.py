@@ -82,9 +82,9 @@ def conditional(ctx, true_block_cb, false_block_cb):
     true_block_cb(ctx)
     jump_forward_instr = ctx.next_instruction_index()
     ctx.emit(bytecode.JUMP_FORWARD)
-    ctx.adjust_arg(jump_back_instr, ctx.next_instruction_index()-jump_back_instr-2)
+    ctx.adjust_arg(jump_back_instr, ctx.next_instruction_index()-jump_back_instr-bytecode.INSTRUCTION_SIZE)
     false_block_cb(ctx)
-    ctx.adjust_arg(jump_forward_instr, ctx.next_instruction_index()-jump_forward_instr-2)
+    ctx.adjust_arg(jump_forward_instr, ctx.next_instruction_index()-jump_forward_instr-bytecode.INSTRUCTION_SIZE)
 
 
 def while_loop(ctx, condition_cb, block_cb):
@@ -94,7 +94,7 @@ def while_loop(ctx, condition_cb, block_cb):
     ctx.emit(bytecode.JUMP_IF_FALSE)
     block_cb(ctx)
     ctx.emit(bytecode.JUMP_BACK, ctx.next_instruction_index()-start_instr)
-    ctx.adjust_arg(jump_instr, ctx.next_instruction_index()-jump_instr-2)
+    ctx.adjust_arg(jump_instr, ctx.next_instruction_index()-jump_instr-bytecode.INSTRUCTION_SIZE)
 
 
 def do_return(ctx):

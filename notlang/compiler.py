@@ -167,11 +167,13 @@ def dump(code, context=None):
     lines = []
     i = 0
     stacksize = 0
-    for i in range(0, len(code.bytecode), 2):
+    for i in range(0, len(code.bytecode), 3):
         c = ord(code.bytecode[i])
         c2 = ord(code.bytecode[i + 1])
+        c3 = ord(code.bytecode[i + 2])
+        arg = (c2 << 8) + c3
         stacksize += compilercontext.get_stack_change(c, c2)
-        lines.append(dump_instr(i, c, c2, context=context) + " (stacksize: %d)" % stacksize)
+        lines.append(dump_instr(i, c, arg, context=context) + " (stacksize: %d)" % stacksize)
     return '\n'.join(lines)
 
 
@@ -179,10 +181,12 @@ def max_stacksize(code):
     stacksize = 0
     maximum = 0
     i = 0
-    for i in range(0, len(code.bytecode), 2):
+    for i in range(1, len(code.bytecode), 2):
         c = ord(code.bytecode[i])
         c2 = ord(code.bytecode[i + 1])
-        stacksize += compilercontext.get_stack_change(c, c2)
+        c3 = ord(code.bytecode[i + 2])
+        arg = (c2 << 8) + c3
+        stacksize += compilercontext.get_stack_change(c, arg)
         if stacksize > maximum:
             maximum = stacksize
             max_instr = c
@@ -200,6 +204,7 @@ def get_compiler(astnode, trace_typer=False):
     c.emit(bytecode.LOAD_CONSTANT, c.register_constant(objectspace.TheNone))
     c.emit(bytecode.RETURN)
     return c
+
 
 def compile_ast(astnode, trace_typer=False):
     c = get_compiler(astnode, trace_typer=trace_typer)

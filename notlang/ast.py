@@ -31,6 +31,9 @@ class Block(NonTerminal):
     def statements(self):
         return self.children
 
+    def __repr__(self):
+        return u"<Block: {} at 0x{}>".format(repr(self.children), id(self))
+
 
 class Stmt(NonTerminal):
     """ A single statement
@@ -42,6 +45,9 @@ class Stmt(NonTerminal):
     @property
     def expr(self):
         return self.children[0]
+
+    def __repr__(self):
+        return u"<Stmt: {} at 0x{}>".format(repr(self.children[0]), id(self))
 
 
 class Pass(Node):
@@ -61,6 +67,9 @@ class ConstantInt(Node):
     def get_extra_dot_info(self):
         return str(self.intval)
 
+    def __repr__(self):
+        return u"<ConstantInt: {} from {} at 0x{}>".format(self.intval, self.sourcepos.i, id(self))
+
 
 class Variable(Node):
     """ Variable reference
@@ -71,6 +80,9 @@ class Variable(Node):
 
     def get_extra_dot_info(self):
         return str(self.varname)
+
+    def __repr__(self):
+        return u"<Variable: {} from {} at 0x{}>".format(repr(self.varname), self.sourcepos.i, id(self))
 
 
 class Assignment(NonTerminal):
@@ -91,6 +103,9 @@ class Assignment(NonTerminal):
     @property
     def target(self):
         return self.var
+
+    def __repr__(self):
+        return u"<Assignment: {} = {} from {} at 0x{}>".format(repr(self.var), repr(self.children[0]), self.sourcepos.i, id(self))
 
 
 class Function(NonTerminal):
@@ -114,6 +129,9 @@ class Function(NonTerminal):
     def args(self):
         return self.children[1:]
 
+    def __repr__(self):
+        return u"<Function: {}({}) from {} at 0x{}>".format(repr(self.fname), repr(self.args), self.sourcepos.i, id(self))
+
 
 class BinOp(Function):
     """ A binary operation
@@ -135,6 +153,9 @@ class BinOp(Function):
     def args(self):
         return self.children
 
+    def __repr__(self):
+        return u"<BinOp: {} {} {} from {} at 0x{}>".format(repr(self.children[0]), self.op, repr(self.children[1]), self.sourcepos.i, id(self))
+
 
 class Conditional(NonTerminal):
 
@@ -154,6 +175,9 @@ class Conditional(NonTerminal):
     def false_block(self):
         return self.children[2]
 
+    def __repr__(self):
+        return u"<Conditional: if {} then {} else {} from {} at 0x{}>".format(repr(self.condition), repr(self.true_block), repr(self.false_block), self.sourcepos.i, id(self))
+
 
 class While(NonTerminal):
 
@@ -168,6 +192,9 @@ class While(NonTerminal):
     @property
     def block(self):
         return self.children[1]
+
+    def __repr__(self):
+        return u"<While: while {} then {} from {} at 0x{}>".format(repr(self.condition), repr(self.block), self.sourcepos.i, id(self))
 
 
 class FuncDef(NonTerminal):
@@ -193,6 +220,9 @@ class FuncDef(NonTerminal):
     def code(self):
         return self.children[0]
 
+    def __repr__(self):
+        return u"<FuncDef: {} ({}) {} from {} at 0x{}>".format(repr(self.name), repr(self.args), repr(self.children[0]), self.sourcepos.i, id(self))
+
 
 class Return(NonTerminal):
 
@@ -208,6 +238,8 @@ class Return(NonTerminal):
             return self.children[0]
         return None
 
+    def __repr__(self):
+        return u"<Return: {} from {} at 0x{}>".format(repr(self.arg), self.sourcepos.i, id(self))
 
 class NewType(NonTerminal):
 

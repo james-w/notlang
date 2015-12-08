@@ -120,7 +120,7 @@ class Transformer(RPythonVisitor):
         sourcepos = node.children[0].getsourcepos()
         target = self.dispatch(node.children[0])
         for i in range(1, len(node.children)):
-            target = ast.BinOp(node.children[i].children[0].additional_info,
+            target = ast.BinOp(node.children[i].children[0].children[0].additional_info,
                                target,
                                self.dispatch(node.children[i].children[1]), sourcepos)
             sourcepos = node.children[i].children[1].getsourcepos()
@@ -260,8 +260,12 @@ class Transformer(RPythonVisitor):
     def visit_IDENTIFIER(self, node):
         return ast.Variable(node.additional_info, node.getsourcepos())
 
-    def visit_DECIMAL(self, node):
-        return ast.ConstantInt(int(node.additional_info), node.getsourcepos())
+    def visit_decimal(self, node):
+        if len(node.children) > 1:
+            val = -1 * int(node.children[1].additional_info)
+        else:
+            val = int(node.children[0].additional_info)
+        return ast.ConstantInt(val, node.getsourcepos())
 
     def general_visit(self, node):
         children = getattr(node, 'children')
