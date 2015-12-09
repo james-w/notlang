@@ -12,7 +12,7 @@ def SourcePosStrategy():
 
 def IdentifierStrategy(name=None):
     # TODO: better alphabet (unicode, numbers in middle, underscores etc.)
-    return strategies.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=1)
+    return strategies.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=1, average_size=2)
 
 
 def VariableStrategy(name=None):
@@ -32,7 +32,7 @@ def BinOpStrategy(children=None):
 
 
 def ExpressionStrategy():
-    return strategies.recursive(IntStrategy() | VariableStrategy(), lambda children: BinOpStrategy(children=children))
+    return strategies.recursive(IntStrategy() | VariableStrategy(), lambda children: BinOpStrategy(children=children), max_leaves=10)
 
 
 def AssignmentStrategy():
@@ -43,7 +43,7 @@ def FunctionCallStrategy(name=None, args=None):
     if name is None:
         name = VariableStrategy()
     if args is None:
-        args = strategies.lists(ExpressionStrategy())
+        args = strategies.lists(ExpressionStrategy(), average_size=2)
     return strategies.builds(ast.Function, name, args, SourcePosStrategy())
 
 
@@ -55,15 +55,15 @@ def StatementStrategy():
     def make_children(children):
         wrapped = strategies.builds(ast.Stmt, children, SourcePosStrategy())
         return ConditionalStrategy(statements=wrapped) | WhileStrategy(statements=wrapped) | FuncDefStrategy(statements=wrapped)
-    expr = strategies.recursive(ExpressionStrategy() | PrintStrategy() | ReturnStrategy(), make_children)
+    expr = strategies.recursive(ExpressionStrategy() | PrintStrategy() | ReturnStrategy(), make_children, max_leaves=10)
     return strategies.builds(ast.Stmt, expr, SourcePosStrategy())
 
 
 def BlockStrategy(statements=None):
     if statements is None:
-        statements = strategies.lists(StatementStrategy(), min_size=1)
+        statements = strategies.lists(StatementStrategy(), min_size=1, average_size=2)
     else:
-        statements = strategies.lists(statements, min_size=1)
+        statements = strategies.lists(statements, min_size=1, average_size=2)
     return strategies.builds(ast.Block, statements, SourcePosStrategy())
 
 
@@ -82,11 +82,11 @@ def WhileStrategy(statements=None):
 
 def FuncDefStrategy(statements=None):
     name = IdentifierStrategy()
-    args = strategies.lists(IdentifierStrategy())
+    args = strategies.lists(IdentifierStrategy(), average_size=2)
     code = BlockStrategy(statements=statements)
     # TODO: better type descriptor strategies
     rtype = IdentifierStrategy()
-    argtypes = strategies.lists(IdentifierStrategy())
+    argtypes = strategies.lists(IdentifierStrategy(), average_size=2)
     # TODO: parser only supports 1 type param today
     type_params = strategies.lists(IdentifierStrategy(), max_size=1)
     return strategies.builds(ast.FuncDef, name, args, code, SourcePosStrategy(), rtype=rtype, argtypes=argtypes, type_params=type_params)

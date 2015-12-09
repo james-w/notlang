@@ -24,14 +24,14 @@ deps: $(VIRTUALENV)
 	$(VIRTUALENV_BIN)/python setup.py develop
 
 $(VIRTUALENV):
-	virtualenv $(VIRTUALENV) --python /usr/bin/pypy
+	virtualenv $(VIRTUALENV) --python $(which /usr/bin/pypy)
 
 clean:
 	[ ! -f $(TARGET) ] || rm $(TARGET)
 	find $(BASEDIR) -name \*.pyc -delete
 
 test:
-	$(VIRTUALENV_BIN)/py.test $(NAME) -k $(TEST_FILTER) --maxfail=$(TEST_FAILFAST) -v -s
+	$(VIRTUALENV_BIN)/py.test $(NAME) -k $(TEST_FILTER) --maxfail=$(TEST_FAILFAST) -v
 
 profile_tests:
 	$(VIRTUALENV_BIN)/python -m cProfile -o profile $(VIRTUALENV_BIN)/py.test $(NAME) -k $(TEST_FILTER)

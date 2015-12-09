@@ -1,4 +1,4 @@
-from hypothesis import given, Settings
+from hypothesis import given, note, Settings
 from rpython.rlib.parsing.parsing import ParseError
 from testtools import TestCase
 from testtools.matchers import MatchesListwise
@@ -605,6 +605,7 @@ class RoundtripTests(TestCase):
         # source to try and parse, as generating
         # valid source is hard
         source = fmt.Formatter().dispatch(node)
+        note(source)
         try:
             parse(source)
         finally:
