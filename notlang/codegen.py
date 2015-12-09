@@ -41,7 +41,7 @@ def make_function(ctx, name, code_cb, args):
     cctx = compilercontext.CompilerContext()
     for arg in args:
         cctx.register_var(arg)
-    cctx.locals = args
+    cctx.locals = list(args)
     code_cb(cctx)
     cctx.emit(bytecode.LOAD_CONSTANT, cctx.register_constant(objectspace.TheNone))
     cctx.emit(bytecode.RETURN)

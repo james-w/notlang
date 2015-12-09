@@ -4,6 +4,9 @@ from rpython.rlib.parsing.lexer import SourcePos
 from ... import ast
 
 
+keywords = ["if", "while", "else", "def", "new"]
+
+
 def SourcePosStrategy():
     # This is boring, so make it easy
     return strategies.just(SourcePos(0, 0, 0))
@@ -12,7 +15,7 @@ def SourcePosStrategy():
 
 def IdentifierStrategy(name=None):
     # TODO: better alphabet (unicode, numbers in middle, underscores etc.)
-    return strategies.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=1, average_size=2)
+    return strategies.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=1, average_size=2).filter(lambda x: x not in keywords)
 
 
 def VariableStrategy(name=None):

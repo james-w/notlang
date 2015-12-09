@@ -189,7 +189,6 @@ class Frame(object):
             elif c == bytecode.MAKE_TYPE:
                 attrs = self.pop()
                 bases = self.pop()
-                print map(repr, bases.val)
                 name = self.pop().strval
                 self.push(make_type(name, bases, attrs))
             elif c == bytecode.PRINT:
@@ -198,7 +197,7 @@ class Frame(object):
                 if not self.pop().is_true():
                     pc += arg
             elif c == bytecode.JUMP_BACK:
-                pc -= arg+2
+                pc -= arg+bytecode.INSTRUCTION_SIZE
                 # required hint indicating this is the end of a loop
                 driver.can_enter_jit(pc=pc, code=code, frame=self)
             elif c == bytecode.JUMP_FORWARD:

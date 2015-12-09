@@ -4,7 +4,7 @@ from hypothesis import given, Settings
 from testtools import TestCase
 from rpython.rlib.parsing.lexer import SourcePos
 
-from .. import bytecode, objectspace
+from .. import ast, bytecode, objectspace
 from ..compiler import Compiler
 from ..compilercontext import CompilerContext
 from ..testing import BytecodeMatches, ASTFactory
@@ -145,23 +145,25 @@ class TestCompiler(TestCase):
     @given(ast_strats.WhileStrategy())
     def test_while(self, node):
         ctx = compile(node)
-        condition_ctx = compile(node.condition)
-        block_ctx = compile(node.block, constants=condition_ctx.constants)
+        condition_ctx, block_ctx = chain_compile([node.condition, node.block])
         self.assertEqual(len(block_ctx.constants), len(ctx.constants))
         self.assertThat(ctx.data,
             BytecodeMatches(bytecode_to_expected(condition_ctx.data)
                             + [bytecode.JUMP_IF_FALSE, len(block_ctx.data) + bytecode.INSTRUCTION_SIZE]
                             + bytecode_to_expected(block_ctx.data)
-                            + [bytecode.JUMP_BACK, len(block_ctx.data) + 2 * bytecode.INSTRUCTION_SIZE]))
+                            + [bytecode.JUMP_BACK, len(block_ctx.data) + len(condition_ctx.data) + bytecode.INSTRUCTION_SIZE]))
 
 
     @given(ast_strats.FuncDefStrategy())
     def test_function_defn(self, node):
         ctx = compile(node)
         code_ctx = CompilerContext()
-        code_ctx.locals = node.args
         for arg in node.args:
             code_ctx.register_var(arg)
+        code_ctx.locals = list(node.args)
+        for local in ast.GatherAssignedNames().dispatch(node.code):
+            if local not in code_ctx.locals:
+                code_ctx.locals.append(local)
         Compiler(code_ctx).dispatch(node.code)
         self.assertEqual(1, len(ctx.constants))
         self.assertIsInstance(ctx.constants[0], objectspace.W_Code)

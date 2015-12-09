@@ -111,6 +111,12 @@ class BasicParsingTests(TestCase):
     def test_if(self):
         self.assert_parses_ok("if a == a:\n    b = 1\n\n")
 
+    def test_else(self):
+        self.assert_parses_ok("if a == a:\n    b = 1\nelse:\n    0\n\n")
+
+    def test_else_with_extra_newline(self):
+        self.assert_parses_ok("if a == a:\n    b = 1\n\nelse:\n    0\n\n")
+
     def test_while(self):
         self.assert_parses_ok("while a == a:\n    b = 1\n\n")
 
@@ -606,8 +612,5 @@ class RoundtripTests(TestCase):
         # valid source is hard
         source = fmt.Formatter().dispatch(node)
         note(source)
-        try:
-            parse(source)
-        finally:
-            print "*** PARSED"
+        parse(source)
         # TODO: test the asts match
