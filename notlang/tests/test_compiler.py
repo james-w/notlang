@@ -1,4 +1,4 @@
-from operator import attrgetter, methodcaller
+from operator import attrgetter
 
 from hypothesis import given, Settings
 from testtools import TestCase
@@ -191,104 +191,64 @@ class TestCompiler(TestCase):
         self.assertThat(ctx.data,
             BytecodeMatches(expected_bytecode + [bytecode.RETURN, 0]))
 
-    def test_new_type(self):
-        var = self.factory.variable(name="a")
-        attrname = 'b'
-        attrval = 2
-        attr = self.factory.variable(name=attrname)
-        right = self.factory.int(value=attrval)
-        block = self.factory.assignment(target=attr, source=right)
-        t = self.factory.newtype(block=block)
-        node = self.factory.assignment(target=var, source=t)
+    @given(ast_strats.NewTypeStrategy())
+    def test_new_type(self, node):
         ctx = compile(node)
-        self.assertEqual(2, len(ctx.constants))
+        self.assertEqual(2 + 2 * len(node.source.options) if node.source.type_type == 'Enum' else 2, len(ctx.constants))
         self.assertIsInstance(ctx.constants[0], objectspace.W_String)
-        self.assertEqual('a', ctx.constants[0].strval)
+        self.assertEqual(node.target.varname, ctx.constants[0].strval)
         self.assertIsInstance(ctx.constants[1], objectspace.W_Code)
-        self.assertEqual(['Type', 'a'], ctx.names)
-        self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
-                             bytecode.LOAD_GLOBAL, 0,
-                             bytecode.BUILD_TUPLE, 1,
-                             bytecode.LOAD_CONSTANT, 1,
-                             bytecode.MAKE_FUNCTION, 0,
-                             bytecode.CALL_FUNCTION, 0,
-                             bytecode.MAKE_TYPE, 0,
-                             bytecode.ASSIGN, 1]))
+        bases = [node.source.type_type]
+        cctx = CompilerContext()
+        if node.source.type_type == 'Enum':
+            bases.append('Type')
+            if any(map(lambda x: len(x.members) > 0, node.source.options)):
+                bases.append('Tuple')
+            [cctx.register_var(x.name) for x in node.source.options]
+        cctx.register_var(node.target.varname)
+        opt_names = cctx.names
+        self.assertEqual(sorted(bases + opt_names), sorted(ctx.names))
+        if node.source.type_type == 'Enum':
+            expected_bytecode = [bytecode.LOAD_CONSTANT, 0,
+                                 bytecode.LOAD_GLOBAL, 0,
+                                 bytecode.BUILD_TUPLE, 1,
+                                 bytecode.LOAD_CONSTANT, 1,
+                                 bytecode.MAKE_FUNCTION, 0,
+                                 bytecode.CALL_FUNCTION, 0,
+                                 bytecode.MAKE_TYPE, 0]
+            for i, option in enumerate(node.source.options):
+                expected_bytecode += [bytecode.DUP_TOP, 0,
+                                      bytecode.DUP_TOP, 0,
+                                      bytecode.LOAD_GLOBAL, 1,
+                                      bytecode.ROT_TWO, 0,
+                                      bytecode.LOAD_GLOBAL, 0,
+                                      bytecode.ROT_TWO, 0]
+                if len(option.members) > 0:
+                    expected_bytecode += [bytecode.LOAD_GLOBAL, ctx.names.index('Tuple'),
+                                          bytecode.ROT_TWO, 0]
+                expected_bytecode += [bytecode.BUILD_TUPLE, 3 if len(option.members) == 0 else 4,
+                                      bytecode.LOAD_CONSTANT, (i+1)*2,
+                                      bytecode.ROT_TWO, 0,
+                                      bytecode.LOAD_CONSTANT, (i+1)*2+1,
+                                      bytecode.MAKE_TYPE, 0]
+                if len(option.members) == 0:
+                    expected_bytecode += [bytecode.CALL_FUNCTION, 0]
+                expected_bytecode += [bytecode.SET_ATTR, ctx.names.index(option.name)]
+            expected_bytecode += [bytecode.ASSIGN, ctx.names.index(node.target.varname)]
+            self.assertThat(ctx.data, BytecodeMatches(expected_bytecode))
+        else:
+            self.assertThat(ctx.data,
+                BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
+                                 bytecode.LOAD_GLOBAL, 0,
+                                 bytecode.BUILD_TUPLE, 1,
+                                 bytecode.LOAD_CONSTANT, 1,
+                                 bytecode.MAKE_FUNCTION, 0,
+                                 bytecode.CALL_FUNCTION, 0,
+                                 bytecode.MAKE_TYPE, 0,
+                                 bytecode.ASSIGN, 1]))
 
-    def test_enum(self):
-        var = self.factory.variable(name="a")
-        block = self.factory.pass_()
-        options = [self.factory.type_option(name="A")]
-        t = self.factory.enum(block=block, options=options)
-        node = self.factory.assignment(target=var, source=t)
-        ctx = compile(node)
-        self.assertEqual(4, len(ctx.constants))
-        self.assertIsInstance(ctx.constants[0], objectspace.W_String)
-        self.assertEqual('a', ctx.constants[0].strval)
-        self.assertIsInstance(ctx.constants[1], objectspace.W_Code)
-        self.assertEqual(['Enum', 'Type', 'A', 'a'], ctx.names)
-        self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
-                             bytecode.LOAD_GLOBAL, 0,
-                             bytecode.BUILD_TUPLE, 1,
-                             bytecode.LOAD_CONSTANT, 1,
-                             bytecode.MAKE_FUNCTION, 0,
-                             bytecode.CALL_FUNCTION, 0,
-                             bytecode.MAKE_TYPE, 0,
-                             bytecode.DUP_TOP, 0,
-                             bytecode.DUP_TOP, 0,
-                             bytecode.LOAD_GLOBAL, 1,
-                             bytecode.ROT_TWO, 0,
-                             bytecode.LOAD_GLOBAL, 0,
-                             bytecode.ROT_TWO, 0,
-                             bytecode.BUILD_TUPLE, 3,
-                             bytecode.LOAD_CONSTANT, 2,
-                             bytecode.ROT_TWO, 0,
-                             bytecode.LOAD_CONSTANT, 3,
-                             bytecode.MAKE_TYPE, 0,
-                             bytecode.CALL_FUNCTION, 0,
-                             bytecode.SET_ATTR, 2,
-                             bytecode.ASSIGN, 3]))
-
-    def test_destructuring_enum(self):
-        var = self.factory.variable(name="a")
-        block = self.factory.pass_()
-        options = [self.factory.type_option(name="A", members=["x"])]
-        t = self.factory.enum(block=block, options=options)
-        node = self.factory.assignment(target=var, source=t)
-        ctx = compile(node)
-        self.assertEqual(4, len(ctx.constants))
-        self.assertIsInstance(ctx.constants[0], objectspace.W_String)
-        self.assertEqual('a', ctx.constants[0].strval)
-        self.assertIsInstance(ctx.constants[1], objectspace.W_Code)
-        self.assertEqual(['Enum', 'Type', 'Tuple', 'A', 'a'], ctx.names)
-        self.assertThat(ctx.data,
-            BytecodeMatches([bytecode.LOAD_CONSTANT, 0,
-                             bytecode.LOAD_GLOBAL, 0,
-                             bytecode.BUILD_TUPLE, 1,
-                             bytecode.LOAD_CONSTANT, 1,
-                             bytecode.MAKE_FUNCTION, 0,
-                             bytecode.CALL_FUNCTION, 0,
-                             bytecode.MAKE_TYPE, 0,
-                             bytecode.DUP_TOP, 0,
-                             bytecode.DUP_TOP, 0,
-                             bytecode.LOAD_GLOBAL, 1,
-                             bytecode.ROT_TWO, 0,
-                             bytecode.LOAD_GLOBAL, 0,
-                             bytecode.ROT_TWO, 0,
-                             bytecode.LOAD_GLOBAL, 2,
-                             bytecode.ROT_TWO, 0,
-                             bytecode.BUILD_TUPLE, 4,
-                             bytecode.LOAD_CONSTANT, 2,
-                             bytecode.ROT_TWO, 0,
-                             bytecode.LOAD_CONSTANT, 3,
-                             bytecode.MAKE_TYPE, 0,
-                             bytecode.SET_ATTR, 3,
-                             bytecode.ASSIGN, 4]))
-
-    def test_Pass(self):
-        node = self.factory.pass_()
+    @given(ast_strats.PassStrategy())
+    def test_Pass(self, node):
         ctx = compile(node)
         self.assertEqual([], ctx.constants)
         self.assertEqual([], ctx.names)
@@ -296,56 +256,53 @@ class TestCompiler(TestCase):
 
     # TODO: tests for Attribute
 
-    def test_Case(self):
-        var = self.factory.variable(name="a")
-        cases = [
-            self.factory.case_case(label=self.factory.variable(name="B"), block=self.factory.int(value=1)),
-            self.factory.case_case(label=self.factory.variable(name="C"), block=self.factory.int(value=2)),
-        ]
-        node = self.factory.case(target=var, cases=cases)
+    @given(ast_strats.CaseStrategy())
+    def test_Case(self, node):
         ctx = compile(node)
-        self.assertEqual([repr(1), repr(2), repr("Pattern match failure: ")], map(methodcaller('repr'), ctx.constants))
-        self.assertEqual(["B", "a", "C", "add", "repr"], ctx.names)
-        self.assertThat(ctx.data,
-            BytecodeMatches([
-                bytecode.LOAD_GLOBAL, 0,
-                bytecode.LOAD_GLOBAL, 1,
-                bytecode.BINARY_IS, 0,
-                bytecode.JUMP_IF_FALSE, 2 * bytecode.INSTRUCTION_SIZE,
-                bytecode.LOAD_CONSTANT, 0,
-                bytecode.JUMP_FORWARD, 13 * bytecode.INSTRUCTION_SIZE,
-                bytecode.LOAD_GLOBAL, 2,
-                bytecode.LOAD_GLOBAL, 1,
-                bytecode.BINARY_IS, 0,
-                bytecode.JUMP_IF_FALSE, 2 * bytecode.INSTRUCTION_SIZE,
-                bytecode.LOAD_CONSTANT, 1,
-                bytecode.JUMP_FORWARD, 7 * bytecode.INSTRUCTION_SIZE,
-                bytecode.LOAD_CONSTANT, 2,
-                bytecode.LOAD_ATTR, 3,
-                bytecode.LOAD_GLOBAL, 1,
-                bytecode.LOAD_ATTR, 4,
-                bytecode.CALL_FUNCTION, 0,
-                bytecode.CALL_FUNCTION, 1,
-                bytecode.PANIC, 0,
-                ]))
-
-    def test_Case_with_else(self):
-        var = self.factory.variable(name="a")
-        cases = [
-            self.factory.case_case(label=self.factory.variable(name="B"), block=self.factory.int(value=1)),
-        ]
-        else_case = self.factory.case_case(label=self.factory.variable(name="else"), block=self.factory.int(value=2))
-        node = self.factory.case(target=var, cases=cases, else_case=else_case)
-        ctx = compile(node)
-        self.assertEqual([1, 2], map(attrgetter('intval'), ctx.constants))
-        self.assertEqual(["B", "a"], ctx.names)
-        self.assertThat(ctx.data,
-            BytecodeMatches([
-                bytecode.LOAD_GLOBAL, 0,
-                bytecode.LOAD_GLOBAL, 1,
-                bytecode.BINARY_IS, 0,
-                bytecode.JUMP_IF_FALSE, 2 * bytecode.INSTRUCTION_SIZE,
-                bytecode.LOAD_CONSTANT, 0,
-                bytecode.JUMP_FORWARD, bytecode.INSTRUCTION_SIZE,
-                bytecode.LOAD_CONSTANT, 1,
-                ]))
+        parts = []
+        extra_names = []
+        for case in node.cases:
+            parts.append(case.label)
+            parts.append(node.target)
+            parts.append(case.block)
+        if node.else_case:
+            parts.append(node.else_case.block)
+        else:
+            extra_names = ['add', 'repr']
+            parts.append(self.factory.int())
+            parts.append(node.target)
+        contexts = chain_compile(parts)
+        self.assertEqual(contexts[-1].names + extra_names, ctx.names)
+        expected_bytecode = []
+        remainings = []
+        if node.else_case:
+            x = len(contexts[-1].data)
+        else:
+            x = 6*bytecode.INSTRUCTION_SIZE + len(contexts[-1].data)
+        for i, case in enumerate(reversed(node.cases)):
+            remainings.insert(0, x)
+            x += 3*bytecode.INSTRUCTION_SIZE
+            context_index = (len(node.cases)-i-1) * 3
+            x += len(contexts[context_index].data)
+            x += len(contexts[context_index+1].data)
+            x += len(contexts[context_index+2].data)
+        for i, case in enumerate(node.cases):
+            expected_bytecode += bytecode_to_expected(contexts[i*3].data)
+            expected_bytecode += bytecode_to_expected(contexts[i*3+1].data)
+            expected_bytecode += [bytecode.BINARY_IS, 0,
+                    bytecode.JUMP_IF_FALSE, len(contexts[i*3+2].data) + bytecode.INSTRUCTION_SIZE]
+            expected_bytecode += bytecode_to_expected(contexts[i*3+2].data)
+            # Not reducing on 0 because we add 2 ops per case
+            expected_bytecode += [bytecode.JUMP_FORWARD, remainings[i]]
+        if node.else_case:
+            expected_bytecode += bytecode_to_expected(contexts[-1].data)
+        else:
+            expected_bytecode += bytecode_to_expected(contexts[-2].data)
+            expected_bytecode += [bytecode.LOAD_ATTR, ctx.names.index('add')]
+            expected_bytecode += bytecode_to_expected(contexts[-1].data)
+            expected_bytecode += [bytecode.LOAD_ATTR, ctx.names.index('repr'),
+                                  bytecode.CALL_FUNCTION, 0,
+                                  bytecode.CALL_FUNCTION, 1,
+                                  bytecode.PANIC, 0,
+                                  ]
+        self.assertThat(ctx.data, BytecodeMatches(expected_bytecode))

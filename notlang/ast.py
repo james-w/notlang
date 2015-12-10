@@ -258,6 +258,9 @@ class NewType(NonTerminal):
     def block(self):
         return self.children[0]
 
+    def __repr__(self):
+        return u"<NewType: {}<{}>({}) {} from {} at 0x{}>".format(repr(self.type_type), repr(self.type_params), repr(self.options), repr(self.block), self.sourcepos.i, id(self))
+
 
 class TypeOption(Node):
 
@@ -273,6 +276,9 @@ class TypeOption(Node):
             return str(self.name) + "(" + ", ".join(self.members) + ")"
         else:
             return str(self.name)
+
+    def __repr__(self):
+        return u"<TypeOption: {} from {} at 0x{}>".format(repr(self.get_extra_dot_info()), self.sourcepos.i, id(self))
 
 
 class Case(NonTerminal):
@@ -292,6 +298,9 @@ class Case(NonTerminal):
     @property
     def else_case(self):
         return self.children[-1]
+
+    def __repr__(self):
+        return u"<Case: {} {} else {} from {} at 0x{}>".format(repr(self.target), repr(self.cases), repr(self.else_case), self.sourcepos.i, id(self))
 
 
 class CaseCase(NonTerminal):
@@ -321,6 +330,9 @@ class CaseCase(NonTerminal):
         as it destructures to bind x.
         """
         return isinstance(self.label, Variable) or isinstance(self.label, Attribute)
+
+    def __repr__(self):
+        return u"<CaseCase: {} {} from {} at 0x{}>".format(repr(self.label), repr(self.block), self.sourcepos.i, id(self))
 
 
 class Attribute(NonTerminal):
