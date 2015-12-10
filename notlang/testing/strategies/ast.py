@@ -46,7 +46,7 @@ def AttributeStrategy(children=None):
 
 
 def ExpressionStrategy():
-    return strategies.recursive(IntStrategy() | VariableStrategy(), lambda children: BinOpStrategy(children=children) | FunctionCallStrategy(args=strategies.lists(children, average_size=2) | AttributeStrategy(children=children)), max_leaves=5)
+    return strategies.recursive(IntStrategy() | VariableStrategy(), lambda children: BinOpStrategy(children=children) | FunctionCallStrategy(args=strategies.lists(children, average_size=2)) | AttributeStrategy(children=children), max_leaves=5)
 
 
 def AssignmentStrategy(expression=None):
