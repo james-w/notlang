@@ -51,7 +51,7 @@ def ExpressionStrategy():
 
 def AssignmentStrategy(expression=None):
     if expression is None:
-        expression = ExpressionStrategy()
+        expression = strategies.recursive(VariableStrategy() | IntStrategy(), lambda children: FunctionCallStrategy(args=strategies.lists(children, average_size=2)) | AttributeStrategy(children=children), max_leaves=5)
     return strategies.builds(ast.Assignment, VariableStrategy(), expression, SourcePosStrategy())
 
 

@@ -1,4 +1,3 @@
-- bytecode mechanism to handle more constants, longs jumps etc. (remove 255 limit)
 - Maybe type in stdlib that works with A | None inference.
 - Checking that a type var in a declaration is valid. (foo(a: a) when a is used as an int.)
 - Maybe move the List = new Type: coalescing in to the parser, rather than doing it in the type-checker and compiler.

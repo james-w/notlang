@@ -612,5 +612,6 @@ class RoundtripTests(TestCase):
         # valid source is hard
         source = fmt.Formatter().dispatch(node)
         note(source)
-        parse(source)
-        # TODO: test the asts match
+        ast = parse(source)
+        # TODO: make it pass when we do this:
+        #self.assertEqual(node, ast)

@@ -5,8 +5,7 @@ class Node(object):
     """
 
     def __eq__(self, other):
-        return (self.__class__ == other.__class__ and
-                self.__dict__ == other.__dict__)
+        return self.__class__ == other.__class__
 
     def __ne__(self, other):
         return not self == other
@@ -18,6 +17,9 @@ class Node(object):
 class NonTerminal(Node):
 
     children = []
+
+    def __eq__(self, other):
+        return super(NonTerminal, self).__eq__(other) and self.children == other.children
 
 
 class Block(NonTerminal):
@@ -70,6 +72,9 @@ class ConstantInt(Node):
     def __repr__(self):
         return u"<ConstantInt: {} from {} at 0x{}>".format(self.intval, self.sourcepos.i, id(self))
 
+    def __eq__(self, other):
+        return super(ConstantInt, self).__eq__(other) and self.intval == other.intval
+
 
 class Variable(Node):
     """ Variable reference
@@ -83,6 +88,9 @@ class Variable(Node):
 
     def __repr__(self):
         return u"<Variable: {} from {} at 0x{}>".format(repr(self.varname), self.sourcepos.i, id(self))
+
+    def __eq__(self, other):
+        return super(Variable, self).__eq__(other) and self.varname == other.varname
 
 
 class Assignment(NonTerminal):
@@ -106,6 +114,9 @@ class Assignment(NonTerminal):
 
     def __repr__(self):
         return u"<Assignment: {} = {} from {} at 0x{}>".format(repr(self.var), repr(self.children[0]), self.sourcepos.i, id(self))
+
+    def __eq__(self, other):
+        return super(Assignment, self).__eq__(other) and self.target == other.target
 
 
 class Function(NonTerminal):
@@ -132,6 +143,9 @@ class Function(NonTerminal):
     def __repr__(self):
         return u"<Function: {}({}) from {} at 0x{}>".format(repr(self.fname), repr(self.args), self.sourcepos.i, id(self))
 
+    def __eq__(self, other):
+        return super(Function, self).__eq__(other) and self.type_params == other.type_params
+
 
 class BinOp(Function):
     """ A binary operation
@@ -155,6 +169,9 @@ class BinOp(Function):
 
     def __repr__(self):
         return u"<BinOp: {} {} {} from {} at 0x{}>".format(repr(self.children[0]), self.op, repr(self.children[1]), self.sourcepos.i, id(self))
+
+    def __eq__(self, other):
+        return super(BinOp, self).__eq__(other) and self.op == other.op
 
 
 class Conditional(NonTerminal):
@@ -223,6 +240,14 @@ class FuncDef(NonTerminal):
     def __repr__(self):
         return u"<FuncDef: {} ({}) {} from {} at 0x{}>".format(repr(self.name), repr(self.args), repr(self.children[0]), self.sourcepos.i, id(self))
 
+    def __eq__(self, other):
+        return (super(FuncDef, self).__eq__(other)
+                and self.name == other.name
+                and self.args == other.args
+                and self.rtype == other.rtype
+                and self.argtypes == other.argtypes
+                and self.type_params == other.type_params)
+
 
 class Return(NonTerminal):
 
@@ -240,6 +265,7 @@ class Return(NonTerminal):
 
     def __repr__(self):
         return u"<Return: {} from {} at 0x{}>".format(repr(self.arg), self.sourcepos.i, id(self))
+
 
 class NewType(NonTerminal):
 
@@ -261,6 +287,12 @@ class NewType(NonTerminal):
     def __repr__(self):
         return u"<NewType: {}<{}>({}) {} from {} at 0x{}>".format(repr(self.type_type), repr(self.type_params), repr(self.options), repr(self.block), self.sourcepos.i, id(self))
 
+    def __eq__(self, other):
+        return (super(NewType, self).__eq__(other)
+                and self.type_type == other.type_type
+                and self.options == other.options
+                and self.type_params == other.type_params)
+
 
 class TypeOption(Node):
 
@@ -279,6 +311,11 @@ class TypeOption(Node):
 
     def __repr__(self):
         return u"<TypeOption: {} from {} at 0x{}>".format(repr(self.get_extra_dot_info()), self.sourcepos.i, id(self))
+
+    def __eq__(self, other):
+        return (super(TypeOption, self).__eq__(other)
+                and self.name == other.name
+                and self.members == other.members)
 
 
 class Case(NonTerminal):
@@ -349,12 +386,18 @@ class Attribute(NonTerminal):
     def target(self):
         return self.children[0]
 
+    def __repr__(self):
+        return u"<Attribute: {}.{} from {} at 0x{}>".format(repr(self.target), repr(self.name), self.sourcepos.i, id(self))
+
+    def __eq__(self, other):
+        return (super(Attribute, self).__eq__(other)
+                and self.name == other.name)
+
 
 class TypeReference(Node):
 
     def __init__(self, name, sourcepos):
         self.name = name
-        self.children = []
         self.type_params = []
         self.sourcepos = sourcepos
 
@@ -363,6 +406,11 @@ class TypeReference(Node):
 
     def __str__(self):
         return self.name
+
+    def __eq__(self, other):
+        return (super(TypeReference, self).__eq__(other)
+                and self.name == other.name
+                and self.type_params == other.type_params)
 
 
 class VisitError(Exception):

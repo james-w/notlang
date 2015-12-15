@@ -268,10 +268,14 @@ class TestCompiler(TestCase):
         if node.else_case:
             parts.append(node.else_case.block)
         else:
-            extra_names = ['add', 'repr']
             parts.append(self.factory.int())
             parts.append(node.target)
         contexts = chain_compile(parts)
+        if node.else_case is None:
+            extra_names = []
+            for name in ['add', 'repr']:
+                if name not in contexts[-1].names:
+                    extra_names.append(name)
         self.assertEqual(contexts[-1].names + extra_names, ctx.names)
         expected_bytecode = []
         remainings = []
