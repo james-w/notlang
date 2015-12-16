@@ -1,4 +1,11 @@
+from contextlib import contextmanager
+from cStringIO import StringIO
+import logging
+
+from hypothesis.control import current_build_context
 from rpython.rlib.parsing.lexer import SourcePos
+from testtools import TestCase as _TestCase
+from testtools.content import text_content
 from testtools.matchers import (
     AfterPreprocessing,
     Equals,
@@ -9,6 +16,45 @@ from testtools.matchers import (
 )
 
 from .. import ast, bytecode, objectspace, typer
+from ..debug import make_debug_handler
+
+
+def capture_logs():
+    logfile = StringIO()
+    logger = logging.getLogger('notlang')
+    logger.addHandler(make_debug_handler([], all_targets=True, stream=logfile))
+    return logfile
+
+
+def if_final(f):
+    context = current_build_context()
+    if context.is_final:
+        f()
+
+
+class TestCase(_TestCase):
+
+    def setUp(self):
+        super(TestCase, self).setUp()
+        logfile = capture_logs()
+        def attach_log():
+            log_content = logfile.getvalue()
+            self.addDetail('log', text_content(log_content))
+        self.addCleanup(attach_log)
+
+
+class HypothesisTestCase(_TestCase):
+
+    @contextmanager
+    def capture_logs(self):
+        logfile = capture_logs()
+        try:
+            yield
+        finally:
+            def attach_log():
+                log_content = logfile.getvalue()
+                self.addDetail('log', text_content(log_content))
+            if_final(attach_log)
 
 
 class BytecodeMatches(object):

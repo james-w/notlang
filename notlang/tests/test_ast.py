@@ -1,10 +1,9 @@
-from testtools import TestCase
 from rpython.rlib.parsing.lexer import SourcePos
 
 from .. import ast, testing
 
 
-class GatherNamesTests(TestCase):
+class GatherNamesTests(testing.TestCase):
 
     spos = SourcePos(0, 0, 0)
 
@@ -30,7 +29,7 @@ class GatherNamesTests(TestCase):
         self.assertEqual([fname], ast.GatherNames().dispatch(node))
 
 
-class NodeTests(TestCase):
+class NodeTests(testing.TestCase):
 
     def setUp(self):
         super(NodeTests, self).setUp()

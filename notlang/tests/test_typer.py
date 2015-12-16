@@ -205,7 +205,7 @@ class SatisfyConstraintsTests(TestCase):
 
 def get_type_of(name, source):
     parsed = parsing.parse(source)
-    env, substitutions = typer.typecheck(parsed, trace=True)
+    env, substitutions = typer.typecheck(parsed)
     return typer.get_substituted(env.env[name][0], substitutions), env
 
 

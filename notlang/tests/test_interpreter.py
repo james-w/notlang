@@ -1,7 +1,6 @@
 from operator import attrgetter
-from testtools import TestCase
 
-from .. import bytecode, codegen, compilercontext, objectspace, interpreter
+from .. import bytecode, codegen, compilercontext, objectspace, interpreter, testing
 
 
 def interpret(bcode):
@@ -17,7 +16,7 @@ def make_simple_function(ctx, name):
     return codegen.make_function(ctx, name, code_cb, [])
 
 
-class VariableTests(TestCase):
+class VariableTests(testing.TestCase):
 
     def test_store_load(self):
         varname = 'a'
@@ -39,7 +38,7 @@ class VariableTests(TestCase):
         self.assertRaises(AssertionError, interpret, ctx.create_bytecode())
 
 
-class BinaryOperationTests(TestCase):
+class BinaryOperationTests(testing.TestCase):
 
     def test_add(self):
         ctx = compilercontext.CompilerContext()
@@ -141,7 +140,7 @@ class BinaryOperationTests(TestCase):
         self.assertEqual(0, ret.intval)
 
 
-class JumpTests(TestCase):
+class JumpTests(testing.TestCase):
 
     def test_jump_if_false__false(self):
         varname = 'a'
@@ -205,7 +204,7 @@ class JumpTests(TestCase):
         self.assertEqual(0, ret.intval)
 
 
-class FunctionTests(TestCase):
+class FunctionTests(testing.TestCase):
 
     def test_noargs(self):
         fname = "foo"
@@ -249,7 +248,7 @@ class FunctionTests(TestCase):
         self.assertEqual(1, ret.intval)
 
 
-class TypeTests(TestCase):
+class TypeTests(testing.TestCase):
 
     def test_instantiate(self):
         cname = "foo"
@@ -274,7 +273,7 @@ class TypeTests(TestCase):
 
 
 
-class LocalsTests(TestCase):
+class LocalsTests(testing.TestCase):
 
     def test_load_locals(self):
         varname1 = "foo"
@@ -292,7 +291,7 @@ class LocalsTests(TestCase):
 
 
 
-class TupleTests(TestCase):
+class TupleTests(testing.TestCase):
 
     def test_build_tuple(self):
         varname1 = "foo"
@@ -308,7 +307,7 @@ class TupleTests(TestCase):
         self.assertEqual([2, 1], map(attrgetter('intval'), ret.val))
 
 
-class StackTests(TestCase):
+class StackTests(testing.TestCase):
 
     def test_rot_two(self):
         ctx = compilercontext.CompilerContext()

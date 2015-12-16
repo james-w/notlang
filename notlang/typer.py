@@ -1,8 +1,11 @@
+import logging
 import os
-import sys
 
 from . import debug, graph, parsing
-from .ast import ASTVisitor, NewType, Variable
+from .ast import ASTVisitor, NewType
+
+
+logger = logging.getLogger(__name__)
 
 
 class Type(object):
@@ -901,7 +904,7 @@ def satisfy_union_type(u, other, direction, positions, substitution):
     return new_constraints
 
 
-def satisfy_constraint(constraint, substitution, trace=False):
+def satisfy_constraint(constraint, substitution):
     """Attempt to satisfy a single constraint based on a substitution.
 
     This will raise an error if it can't do it, or update the substitution
@@ -910,8 +913,7 @@ def satisfy_constraint(constraint, substitution, trace=False):
     The function will return a list of additional constraints that
     should be checked.
     """
-    if trace:
-        _trace("Processing constraint " + debug.coloured(constraint, debug.colours.BROWN) + " against " + colour_substitution(substitution))
+    _trace("Processing constraint " + debug.coloured(constraint, debug.colours.BROWN) + " against " + colour_substitution(substitution))
     direction = constraint.constraint
     positions = constraint.positions
     a = constraint.a
@@ -946,7 +948,7 @@ def satisfy_constraint(constraint, substitution, trace=False):
     return []
 
 
-def satisfy_constraints(constraints, initial_subtitution=None, trace=False):
+def satisfy_constraints(constraints, initial_subtitution=None):
     """Given a set of constraints, this will attempt to satisfy them all.
 
     If it fails it will raise a NotTypeError or NotNameError.
@@ -962,7 +964,7 @@ def satisfy_constraints(constraints, initial_subtitution=None, trace=False):
         constraint = constraints.pop(0)
         # We put the new constraints at the front, but it probably
         # doesn't matter
-        constraints = satisfy_constraint(constraint, substitution, trace=trace) + constraints
+        constraints = satisfy_constraint(constraint, substitution) + constraints
     return substitution
 
 
@@ -1209,10 +1211,10 @@ def read_prelude():
         return f.read()
 
 
-def env_from_prelude(trace=False):
+def env_from_prelude():
     base_env = TypeEnv('main')
     prelude_source = read_prelude()
-    new_env, subst = _typecheck(parsing.parse(prelude_source), base_env, trace=trace)
+    new_env, subst = _typecheck(parsing.parse(prelude_source), base_env)
     int_t = new_env.get_type('int')
     bool_t = new_env.get_type('bool')
     new_env.extend(">", FunctionType([int_t, int_t], bool_t), [])
@@ -1223,12 +1225,12 @@ def env_from_prelude(trace=False):
     return new_env
 
 
-def typecheck(node, trace=False):
-    base_env = env_from_prelude(trace=trace)
-    return _typecheck(node, base_env, trace=trace)
+def typecheck(node):
+    base_env = env_from_prelude()
+    return _typecheck(node, base_env)
 
 
-def generalise_functions(base_env, subst, names, ftypes, trace=False):
+def generalise_functions(base_env, subst, names, ftypes):
     for name in names:
         name_parts = name.split('.')
         base_t = get_substituted(base_env.env[name_parts[0]][0], subst)
@@ -1252,8 +1254,7 @@ def generalise_functions(base_env, subst, names, ftypes, trace=False):
                     break
             if target is not None:
                 parent.attrs[name_parts[-1]] = generalise(get_substituted(target, subst), vars=vars)
-                if trace:
-                    _trace("{} has type {}".format(debug.coloured(name, debug.colours.BLUE), debug.coloured(parent.attrs[name_parts[-1]], debug.colours.GREEN)))
+                _trace("{} has type {}".format(debug.coloured(name, debug.colours.BLUE), debug.coloured(parent.attrs[name_parts[-1]], debug.colours.GREEN)))
         else:
             base_env.env[name] = (generalise(base_t), [], True)
             if name in base_env.types:
@@ -1261,24 +1262,21 @@ def generalise_functions(base_env, subst, names, ftypes, trace=False):
                     base_env.types[name] = base_t.rtype
                 else:
                     base_env.types[name] = base_t
-            if trace:
-                _trace("{} has type {}".format(name, base_env.env[name][0]))
+            _trace("{} has type {}".format(name, base_env.env[name][0]))
 
 
-def _typecheck(node, base_env, trace=False):
+def _typecheck(node, base_env):
     pass1= FirstPass()
     pass1.dispatch(node)
     pass2 = SecondPass(None, {a: a for a in pass1.functions}, pass1)
     pass2.dispatch(node)
     all_functions = get_all_functions(pass1)
     sets = graph.get_disjoint_sets(pass2.callgraph, all_functions)
-    if trace:
-        _trace("Type-context sets: [" + ", ".join(map(lambda x: debug.colour_list(x, debug.colours.BLUE), sets)) + "]")
+    _trace("Type-context sets: [" + ", ".join(map(lambda x: debug.colour_list(x, debug.colours.BLUE), sets)) + "]")
     handled = set()
     subst = {}
     for s in sets:
-        if trace:
-            _trace(debug.coloured("Processing type-context(s) ", debug.colours.BOLD) + debug.colour_list(s, debug.colours.BLUE))
+        _trace(debug.coloured("Processing type-context(s) ", debug.colours.BOLD) + debug.colour_list(s, debug.colours.BLUE))
         handled.update(s)
         ftypes = {}
         for name in s:
@@ -1287,19 +1285,15 @@ def _typecheck(node, base_env, trace=False):
                 ftypes[name] = base_env.register_with_new_expr(name, [], inherit=True)
         pass3 = ThirdPass(base_env, False, pass1, only_process=s)
         constraints, t = pass3.dispatch(node)
-        if trace:
-            _trace("Gathered constraints: " + debug.colour_list(constraints, debug.colours.BROWN))
-        subst = satisfy_constraints(constraints, initial_subtitution=subst, trace=trace)
-        generalise_functions(base_env, subst, s, ftypes, trace=trace)
-    if trace:
-        _trace(debug.coloured("Processing remainder", debug.colours.BOLD))
+        _trace("Gathered constraints: " + debug.colour_list(constraints, debug.colours.BROWN))
+        subst = satisfy_constraints(constraints, initial_subtitution=subst)
+        generalise_functions(base_env, subst, s, ftypes)
+    _trace(debug.coloured("Processing remainder", debug.colours.BOLD))
     pass3 = ThirdPass(base_env, True, pass1, skip=handled)
     constraints, t = pass3.dispatch(node)
-    if trace:
-        _trace("Gathered Constraints: " + debug.colour_list(constraints, debug.colours.BROWN))
-    subst = satisfy_constraints(constraints, initial_subtitution=subst, trace=trace)
-    if trace:
-        _trace("Substitution: " + colour_substitution(subst))
+    _trace("Gathered Constraints: " + debug.colour_list(constraints, debug.colours.BROWN))
+    subst = satisfy_constraints(constraints, initial_subtitution=subst)
+    _trace("Substitution: " + colour_substitution(subst))
     return base_env, subst
 
 
@@ -1308,4 +1302,4 @@ def colour_substitution(s):
 
 
 def _trace(message):
-    sys.stderr.write("type: " + message + "\n")
+    logger.debug("type: " + message)

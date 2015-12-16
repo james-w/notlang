@@ -121,8 +121,8 @@ class W_Func(W_Root):
     def __init__(self, code):
         self.code = code
 
-    def call(self, space, args, globals, trace=False):
-        return space.call_function(self.code, args, globals, {}, trace=trace)
+    def call(self, space, args, globals):
+        return space.call_function(self.code, args, globals, {})
 
     def __get__(self, instance, cls):
         """When accessed via an attribute on an instance, transform to a method"""
@@ -135,14 +135,14 @@ class W_Method(W_Root):
         self.code = code
         self.instance = instance
 
-    def call(self, space, args, globals, trace=False):
-        return space.call_function(self.code, [self.instance] + args, globals, {}, trace=trace)
+    def call(self, space, args, globals):
+        return space.call_function(self.code, [self.instance] + args, globals, {})
 
 
 class W_Type(W_Root):
 
     @classmethod
-    def call(cls, space, args, globals, trace=False):
+    def call(cls, space, args, globals):
         obj = cls()
         return obj
 
@@ -184,15 +184,15 @@ class W_List(W_Type):
     def repr(self):
         return repr(self.listval)
 
-    def append(self, space, args, globals, trace=False):
+    def append(self, space, args, globals):
         val = args[0]
         return W_List(listval=self.listval.append(val))
 
-    def first(self, space, args, globals, trace=False):
+    def first(self, space, args, globals):
         return self.listval[0]
 
     @classmethod
-    def call(cls, space, args, globals, trace=False):
+    def call(cls, space, args, globals):
         return cls(pvector([]))
 
 
@@ -201,21 +201,21 @@ class W_Tuple(W_Type):
     def __init__(self, val):
         self.val = val
 
-    def first(self, space, args, globals, trace=False):
+    def first(self, space, args, globals):
         return self.val[0]
 
-    def second(self, space, args, globals, trace=False):
+    def second(self, space, args, globals):
         return self.val[1]
 
     @classmethod
-    def call(cls, space, args, globals, trace=False):
+    def call(cls, space, args, globals):
         return cls(tuple(args))
 
 
 class W_IsInstance(W_Func):
 
     @classmethod
-    def call(cls, space, args, globals, trace=False):
+    def call(cls, space, args, globals):
         # XXX: args seem backwards
         return W_Int(int(isinstance(args[1], args[0])))
 

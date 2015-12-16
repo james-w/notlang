@@ -1,3 +1,6 @@
+import logging
+
+
 ERROR = 'error'
 INTERP = 'interp'
 TYPE = 'type'
@@ -9,6 +12,12 @@ DEBUG_TARGETS = {
     INTERP: 'Trace execution of the interpreter.',
     TYPE: 'Trace steps of the type-checker.',
     LEXER: 'Trace steps of the lexer.',
+}
+
+LOGGER_NAMES = {
+    INTERP: ['interpreter'],
+    TYPE: ['typer'],
+    LEXER: ['lexer'],
 }
 
 
@@ -31,16 +40,25 @@ def show_errors(opts):
     return ERROR in opts.debug
 
 
-def trace_interp(opts):
-    return INTERP in opts.debug
+def enable_debug_logging(name):
+    logger = logging.getLogger('notlang.' + name)
+    logger.setLevel(logging.DEBUG)
 
 
-def trace_typer(opts):
-    return TYPE in opts.debug
-
-
-def trace_lexer(opts):
-    return LEXER in opts.debug
+def make_debug_handler(opts, stream=None, all_targets=False):
+    enable = False
+    for key, names in LOGGER_NAMES.items():
+        if all_targets or key in opts:
+            enable = True
+            for name in names:
+                enable_debug_logging(name)
+    debug_handler = logging.StreamHandler(stream=stream)
+    if enable:
+        debug_handler.setLevel(logging.DEBUG)
+        debug_handler.setFormatter(logging.Formatter('%(asctime)s:%(name)s:%(levelname)s: %(message)s'))
+        return debug_handler
+    else:
+        return None
 
 
 class colours:

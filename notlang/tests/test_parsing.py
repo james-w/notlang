@@ -1,6 +1,6 @@
-from hypothesis import given, note, Settings
+from hypothesis import given
 from rpython.rlib.parsing.parsing import ParseError
-from testtools import TestCase
+from testtools.content import text_content
 from testtools.matchers import MatchesListwise
 
 from .. import ast, fmt, testing
@@ -10,16 +10,17 @@ from ..testing.strategies import ast as ast_strategies
 
 def parse(code):
     try:
-        return _parse(code, trace_lexer=True)
+        return _parse(code)
     except ParseError as e:
         print e.nice_error_message(source=code)
         raise
 
 
-class BasicParsingTests(TestCase):
+class BasicParsingTests(testing.TestCase):
     # TODO: some tests for the shape of the parse tree
 
     def assert_parses_ok(self, string):
+        self.addDetail('source', text_content(string))
         try:
             assert isinstance(parse(string), ast.Block)
         except ParseError as e:
@@ -175,7 +176,7 @@ class BasicParsingTests(TestCase):
         self.assert_parses_ok("a = new Tuple(B, C):\n    pass\n\n")
 
 
-class ASTTests(TestCase):
+class ASTTests(testing.TestCase):
 
     def test_Block(self):
         node = parse(" 1\n")
@@ -602,16 +603,19 @@ class ASTTests(TestCase):
         self.assertEqual("else", case.else_case.label.varname)
 
 
-class RoundtripTests(TestCase):
+class RoundtripTests(testing.HypothesisTestCase):
 
-    @given(ast_strategies.BlockStrategy(), settings=Settings())
+    @given(ast_strategies.BlockStrategy())
     def test_roundtrips(self, node):
         # Somewhat testing the formatter, but also
         # using the AST strategies to generate valid
         # source to try and parse, as generating
         # valid source is hard
-        source = fmt.Formatter().dispatch(node)
-        note(source)
-        ast = parse(source)
+        with self.capture_logs():
+            source = fmt.Formatter().dispatch(node)
+            def attach_source():
+                self.addDetail('source', text_content(source))
+            testing.if_final(attach_source)
+            ast = parse(source)
         # TODO: make it pass when we do this:
-        #self.assertEqual(node, ast)
+        # self.assertEqual(node, ast)

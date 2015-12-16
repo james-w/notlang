@@ -1,11 +1,9 @@
-from testtools import TestCase
-
-from .. import bytecode, codegen, objectspace
+from .. import bytecode, codegen, objectspace, testing
 from ..compilercontext import CompilerContext
 from ..testing import BytecodeMatches
 
 
-class CodeGenTests(TestCase):
+class CodeGenTests(testing.TestCase):
 
 
     def test_load_var(self):

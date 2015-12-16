@@ -1,4 +1,4 @@
-import sys
+import logging
 
 from rpython.rlib import jit
 from rpython.rlib.debug import make_sure_not_resized
@@ -6,6 +6,9 @@ from rpython.rlib.debug import make_sure_not_resized
 from . import bytecode, compiler
 from .objectspace import W_Code, W_Dict, W_Func, W_List, W_Tuple, W_Type, W_Int, W_IsInstance, W_Enum, is_builtin
 from .parsing import parse
+
+
+logger = logging.getLogger(__name__)
 
 
 def printable_loc(pc, code):
@@ -25,11 +28,11 @@ def make_type(name, bases, attrs):
 
 class Space(object):
 
-    def call_function(self, code, args, globals, locals, trace=False):
+    def call_function(self, code, args, globals, locals):
         child_f = Frame(self, code, globals, locals)
         for i, arg in enumerate(args):
             child_f.vars[i] = arg
-        return child_f.execute(trace=trace)
+        return child_f.execute()
 
 
 class Panic(Exception):
@@ -80,7 +83,7 @@ class Frame(object):
     def pop(self):
         return self.popmany(1)[0]
 
-    def execute(self, trace=False):
+    def execute(self):
         code = self.code
         pc = 0
         while True:
@@ -91,11 +94,7 @@ class Frame(object):
             lowarg = ord(code[pc + 2])
             arg = (higharg << 8) + lowarg
             pc += 3
-            if trace:
-                sys.stderr.write("instr: ")
-                sys.stderr.write(compiler.dump_instr(pc-3, c, arg, context=self))
-                sys.stderr.write(" " + repr([a for a in reversed(self.valuestack[:self.valuestack_pos])]))
-                sys.stderr.write("\n")
+            logger.debug("instr: " + compiler.dump_instr(pc-3, c, arg, context=self) + " " + repr([a for a in reversed(self.valuestack[:self.valuestack_pos])]))
             if c == bytecode.LOAD_CONSTANT:
                 w_constant = self.constants[arg]
                 self.push(w_constant)
@@ -180,7 +179,7 @@ class Frame(object):
                     for i, name in enumerate(self.names):
                         if self.vars[i] is not None:
                             globals[name] = self.vars[i]
-                    self.push(callable(self.space, fargs, globals, trace=trace))
+                    self.push(callable(self.space, fargs, globals))
             elif c == bytecode.MAKE_FUNCTION:
                 code_obj = self.pop()
                 if not isinstance(code_obj, W_Code):
@@ -221,12 +220,12 @@ class Frame(object):
                 assert False, "Unknown opcode: %d" % c
 
 
-def get_bytecode(source, trace_typer=False, trace_lexer=False):
-    return compiler.compile_ast(parse(source, trace_lexer=trace_lexer), trace_typer=trace_typer)
+def get_bytecode(source):
+    return compiler.compile_ast(parse(source))
 
 
-def interpret(source, trace=False, trace_typer=False, trace_lexer=False):
-    prog = get_bytecode(source, trace_typer=trace_typer, trace_lexer=trace_lexer)
+def interpret(source):
+    prog = get_bytecode(source)
     space = Space()
     globals = dict(List=W_List, Type=W_Type, Enum=W_Enum, Tuple=W_Tuple, isinstance=W_IsInstance)
-    return space.call_function(prog, [], globals, globals, trace=trace)
+    return space.call_function(prog, [], globals, globals)

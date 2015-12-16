@@ -1,9 +1,7 @@
-from testtools import TestCase
-
 from .. import fmt, parsing, testing
 
 
-class FormatterTests(TestCase):
+class FormatterTests(testing.TestCase):
 
     def setUp(self):
         super(FormatterTests, self).setUp()
@@ -155,7 +153,7 @@ class FormatterTests(TestCase):
         self.assertEqual("new Type(A, B(b)):\n    pass\n", fmt.Formatter().dispatch(t))
 
 
-class RoundtripTests(TestCase):
+class RoundtripTests(testing.TestCase):
 
     def test_int(self):
         source = "1\n"

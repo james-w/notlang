@@ -2,13 +2,25 @@
 """
 
 from argparse import ArgumentParser, FileType
+import logging
 import sys
 
 from rpython.rlib.parsing.parsing import ParseError
 from rpython.jit.codewriter.policy import JitPolicy
-from notlang.debug import add_debug_args, show_errors, trace_interp, trace_typer, trace_lexer
+from notlang.debug import add_debug_args, show_errors, make_debug_handler
 from notlang.interpreter import interpret
 from notlang.typer import NotNameError, NotTypeError
+
+
+def setup_logging(opts):
+    logger = logging.getLogger('notlang')
+    logger.setLevel(logging.INFO)
+    base_handler = logging.StreamHandler()
+    base_handler.setLevel(logging.INFO)
+    logger.addHandler(base_handler)
+    debug_handler = make_debug_handler(opts.debug)
+    if debug_handler is not None:
+        logger.addHandler(debug_handler)
 
 
 def main(argv):
@@ -19,8 +31,9 @@ def main(argv):
     data = opts.file.read()
     opts.file.close()
     do_raise = show_errors(opts)
+    setup_logging(opts)
     try:
-        interpret(data, trace=trace_interp(opts), trace_typer=trace_typer(opts), trace_lexer=trace_lexer(opts))
+        interpret(data)
     except (ParseError, NotNameError, NotTypeError) as e:
         print(e.nice_error_message(source=data, filename=opts.file.name))
         if do_raise:

@@ -1,10 +1,9 @@
-from testtools import TestCase
 from testtools.matchers import Equals
 
-from .. import graph
+from .. import graph, testing
 
 
-class ExpandEdgesTests(TestCase):
+class ExpandEdgesTests(testing.TestCase):
 
     def test_empty(self):
         self.assertThat({}, Equals(graph.expand_edges({})))
@@ -19,7 +18,7 @@ class ExpandEdgesTests(TestCase):
         self.assertThat({1: [2, 1], 2: [1, 2]}, Equals(graph.expand_edges({1: [2], 2: [1]})))
 
 
-class GetDisjointSets(TestCase):
+class GetDisjointSets(testing.TestCase):
 
     def test_empty(self):
         self.assertThat([], Equals(graph.get_disjoint_sets({}, [])))

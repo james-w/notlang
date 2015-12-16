@@ -1,9 +1,12 @@
-import sys
+from logging import getLogger
 
 from rpython.rlib.parsing import deterministic, regex
 from rpython.rlib.parsing.lexer import Lexer, SourcePos, Token
 
 from . import debug
+
+
+logger = getLogger(__name__)
 
 
 class AbstractIndentTrackingLexingDFARunner(deterministic.DFARunner):
@@ -23,10 +26,9 @@ class AbstractIndentTrackingLexingDFARunner(deterministic.DFARunner):
         self.check_indent = False
         self.indents = [0]
 
-    def find_next_token(self, trace=False):
+    def find_next_token(self):
         token = self._find_next_token()
-        if trace:
-            sys.stderr.write("lexer: token: " + debug.coloured(token.name, debug.colours.GREEN) + " " + debug.coloured(repr(token.source), debug.colours.BLUE) + " " + str(token.source_pos) + "\n")
+        logger.debug("token: " + debug.coloured(token.name, debug.colours.GREEN) + " " + debug.coloured(repr(token.source), debug.colours.BLUE) + " " + str(token.source_pos))
         return token
 
     def _find_next_token(self):
@@ -176,13 +178,13 @@ class IndentTrackingLexer(Lexer):
         return IndentTrackingLexingDFARunner(self.matcher, self.automaton, text,
                                              self.ignore, eof, token_class=token_class)
 
-    def tokenize(self, text, eof=False, trace=False):
+    def tokenize(self, text, eof=False):
         """Return a list of Token's from text."""
         r = self.get_runner(text, eof)
         result = []
         while 1:
             try:
-                tok = r.find_next_token(trace=trace)
+                tok = r.find_next_token()
                 result.append(tok)
             except StopIteration:
                 break

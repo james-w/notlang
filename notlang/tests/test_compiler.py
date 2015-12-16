@@ -1,13 +1,10 @@
-from operator import attrgetter
-
 from hypothesis import given, Settings
-from testtools import TestCase
 from rpython.rlib.parsing.lexer import SourcePos
 
 from .. import ast, bytecode, objectspace
 from ..compiler import Compiler
 from ..compilercontext import CompilerContext
-from ..testing import BytecodeMatches, ASTFactory
+from ..testing import BytecodeMatches, ASTFactory, HypothesisTestCase
 from ..testing.strategies import ast as ast_strats
 
 
@@ -51,9 +48,7 @@ def bytecode_to_expected(bc):
     return expected
 
 
-class TestCompiler(TestCase):
-
-    spos = SourcePos(0, 0, 0)
+class TestCompiler(HypothesisTestCase):
 
     def setUp(self):
         super(TestCompiler, self).setUp()
@@ -61,26 +56,30 @@ class TestCompiler(TestCase):
 
     @given(ast_strats.VariableStrategy())
     def test_variable(self, node):
-        ctx = compile(node, locals=[node.varname])
+        with self.capture_logs():
+            ctx = compile(node, locals=[node.varname])
         self.assertEqual([node.varname], ctx.names)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_VAR, 0]))
 
     @given(ast_strats.VariableStrategy())
     def test_global_variable(self, node):
-        ctx = compile(node)
+        with self.capture_logs():
+            ctx = compile(node)
         self.assertEqual([node.varname], ctx.names)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_GLOBAL, 0]))
 
     @given(ast_strats.IntStrategy())
     def test_constant_int(self, node):
-        ctx = compile(node)
+        with self.capture_logs():
+            ctx = compile(node)
         self.assertEqual(1, len(ctx.constants))
         self.assertEqual(node.intval, ctx.constants[0].intval)
         self.assertThat(ctx.data, BytecodeMatches([bytecode.LOAD_CONSTANT, 0]))
 
     @given(ast_strats.BinOpStrategy())
     def test_binary_operation(self, node):
-        ctx = compile(node)
+        with self.capture_logs():
+            ctx = compile(node)
         args_ctxs = chain_compile(node.args)
         self.assertEqual(len(args_ctxs[-1].constants), len(ctx.constants))
         self.assertThat(ctx.data,
@@ -90,7 +89,8 @@ class TestCompiler(TestCase):
 
     @given(ast_strats.AssignmentStrategy())
     def test_assignment(self, node):
-        ctx = compile(node)
+        with self.capture_logs():
+            ctx = compile(node)
         source_ctx = compile(node.source)
         self.assertEqual(len(source_ctx.constants), len(ctx.constants))
         self.assertIn(node.target.varname, ctx.names)
@@ -100,7 +100,8 @@ class TestCompiler(TestCase):
 
     @given(ast_strats.PrintStrategy())
     def test_print(self, node):
-        ctx = compile(node)
+        with self.capture_logs():
+            ctx = compile(node)
         args_ctx = compile(node.args[0])
         self.assertEqual(len(args_ctx.constants), len(ctx.constants))
         self.assertThat(ctx.data,
@@ -109,7 +110,8 @@ class TestCompiler(TestCase):
 
     @given(ast_strats.FunctionCallStrategy())
     def test_function(self, node):
-        ctx = compile(node)
+        with self.capture_logs():
+            ctx = compile(node)
         contexts = chain_compile(list(reversed(node.args)), names=[node.fname.varname], names_to_numbers={node.fname.varname: 0})
         if node.args:
             self.assertEqual(len(contexts[-1].constants), len(ctx.constants))
@@ -124,7 +126,8 @@ class TestCompiler(TestCase):
 
     @given(ast_strats.ConditionalStrategy(), settings=Settings(max_examples=10))
     def test_conditional(self, node):
-        ctx = compile(node)
+        with self.capture_logs():
+            ctx = compile(node)
         blocks = [node.condition, node.true_block]
         if node.false_block is not None:
             blocks.append(node.false_block)
@@ -144,7 +147,8 @@ class TestCompiler(TestCase):
 
     @given(ast_strats.WhileStrategy())
     def test_while(self, node):
-        ctx = compile(node)
+        with self.capture_logs():
+            ctx = compile(node)
         condition_ctx, block_ctx = chain_compile([node.condition, node.block])
         self.assertEqual(len(block_ctx.constants), len(ctx.constants))
         self.assertThat(ctx.data,
@@ -156,7 +160,8 @@ class TestCompiler(TestCase):
 
     @given(ast_strats.FuncDefStrategy())
     def test_function_defn(self, node):
-        ctx = compile(node)
+        with self.capture_logs():
+            ctx = compile(node)
         code_ctx = CompilerContext()
         for arg in node.args:
             code_ctx.register_var(arg)
@@ -179,7 +184,8 @@ class TestCompiler(TestCase):
 
     @given(ast_strats.ReturnStrategy())
     def test_return(self, node):
-        ctx = compile(node)
+        with self.capture_logs():
+            ctx = compile(node)
         if node.arg is not None:
             arg_ctx = compile(node.arg)
             num_constants = len(arg_ctx.constants)
@@ -193,7 +199,8 @@ class TestCompiler(TestCase):
 
     @given(ast_strats.NewTypeStrategy())
     def test_new_type(self, node):
-        ctx = compile(node)
+        with self.capture_logs():
+            ctx = compile(node)
         self.assertEqual(2 + 2 * len(node.source.options) if node.source.type_type == 'Enum' else 2, len(ctx.constants))
         self.assertIsInstance(ctx.constants[0], objectspace.W_String)
         self.assertEqual(node.target.varname, ctx.constants[0].strval)
@@ -249,7 +256,8 @@ class TestCompiler(TestCase):
 
     @given(ast_strats.PassStrategy())
     def test_Pass(self, node):
-        ctx = compile(node)
+        with self.capture_logs():
+            ctx = compile(node)
         self.assertEqual([], ctx.constants)
         self.assertEqual([], ctx.names)
         self.assertEqual([], ctx.data)
@@ -258,7 +266,8 @@ class TestCompiler(TestCase):
 
     @given(ast_strats.CaseStrategy())
     def test_Case(self, node):
-        ctx = compile(node)
+        with self.capture_logs():
+            ctx = compile(node)
         parts = []
         extra_names = []
         for case in node.cases:

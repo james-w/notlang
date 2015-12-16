@@ -3,20 +3,19 @@ from rpython.rlib.parsing.parsing import ParseError
 from .. import testing
 from ..interpreter import interpret as _interpret, Panic
 from ..typer import NotTypeError
-from testtools import TestCase
 from testtools.content import text_content
 
 
 def interpret(source, testcase):
     testcase.addDetail('source', text_content(source))
     try:
-        return _interpret(source, trace=True, trace_lexer=True, trace_typer=True)
+        return _interpret(source)
     except (ParseError, NotTypeError) as e:
         print e.nice_error_message(source=source)
         raise
 
 
-class VariableTests(TestCase):
+class VariableTests(testing.TestCase):
 
     def test_assign(self):
         ret = interpret("""
@@ -34,7 +33,7 @@ return a
         self.assertThat(ret, testing.IsW_Int(2))
 
 
-class BasicOpsTests(TestCase):
+class BasicOpsTests(testing.TestCase):
 
     def test_add(self):
         ret = interpret("""
@@ -53,7 +52,7 @@ return a - b
         self.assertThat(ret, testing.IsW_Int(2))
 
 
-class ControlFlowTests(TestCase):
+class ControlFlowTests(testing.TestCase):
 
     def test_if(self):
         ret = interpret("""
@@ -100,7 +99,7 @@ case y:
         self.assertEqual("Pattern match failure: 'Instance of Y'", e.msg.strval)
 
 
-class FunctionTests(TestCase):
+class FunctionTests(testing.TestCase):
 
     def test_call(self):
         ret = interpret("""
@@ -121,7 +120,7 @@ return foo(1)
         self.assertThat(ret, testing.IsW_Int(2))
 
 
-class TypeTests(TestCase):
+class TypeTests(testing.TestCase):
 
     def test_attribute(self):
         ret = interpret("""
@@ -147,7 +146,7 @@ return d.age()
         self.assertThat(ret, testing.IsW_Int(2))
 
 
-class BuiltinTests(TestCase):
+class BuiltinTests(testing.TestCase):
 
     def test_List(self):
         ret = interpret("""
@@ -157,7 +156,7 @@ return l.first()
         self.assertThat(ret, testing.IsW_Int(1))
 
 
-class TupleTests(TestCase):
+class TupleTests(testing.TestCase):
 
     def test_basic_types(self):
         ret = interpret("""
@@ -187,7 +186,7 @@ return t.first().a
         self.assertThat(ret, testing.IsW_Int(1))
 
 
-class EnumTests(TestCase):
+class EnumTests(testing.TestCase):
 
     def test_case(self):
         ret = interpret("""
