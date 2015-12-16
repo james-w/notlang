@@ -45,7 +45,7 @@ def enable_debug_logging(name):
     logger.setLevel(logging.DEBUG)
 
 
-def make_debug_handler(opts, stream=None, all_targets=False):
+def make_debug_handler(opts, stream=None, all_targets=False, include_time=True):
     enable = False
     for key, names in LOGGER_NAMES.items():
         if all_targets or key in opts:
@@ -55,7 +55,10 @@ def make_debug_handler(opts, stream=None, all_targets=False):
     debug_handler = logging.StreamHandler(stream=stream)
     if enable:
         debug_handler.setLevel(logging.DEBUG)
-        debug_handler.setFormatter(logging.Formatter('%(asctime)s:%(name)s:%(levelname)s: %(message)s'))
+        format_str = '%(name)s:%(levelname)s: %(message)s'
+        if include_time:
+            format_str = '%(asctime)s:' + format_str
+        debug_handler.setFormatter(logging.Formatter(format_str))
         return debug_handler
     else:
         return None

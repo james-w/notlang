@@ -22,7 +22,7 @@ from ..debug import make_debug_handler
 def capture_logs():
     logfile = StringIO()
     logger = logging.getLogger('notlang')
-    logger.addHandler(make_debug_handler([], all_targets=True, stream=logfile))
+    logger.addHandler(make_debug_handler([], all_targets=True, stream=logfile, include_time=False))
     return logfile
 
 

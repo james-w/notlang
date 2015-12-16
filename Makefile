@@ -11,6 +11,7 @@ ifdef TEST_FAILFAST
 else
 	TEST_FAILFAST = "100"
 endif
+HYPOTHESIS_PROFILE ?= dev
 
 build: deps $(TARGET)
 
@@ -31,10 +32,10 @@ clean:
 	find $(BASEDIR) -name \*.pyc -delete
 
 test:
-	$(VIRTUALENV_BIN)/py.test $(NAME) -k $(TEST_FILTER) --maxfail=$(TEST_FAILFAST)
+	$(VIRTUALENV_BIN)/py.test $(NAME) -k $(TEST_FILTER) --maxfail=$(TEST_FAILFAST) --hypothesis-profile=$(HYPOTHESIS_PROFILE)
 
 profile_tests:
-	$(VIRTUALENV_BIN)/python -m cProfile -o profile $(VIRTUALENV_BIN)/py.test $(NAME) -k $(TEST_FILTER)
+	$(VIRTUALENV_BIN)/python -m cProfile -o profile $(VIRTUALENV_BIN)/py.test $(NAME) -k $(TEST_FILTER) --hypothesis-profile=$(HYPOTHESIS_PROFILE)
 	python -c "import pstats; p = pstats.Stats('profile'); p.strip_dirs(); p.sort_stats('cumtime'); p.print_stats(50); p.sort_stats('tottime'); p.print_stats(50)"
 
 autotest:
