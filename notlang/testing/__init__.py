@@ -83,198 +83,118 @@ class BytecodeMatches(object):
         return self.matcher.match(map(self.name, self.bc_to_py(actual)))
 
 
-class IsType(object):
-
-    def __init__(self, name):
-        def get_name(a):
-            return getattr(a, 'name', None)
-        def get_class(a):
-            return getattr(a, '__class__', None)
-        self.matcher = MatchesAll(
-            AfterPreprocessing(get_class, Is(typer.Type)),
-            AfterPreprocessing(get_name, Equals(name)),
-        )
-
-    def __str__(self):
-        return str(self.matcher)
-
-    def match(self, actual):
-        return self.matcher.match(actual)
+def IsType(name):
+    def get_name(a):
+        return getattr(a, 'name', None)
+    def get_class(a):
+        return getattr(a, '__class__', None)
+    return MatchesAll(
+        AfterPreprocessing(get_class, Is(typer.Type)),
+        AfterPreprocessing(get_name, Equals(name)),
+    )
 
 
-class IsParametricType(object):
-
-    def __init__(self, types):
-        def get_types(a):
-            return getattr(a, 'types', None)
-        def get_class(a):
-            return getattr(a, '__class__', None)
-        self.matcher = MatchesAll(
-            AfterPreprocessing(get_class, Is(typer.ParameterisedType)),
-            AfterPreprocessing(get_types, MatchesListwise(types)),
-        )
-
-    def __str__(self):
-        return str(self.matcher)
-
-    def match(self, actual):
-        return self.matcher.match(actual)
+def IsParametricType(types):
+    def get_types(a):
+        return getattr(a, 'types', None)
+    def get_class(a):
+        return getattr(a, '__class__', None)
+    return MatchesAll(
+        AfterPreprocessing(get_class, Is(typer.ParameterisedType)),
+        AfterPreprocessing(get_types, MatchesListwise(types)),
+    )
 
 
-class IsTypeExpr(object):
-
-    def __init__(self, name):
-        def get_name(a):
-            return getattr(a, 'name', None)
-        self.matcher = MatchesAll(
-            IsInstance(typer.TypeExpr),
-            AfterPreprocessing(get_name, Equals(name))
-        )
-
-    def __str__(self):
-        return str(self.matcher)
-
-    def match(self, actual):
-        return self.matcher.match(actual)
+def IsTypeExpr(name):
+    def get_name(a):
+        return getattr(a, 'name', None)
+    return MatchesAll(
+        IsInstance(typer.TypeExpr),
+        AfterPreprocessing(get_name, Equals(name))
+    )
 
 
-class IsTypeVariable(object):
-
-    def __init__(self, name):
-        def get_name(a):
-            return getattr(a, 'name', None)
-        self.matcher = MatchesAll(
-            IsInstance(typer.TypeVariable),
-            AfterPreprocessing(get_name, Equals(name))
-        )
-
-    def __str__(self):
-        return str(self.matcher)
-
-    def match(self, actual):
-        return self.matcher.match(actual)
+def IsTypeVariable(name):
+    def get_name(a):
+        return getattr(a, 'name', None)
+    return MatchesAll(
+        IsInstance(typer.TypeVariable),
+        AfterPreprocessing(get_name, Equals(name))
+    )
 
 
-class IsFunctionType(object):
-
-    def __init__(self, args, rtype):
-        def get_args(a):
-            return getattr(a, 'args', [])
-        def get_rtype(a):
-            return getattr(a, 'rtype', None)
-        self.matcher = MatchesAll(
-            IsInstance(typer.FunctionType),
-            AfterPreprocessing(get_args, MatchesListwise(args)),
-            AfterPreprocessing(get_rtype, rtype),
-        )
-
-    def __str__(self):
-        return str(self.matcher)
-
-    def match(self, actual):
-        return self.matcher.match(actual)
+def IsFunctionType(args, rtype):
+    def get_args(a):
+        return getattr(a, 'args', [])
+    def get_rtype(a):
+        return getattr(a, 'rtype', None)
+    return MatchesAll(
+        IsInstance(typer.FunctionType),
+        AfterPreprocessing(get_args, MatchesListwise(args)),
+        AfterPreprocessing(get_rtype, rtype),
+    )
 
 
-class IsUnionType(object):
-
-    def __init__(self, subtypes):
-        def get_subtypes(a):
-            return getattr(a, 'subtypes', [])
-        self.matcher = MatchesAll(
-            IsInstance(typer.UnionType),
-            AfterPreprocessing(get_subtypes, MatchesListwise(subtypes)),
-        )
-
-    def __str__(self):
-        return str(self.matcher)
-
-    def match(self, actual):
-        return self.matcher.match(actual)
+def IsUnionType(subtypes):
+    def get_subtypes(a):
+        return getattr(a, 'subtypes', [])
+    return MatchesAll(
+        IsInstance(typer.UnionType),
+        AfterPreprocessing(get_subtypes, MatchesListwise(subtypes)),
+    )
 
 
-class IsW_Int(object):
-
-    def __init__(self, value):
-        def get_val(a):
-            return getattr(a, 'intval', None)
-        self.matcher = MatchesAll(
-            IsInstance(objectspace.W_Int),
-            AfterPreprocessing(get_val, Equals(value)),
-        )
-
-    def __str__(self):
-        return str(self.matcher)
-
-    def match(self, actual):
-        return self.matcher.match(actual)
+def IsW_Int(value):
+    def get_val(a):
+        return getattr(a, 'intval', None)
+    return MatchesAll(
+        IsInstance(objectspace.W_Int),
+        AfterPreprocessing(get_val, Equals(value)),
+    )
 
 
-class IsAttributeAccess(object):
-
-    def __init__(self, type, name):
-        def get_name(a):
-            return getattr(a, 'name', None)
-        def get_type(a):
-            return getattr(a, 'type', None)
-        self.matcher = MatchesAll(
-            IsInstance(typer.AttributeAccess),
-            AfterPreprocessing(get_type, type),
-            AfterPreprocessing(get_name, Equals(name)),
-        )
-
-    def __str__(self):
-        return str(self.matcher)
-
-    def match(self, actual):
-        return self.matcher.match(actual)
+def IsAttributeAccess(type, name):
+    def get_name(a):
+        return getattr(a, 'name', None)
+    def get_type(a):
+        return getattr(a, 'type', None)
+    return MatchesAll(
+        IsInstance(typer.AttributeAccess),
+        AfterPreprocessing(get_type, type),
+        AfterPreprocessing(get_name, Equals(name)),
+    )
 
 
-class ConstraintMatches(object):
-
-    def __init__(self, a, constraint, b, positions):
-        def get_a(o):
-            return getattr(o, 'a', None)
-        def get_b(o):
-            return getattr(o, 'b', None)
-        def get_constraint(o):
-            return getattr(o, 'constraint', None)
-        def get_positions(o):
-            return getattr(o, 'positions', None)
-        self.matcher = MatchesAll(
-            IsInstance(typer.Constraint),
-            AfterPreprocessing(get_a, a),
-            AfterPreprocessing(get_b, b),
-            AfterPreprocessing(get_constraint, Equals(constraint)),
-            AfterPreprocessing(get_positions, MatchesListwise(positions)),
-        )
-
-    def __str__(self):
-        return str(self.matcher)
-
-    def match(self, actual):
-        return self.matcher.match(actual)
+def ConstraintMatches(a, constraint, b, positions):
+    def get_a(o):
+        return getattr(o, 'a', None)
+    def get_b(o):
+        return getattr(o, 'b', None)
+    def get_constraint(o):
+        return getattr(o, 'constraint', None)
+    def get_positions(o):
+        return getattr(o, 'positions', None)
+    return MatchesAll(
+        IsInstance(typer.Constraint),
+        AfterPreprocessing(get_a, a),
+        AfterPreprocessing(get_b, b),
+        AfterPreprocessing(get_constraint, Equals(constraint)),
+        AfterPreprocessing(get_positions, MatchesListwise(positions)),
+    )
 
 
-class IsTypeReference(object):
-
-    def __init__(self, name, type_params=None):
-        def get_name(a):
-            return getattr(a, 'name', None)
-        def get_type_params(a):
-            return getattr(a, 'type_params', [])
-        if type_params is None:
-            type_params = []
-        self.matcher = MatchesAll(
-            IsInstance(ast.TypeReference),
-            AfterPreprocessing(get_name, Equals(name)),
-            AfterPreprocessing(get_type_params, MatchesListwise(type_params)),
-        )
-
-    def __str__(self):
-        return str(self.matcher)
-
-    def match(self, actual):
-        return self.matcher.match(actual)
+def IsTypeReference(name, type_params=None):
+    def get_name(a):
+        return getattr(a, 'name', None)
+    def get_type_params(a):
+        return getattr(a, 'type_params', [])
+    if type_params is None:
+        type_params = []
+    return MatchesAll(
+        IsInstance(ast.TypeReference),
+        AfterPreprocessing(get_name, Equals(name)),
+        AfterPreprocessing(get_type_params, MatchesListwise(type_params)),
+    )
 
 
 class ASTFactory(object):
