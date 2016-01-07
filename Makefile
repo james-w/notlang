@@ -25,7 +25,7 @@ deps: $(VIRTUALENV)
 	$(VIRTUALENV_BIN)/python setup.py develop
 
 $(VIRTUALENV):
-	virtualenv $(VIRTUALENV) --python $(which /usr/bin/pypy)
+	virtualenv $(VIRTUALENV) --python $$(which /usr/bin/pypy)
 
 clean:
 	[ ! -f $(TARGET) ] || rm $(TARGET)
