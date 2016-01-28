@@ -69,7 +69,7 @@ class BytecodeMatches(object):
         return (bytecode.reverse_map.get(pair[0]), pair[1])
 
     def bc_to_py(self, bc):
-        for i in range(len(bc), step=bytecode.INSTRUCTION_SIZE):
+        for i in range(0, len(bc), bytecode.INSTRUCTION_SIZE):
             opcode = ord(bc[i])
             high = ord(bc[i+1])
             low = ord(bc[i+2])

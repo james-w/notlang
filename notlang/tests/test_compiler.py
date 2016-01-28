@@ -1,5 +1,4 @@
-from hypothesis import given, Settings
-from rpython.rlib.parsing.lexer import SourcePos
+from hypothesis import given
 
 from .. import ast, bytecode, objectspace
 from ..compiler import Compiler
@@ -39,7 +38,7 @@ def chain_compile(nodes, locals=None, names=None, names_to_numbers=None):
 
 def bytecode_to_expected(bc):
     expected = []
-    for i in range(len(bc), step=bytecode.INSTRUCTION_SIZE):
+    for i in range(0, len(bc), bytecode.INSTRUCTION_SIZE):
         opcode = ord(bc[i])
         high = ord(bc[i+1])
         low = ord(bc[i+2])
@@ -124,7 +123,7 @@ class TestCompiler(HypothesisTestCase):
         expected_bytecode += [bytecode.CALL_FUNCTION, len(node.args)]
         self.assertThat(ctx.data, BytecodeMatches(expected_bytecode))
 
-    @given(ast_strats.ConditionalStrategy(), settings=Settings(max_examples=10))
+    @given(ast_strats.ConditionalStrategy())
     def test_conditional(self, node):
         with self.capture_logs():
             ctx = compile(node)

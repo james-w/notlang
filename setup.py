@@ -4,7 +4,7 @@ setup(
     name="notlang",
     version="0",
     install_requires=[
-        'hypothesis',
+        'hypothesis>=2.0.0',
         'pyrsistent',
         'pytest',
         'rpython',

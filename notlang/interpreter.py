@@ -212,7 +212,7 @@ class Frame(object):
                 self.push(val2)
             elif c == bytecode.BUILD_TUPLE:
                 fargs = self.popmany(arg)
-                self.push(W_Tuple(fargs))
+                self.push(W_Tuple(tuple(fargs)))
             elif c == bytecode.PANIC:
                 msg = self.pop()
                 raise Panic(msg)

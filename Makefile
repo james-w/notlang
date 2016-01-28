@@ -2,7 +2,7 @@ NAME = notlang
 BASEDIR = $(NAME)
 MAIN = target$(NAME).py
 TARGET = $(patsubst %.py,%-c,$(MAIN))
-VIRTUALENV = virtualenv
+VIRTUALENV ?= virtualenv
 VIRTUALENV_BIN = $(VIRTUALENV)/bin
 
 TEST_FILTER ?= ""
@@ -25,7 +25,7 @@ deps: $(VIRTUALENV)
 	$(VIRTUALENV_BIN)/python setup.py develop
 
 $(VIRTUALENV):
-	virtualenv $(VIRTUALENV) --python $$(which /usr/bin/pypy)
+	virtualenv $(VIRTUALENV)
 
 clean:
 	[ ! -f $(TARGET) ] || rm $(TARGET)
@@ -45,5 +45,11 @@ check: test
 
 lint:
 	pyflakes $(BASEDIR)/*.py $(BASEDIR)/tests/*.py $(MAIN) $(BASEDIR)/bin/*.py
+
+docker-setup:
+	docker build -t $(NAME) .
+
+docker-test:
+	docker run -v $(CURDIR):/notlang $(NAME)
 
 .PHONY: clean package-deps lint test check deps build profile_tests
