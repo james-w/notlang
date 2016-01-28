@@ -50,6 +50,6 @@ docker-setup:
 	docker build -t $(NAME) .
 
 docker-test:
-	docker run -v $(CURDIR):/notlang $(NAME)
+	docker run -t -v $(CURDIR):/notlang $(NAME)
 
 .PHONY: clean package-deps lint test check deps build profile_tests
